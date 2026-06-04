@@ -5,17 +5,26 @@ from shared.response import Response
 
 
 def main(request: Request) -> Response:
-    if request.body == "404":
-        return Response(
-            body={
-                "message": "404 Not Found",
-            },
-            status_code=404,
-        )
-    return Response(
-        body={
-            "message": "Hello from Python on OpenFaaS",
-            "version": "1.0.24",
+    match request.body:
+        case {"404": "404"}:
+            response = Response(
+                body={
+                    "message": "404 Not Found",
+                },
+                status_code=404,
+            )
+        case {"500": "500"}:
+            response = Response(
+                body={
+                    "message": "500 Not Found",
+                },
+                status_code=500,
+            )
+        case _:  
+            response = Response(
+                body={
+                    "message": "Hello from Python on OpenFaaS",
+                    "version": "1.0.25",
             "random_int": random.randint(1, 100),
             "df_head": pd.DataFrame({
                 "col1": [1, 2, 3, 4, 5],
@@ -26,3 +35,5 @@ def main(request: Request) -> Response:
         },
         status_code=200,
     )
+
+    return response
