@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.requests import Request as FastAPIRequest
 from shared.request import Request
+from shared.auto_tracer import install
 from src.main import main
 
 app = FastAPI()
+install(["src"])
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])

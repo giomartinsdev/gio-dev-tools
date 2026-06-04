@@ -16,12 +16,7 @@ def main(request: Request) -> Response:
                 status_code=404,
             )
         case {"500": "500"}:
-            response = Response(
-                body={
-                    "message": "500 Internal Server Error",
-                },
-                status_code=500,
-            )
+            raise ValueError("500 Internal Server Error")
         case _:  
             response = Response(
                 body={
