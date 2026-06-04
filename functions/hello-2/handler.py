@@ -6,7 +6,7 @@ def handle(req):
         data = json.loads(req) if req else {}
     except json.JSONDecodeError:
         data = {}
-    return json.dumps({"function": "hello-2", "input": data})
+    return json.dumps({"function": "hello-2-abc", "input": data})
 
 if __name__ == "__main__":
     req = sys.stdin.read()
