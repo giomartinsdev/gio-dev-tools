@@ -5,7 +5,7 @@ def handle(req):
     return json.dumps({
         "function": "hello-2",
         "input": req,
-        "version": "1.0.13"
+        "version": "1.0.14"
     })
 
 if __name__ == "__main__":
