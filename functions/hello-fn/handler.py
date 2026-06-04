@@ -1,15 +1,15 @@
+from shared.auto_trace import install
+install(["src"])
+
 from fastapi import FastAPI
 from fastapi.requests import Request as FastAPIRequest
 from shared.request import Request
-from shared.auto_trace import install
 from src.main import main
 
-install(["src"])
 app = FastAPI()
-
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def handle(fastapi_request: FastAPIRequest):
-    req = await Request.from_http(fastapi_request)
+    req = await Request.from_fastapi(fastapi_request)
     res = main(req).send()
     return res
