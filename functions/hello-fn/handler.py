@@ -1,14 +1,14 @@
-import sys
+from fastapi import FastAPI
+from fastapi.requests import Request as FastAPIRequest
 from shared.request import Request
 from src.main import main
 
-
-def handle(raw_body: str) -> str:
-    return main(
-        Request(raw_body)
-    ).send()
+app = FastAPI()
 
 
-if __name__ == "__main__":
-    raw_body = sys.stdin.read()
-    sys.stdout.write(handle(raw_body))
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def handle(fastapi_request: FastAPIRequest):
+    request = await Request.from_http(fastapi_request)
+    response = main(request)
+    response.headers["X-Function-Id"] = request.function_id
+    return response.send()
