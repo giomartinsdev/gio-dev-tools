@@ -10,6 +10,6 @@ app = FastAPI()
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def handle(fastapi_request: FastAPIRequest):
-    req = await Request.from_fastapi(fastapi_request)
+    req = await Request.from_http(fastapi_request)
     res = main(req).send()
     return res
