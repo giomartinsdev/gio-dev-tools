@@ -1,12 +1,8 @@
 import sys
-import json
+from main import MainHandler
 
 def handle(req):
-    try:
-        data = json.loads(req) if req else {}
-    except json.JSONDecodeError:
-        data = {}
-    return json.dumps({"function": "hello-1", "input": data})
+    return MainHandler().handle(req)
 
 if __name__ == "__main__":
     req = sys.stdin.read()
