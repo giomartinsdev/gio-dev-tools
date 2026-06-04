@@ -109,7 +109,7 @@ jobs:
               --image re.giomartins.dev/${{ matrix.function }}:latest \
               --name ${{ matrix.function }} \
               --gateway http://127.0.0.1:8080 \
-              --env OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.giomartins.dev \
+              --env OTEL_EXPORTER_OTLP_ENDPOINT=https://optel.giomartins.dev \
               --env OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
               --env "OTEL_EXPORTER_OTLP_HEADERS=CF-Access-Client-Id=${{ secrets.CF_ACCESS_CLIENT_ID }},CF-Access-Client-Secret=${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
               --env OTEL_SERVICE_NAME=${{ matrix.function }} \
