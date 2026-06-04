@@ -9,14 +9,8 @@ ARG FUNCTION_DIR
 WORKDIR /app
 
 COPY ${FUNCTION_DIR}/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir \
-    opentelemetry-distro \
-    opentelemetry-exporter-otlp-proto-http \
-    opentelemetry-instrumentation-fastapi \
-    opentelemetry-instrumentation-httpx \
-    opentelemetry-instrumentation-logging && \
-    opentelemetry-bootstrap -a install
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY shared/ shared/
 COPY ${FUNCTION_DIR}/ .

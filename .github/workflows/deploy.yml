@@ -54,6 +54,9 @@ jobs:
             echo "path=Dockerfile" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build e push
         uses: docker/build-push-action@v6
         with:
@@ -64,6 +67,8 @@ jobs:
           tags: |
             re.giomartins.dev/${{ matrix.function }}:latest
             re.giomartins.dev/${{ matrix.function }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.function }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.function }}
 
       - name: Instala cloudflared
         run: |
