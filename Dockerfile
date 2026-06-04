@@ -1,23 +1,33 @@
-FROM ghcr.io/openfaas/of-watchdog:0.9.15 AS watchdog
+FROM ghcr.io/openfaas/classic-watchdog:latest AS watchdog
 
 FROM python:3.11-slim
 
 COPY --from=watchdog /fwatchdog /usr/bin/fwatchdog
 RUN chmod +x /usr/bin/fwatchdog
 
-ARG FUNCTION_DIR
 WORKDIR /app
-
-COPY ${FUNCTION_DIR}/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    opentelemetry-distro \
+    opentelemetry-exporter-otlp-proto-grpc \
+    opentelemetry-instrumentation-fastapi \
+    opentelemetry-instrumentation-httpx \
+    opentelemetry-instrumentation-logging && \
+    opentelemetry-bootstrap -a install
 
-COPY shared/ shared/
-COPY ${FUNCTION_DIR}/ .
+COPY . .
 
+ENV fprocess="opentelemetry-instrument uvicorn handler:app --host 0.0.0.0 --port 5000"
 ENV mode="http"
-ENV fprocess="uvicorn handler:app --host 0.0.0.0 --port 5000"
 ENV upstream_url="http://127.0.0.1:5000"
 
-HEALTHCHECK --interval=5s CMD curl -sf http://localhost:8080/_/health || exit 1
+ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://SEU_IP:4317"
+ENV OTEL_SERVICE_NAME="hello-fn"
+ENV OTEL_TRACES_EXPORTER="otlp"
+ENV OTEL_METRICS_EXPORTER="none"
+ENV OTEL_LOGS_EXPORTER="none"
+ENV OTEL_PYTHON_LOG_CORRELATION="true"
 
+HEALTHCHECK --interval=5s CMD curl -sf http://localhost:8080/_/health || exit 1
 CMD ["/usr/bin/fwatchdog"]

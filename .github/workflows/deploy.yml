@@ -16,13 +16,12 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Detect functions changes
+      - name: Detecta funções alteradas
         id: changes
         run: |
           CHANGED=$(git diff --name-only HEAD~1 HEAD \
             | grep '^functions/' \
             | cut -d'/' -f2 \
-            | grep -v '^shared$' \
             | sort -u \
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
@@ -54,25 +53,24 @@ jobs:
             echo "path=Dockerfile" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push
+      - name: Build e push
         uses: docker/build-push-action@v6
         with:
-          context: functions
+          context: functions/${{ matrix.function }}
           file: ${{ steps.dockerfile.outputs.path }}
-          build-args: FUNCTION_DIR=${{ matrix.function }}
           push: true
           tags: |
             re.giomartins.dev/${{ matrix.function }}:latest
             re.giomartins.dev/${{ matrix.function }}:${{ github.sha }}
 
-      - name: Install cloudflared
+      - name: Instala cloudflared
         run: |
           curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
             -o cloudflared
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
 
-      - name: Configure SSH
+      - name: Configura SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
@@ -84,7 +82,7 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
           EOF
 
-      - name: Pull, clean and deploy
+      - name: Pull, limpa e deploya
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
             sudo ctr -n openfaas-fn images pull \
@@ -96,10 +94,10 @@ jobs:
 
             for i in $(seq 1 30); do
               if ! sudo ctr -n openfaas-fn containers list | grep -q "^${{ matrix.function }}"; then
-                echo "Cleaned after ${i}s"
+                echo "Limpo após ${i}s"
                 break
               fi
-              echo "Waiting... ${i}s"
+              echo "Aguardando... ${i}s"
               sleep 1
             done
 
@@ -108,5 +106,13 @@ jobs:
             faas-cli deploy \
               --image re.giomartins.dev/${{ matrix.function }}:latest \
               --name ${{ matrix.function }} \
-              --gateway http://127.0.0.1:8080
+              --gateway http://127.0.0.1:8080 \
+              --env OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.giomartins.dev \
+              --env OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
+              --env "OTEL_EXPORTER_OTLP_HEADERS=CF-Access-Client-Id=${{ secrets.CF_ACCESS_CLIENT_ID }},CF-Access-Client-Secret=${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
+              --env OTEL_SERVICE_NAME=${{ matrix.function }} \
+              --env OTEL_TRACES_EXPORTER=otlp \
+              --env OTEL_METRICS_EXPORTER=none \
+              --env OTEL_LOGS_EXPORTER=none \
+              --env OTEL_PYTHON_LOG_CORRELATION=true
           EOF
