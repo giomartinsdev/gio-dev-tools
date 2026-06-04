@@ -5,6 +5,13 @@ from shared.response import Response
 
 
 def main(request: Request) -> Response:
+    if request.body == "404":
+        return Response(
+            body={
+                "message": "404 Not Found",
+            },
+            status_code=404,
+        )
     return Response(
         body={
             "message": "Hello from Python on OpenFaaS",
