@@ -82,12 +82,17 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
           EOF
 
-      - name: Força pull da nova imagem
+      - name: Força pull e limpa container antigo
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "sudo ctr -n openfaas-fn images pull \
-            --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
-            re.giomartins.dev/${{ matrix.function }}:latest"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
+            sudo ctr -n openfaas-fn images pull \
+              --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
+              re.giomartins.dev/${{ matrix.function }}:latest
+            sudo ctr -n openfaas-fn tasks kill ${{ matrix.function }} 2>/dev/null || true
+            sleep 2
+            sudo ctr -n openfaas-fn tasks rm ${{ matrix.function }} 2>/dev/null || true
+            sudo ctr -n openfaas-fn containers rm ${{ matrix.function }} 2>/dev/null || true
+          EOF
 
       - name: Instala faas-cli
         run: curl -sSL https://cli.openfaas.com | sudo sh
