@@ -46,13 +46,4 @@ class Request:
         return self._raw_body
 
     def __repr__(self) -> str:
-        return (
-            f"Request("
-            f"function_id={self.function_id!r}, "
-            f"method={self.method!r}, "
-            f"path={self.path!r}, "
-            f"query={self.query!r}, "
-            f"headers={self.headers!r}, "
-            f"body={self.body!r}"
-            f")"
-        )
+        return json.dumps(self.__dict__, default=str)
