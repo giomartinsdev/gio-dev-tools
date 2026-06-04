@@ -86,7 +86,7 @@ jobs:
       - name: Deploy da função
         run: |
           faas-cli deploy \
-            --image re.giomartins.dev/${{ matrix.function }}:${{ github.sha }} \
+            --image re.giomartins.dev/${{ matrix.function }}:latest \
             --name ${{ matrix.function }} \
             --gateway ${{ secrets.OPENFAAS_URL }}
         env:
