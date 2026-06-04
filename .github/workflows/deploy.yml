@@ -63,6 +63,32 @@ jobs:
             re.giomartins.dev/${{ matrix.function }}:latest
             re.giomartins.dev/${{ matrix.function }}:${{ github.sha }}
 
+      - name: Instala cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Configura SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >> ~/.ssh/config << EOF
+          Host ${{ secrets.SSH_HOST }}
+            ProxyCommand cloudflared access ssh --hostname %h
+            StrictHostKeyChecking no
+            IdentityFile ~/.ssh/id_ed25519
+          EOF
+
+      - name: Força pull da nova imagem
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "sudo ctr -n openfaas-fn images pull \
+            --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
+            re.giomartins.dev/${{ matrix.function }}:latest"
+
       - name: Instala faas-cli
         run: curl -sSL https://cli.openfaas.com | sudo sh
 
