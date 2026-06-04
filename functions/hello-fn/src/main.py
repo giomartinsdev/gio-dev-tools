@@ -23,7 +23,7 @@ def handle_200(request: Request):
     return Response(
         body={
             "message": "Hello from Python on OpenFaaS",
-            "version": "1.0.40",
+            "version": "1.0.41",
             "random_int": random.randint(1, 100),
             "df_head": pd.DataFrame({
                 "col1": [1, 2, 3, 4, 5],
