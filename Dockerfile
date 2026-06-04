@@ -11,8 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY handler.py .
 
 ENV fprocess="python handler.py"
-ENV mode="http"
-ENV upstream_url="http://127.0.0.1:8000"
 
 HEALTHCHECK --interval=5s CMD curl -sf http://localhost:8080/_/health || exit 1
 
