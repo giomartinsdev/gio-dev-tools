@@ -16,7 +16,7 @@ def main(event, context):
         "statusCode": 200,
         "body": {
             "message": "Hello from Python on OpenFaaS",
-            "version": "1.0.18",
+            "version": "1.0.19",
             "random_int": random.randint(1, 100),
             "df_head": generate_mock_df().head().to_dict()
         },
