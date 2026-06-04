@@ -26,7 +26,7 @@ def main(request: Request) -> Response:
             response = Response(
                 body={
                     "message": "Hello from Python on OpenFaaS",
-                    "version": "1.0.28",
+                    "version": "1.0.29",
                     "random_int": random.randint(1, 100),
                     "df_head": pd.DataFrame({
                         "col1": [1, 2, 3, 4, 5],
