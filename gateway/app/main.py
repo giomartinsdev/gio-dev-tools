@@ -53,6 +53,6 @@ async def proxy(function_name: str, request: Request, path: str = ""):
 @app.get("/health")
 def health():
     return {
-        "status": "OK"
-        "faas_gateway_url": FAAS_GATEWAY_URL
+        "status": "OK",
+        "faas_gateway_url": FAAS_GATEWAY_URL,
     }
