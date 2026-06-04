@@ -22,6 +22,7 @@ jobs:
           CHANGED=$(git diff --name-only HEAD~1 HEAD \
             | grep '^functions/' \
             | cut -d'/' -f2 \
+            | grep -v '^shared$' \
             | sort -u \
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
@@ -56,8 +57,9 @@ jobs:
       - name: Build e push
         uses: docker/build-push-action@v6
         with:
-          context: functions/${{ matrix.function }}
+          context: functions
           file: ${{ steps.dockerfile.outputs.path }}
+          build-args: FUNCTION_DIR=${{ matrix.function }}
           push: true
           tags: |
             re.giomartins.dev/${{ matrix.function }}:latest
