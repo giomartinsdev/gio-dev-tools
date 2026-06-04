@@ -4,5 +4,6 @@ class MainHandler:
     def handle(req):
         return json.dumps({
             "function": "hello-2-a",
-            "input": req.body
+            "input": req.body,
+            "version": "1.0.2"
         })
