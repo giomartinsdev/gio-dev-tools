@@ -16,7 +16,7 @@ def main(request: Request) -> Response:
         case {"500": "500"}:
             response = Response(
                 body={
-                    "message": "500 Not Found",
+                    "message": "500 Internal Server Error",
                 },
                 status_code=500,
             )
