@@ -10,7 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY handler.py .
 
-ENV fprocess="python handler.py"
+ENV fprocess="python3 handler.py"
 
 HEALTHCHECK --interval=5s CMD curl -sf http://localhost:8080/_/health || exit 1
 
