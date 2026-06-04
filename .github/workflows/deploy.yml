@@ -82,6 +82,28 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
           EOF
 
+      - name: Pull, limpa e aguarda
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
+            sudo ctr -n openfaas-fn images pull \
+              --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
+              re.giomartins.dev/${{ matrix.function }}:latest
+
+            faas-cli remove ${{ matrix.function }} \
+              --gateway http://127.0.0.1:8080 || true
+
+            for i in $(seq 1 30); do
+              if ! sudo ctr -n openfaas-fn containers list | grep -q "${{ matrix.function }}"; then
+                echo "Container removido após ${i}s"
+                break
+              fi
+              echo "Aguardando cleanup... ${i}s"
+              sleep 1
+            done
+
+            sudo ctr -n openfaas-fn snapshots rm ${{ matrix.function }}-snapshot 2>/dev/null || true
+          EOF
+
       - name: Instala faas-cli
         run: curl -sSL https://cli.openfaas.com | sudo sh
 
@@ -92,29 +114,6 @@ jobs:
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Remove função existente
-        run: |
-          faas-cli remove ${{ matrix.function }} \
-            --gateway ${{ secrets.OPENFAAS_URL }} || true
-          sleep 3
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Força pull e limpa container antigo
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
-            sudo ctr -n openfaas-fn images pull \
-              --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
-              re.giomartins.dev/${{ matrix.function }}:latest
-            sudo ctr -n openfaas-fn tasks kill ${{ matrix.function }} 2>/dev/null || true
-            sleep 5
-            sudo ctr -n openfaas-fn tasks rm ${{ matrix.function }} 2>/dev/null || true
-            sudo ctr -n openfaas-fn containers rm ${{ matrix.function }} 2>/dev/null || true
-            sudo ctr -n openfaas-fn snapshots rm ${{ matrix.function }}-snapshot 2>/dev/null || true
-            sleep 2
-          EOF
 
       - name: Deploy da função
         run: |
