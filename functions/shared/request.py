@@ -45,5 +45,16 @@ class Request:
                 pass
         return self._raw_body
 
+    def to_dict(self) -> dict:
+        return {
+            "function_id": self.function_id,
+            "method": self.method,
+            "path": self.path,
+            "query_string": self.query_string,
+            "query": self.query,
+            "headers": self.headers,
+            "body": self.body,
+        }
+
     def __repr__(self) -> str:
-        return json.dumps(self.__dict__, default=str)
+        return json.dumps(self.to_dict(), default=str)

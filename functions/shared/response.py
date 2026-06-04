@@ -27,6 +27,11 @@ class Response:
         except OSError:
             pass
 
+        def _serialize(obj):
+            if hasattr(obj, "to_dict"):
+                return obj.to_dict()
+            return str(obj)
+
         if isinstance(self.body, (dict, list)):
-            return json.dumps(self.body, default=str)
+            return json.dumps(self.body, default=_serialize)
         return str(self.body)
