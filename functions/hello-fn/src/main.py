@@ -38,5 +38,5 @@ def main(request: Request) -> Response:
                 status_code=200,
             )
 
-    logger.info(response.to_dict())
+    logger.info(response)
     return response
