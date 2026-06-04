@@ -4,8 +4,8 @@ from shared.request import Request
 from shared.auto_trace import install
 from src.main import main
 
-app = FastAPI()
 install(["src"])
+app = FastAPI()
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
