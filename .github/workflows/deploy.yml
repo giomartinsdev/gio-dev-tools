@@ -82,7 +82,7 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
           EOF
 
-      - name: Pull, limpa e aguarda
+      - name: Pull, limpa e deploya
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
             sudo ctr -n openfaas-fn images pull \
@@ -93,34 +93,18 @@ jobs:
               --gateway http://127.0.0.1:8080 || true
 
             for i in $(seq 1 30); do
-              if ! sudo ctr -n openfaas-fn containers list | grep -q "${{ matrix.function }}"; then
-                echo "Container removido após ${i}s"
+              if ! sudo ctr -n openfaas-fn containers list | grep -q "^${{ matrix.function }}"; then
+                echo "Limpo após ${i}s"
                 break
               fi
-              echo "Aguardando cleanup... ${i}s"
+              echo "Aguardando... ${i}s"
               sleep 1
             done
 
             sudo ctr -n openfaas-fn snapshots rm ${{ matrix.function }}-snapshot 2>/dev/null || true
+
+            faas-cli deploy \
+              --image re.giomartins.dev/${{ matrix.function }}:latest \
+              --name ${{ matrix.function }} \
+              --gateway http://127.0.0.1:8080
           EOF
-
-      - name: Instala faas-cli
-        run: curl -sSL https://cli.openfaas.com | sudo sh
-
-      - name: Login no faasd
-        run: |
-          echo ${{ secrets.OPENFAAS_PASSWORD }} | faas-cli login -s \
-            --gateway ${{ secrets.OPENFAAS_URL }}
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Deploy da função
-        run: |
-          faas-cli deploy \
-            --image re.giomartins.dev/${{ matrix.function }}:latest \
-            --name ${{ matrix.function }} \
-            --gateway ${{ secrets.OPENFAAS_URL }}
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
