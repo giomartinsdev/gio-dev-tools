@@ -5,7 +5,7 @@ from src.main import main
 
 def handle(raw_body: str) -> str:
     return main(
-        Request(raw_body),
+        Request(raw_body)
     ).send()
 
 
