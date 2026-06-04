@@ -1,14 +1,11 @@
-import sys
 import json
+from .src.main import main
 
 def handle(req):
-    return json.dumps({
-        "function": "hello-2",
-        "input": req,
-        "version": "1.0.16"
-    })
+    return main(req, None)
 
 if __name__ == "__main__":
+    import sys
     req = sys.stdin.read()
-    response = handle(req)
+    response = json.dumps(handle(req))
     sys.stdout.write(response)
