@@ -22,6 +22,7 @@ jobs:
           CHANGED=$(git diff --name-only HEAD~1 HEAD \
             | grep '^functions/' \
             | cut -d'/' -f2 \
+            | grep -v '^shared$' \
             | sort -u \
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
