@@ -115,7 +115,7 @@ jobs:
       - name: Persiste função no faasd via SSH
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'ENDSSH'
-            sudo python3 << PYEOF
+            python3 << PYEOF
           import yaml
 
           with open('/var/lib/faasd/docker-compose.yaml') as f:
