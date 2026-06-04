@@ -1,10 +1,10 @@
-import logging
 import random
 import pandas as pd
 from shared.request import Request
 from shared.response import Response
+from shared.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def main(request: Request) -> Response:
     match request.body:
