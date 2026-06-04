@@ -5,11 +5,14 @@ FROM python:3.11-slim
 COPY --from=watchdog /fwatchdog /usr/bin/fwatchdog
 RUN chmod +x /usr/bin/fwatchdog
 
+ARG FUNCTION_DIR
 WORKDIR /app
-COPY requirements.txt .
+
+COPY ${FUNCTION_DIR}/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY shared/ shared/
+COPY ${FUNCTION_DIR}/ .
 
 ENV fprocess="python3 handler.py"
 
