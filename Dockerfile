@@ -1,4 +1,4 @@
-FROM ghcr.io/openfaas/classic-watchdog:latest AS watchdog
+FROM re.giomartins.dev/classic-watchdog:latest AS watchdog
 
 FROM python:3.11-slim
 
