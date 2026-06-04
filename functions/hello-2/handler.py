@@ -1,8 +1,12 @@
 import sys
-from .src.main import MainHandler
+import json
 
 def handle(req):
-    return MainHandler().handle(req)
+    return json.dumps({
+        "function": "hello-2",
+        "input": req,
+        "version": "1.0.5"
+    })
 
 if __name__ == "__main__":
     req = sys.stdin.read()
