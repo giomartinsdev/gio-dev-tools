@@ -33,5 +33,9 @@ def main(request: Request) -> Response:
                 status_code=200,
             )
 
+    test_trace_span()
     logger.info(response)
     return response
+
+def test_trace_span():
+    logger.info("test trace span")
