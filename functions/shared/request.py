@@ -1,7 +1,6 @@
 import json
-import os
 import uuid
-from urllib.parse import parse_qs
+from fastapi import Request as FastAPIRequest
 
 
 class Request:
@@ -13,31 +12,39 @@ class Request:
     headers: dict[str, str]
     _raw_body: str
 
-    def __init__(self, raw_body: str) -> None:
+    def __init__(
+        self,
+        *,
+        method: str,
+        path: str,
+        query_string: str,
+        query: dict[str, str | list[str]],
+        headers: dict[str, str],
+        raw_body: str,
+    ) -> None:
         self.function_id = str(uuid.uuid4())
-        self.method = os.environ.get("Http_Method", "GET").upper()
-        self.path = os.environ.get("Http_Path", "/")
-        self.query_string = os.environ.get("Http_Query", "")
-        self.query = {
-            k: v[0] if len(v) == 1 else v
-            for k, v in parse_qs(self.query_string).items()
-        }
-        self.headers = {
-            k[5:].replace("_", "-").title(): v
-            for k, v in os.environ.items()
-            if k.startswith("Http_")
-            and k
-            not in (
-                "Http_Method",
-                "Http_Path",
-                "Http_Query",
-            )
-        }
+        self.method = method
+        self.path = path
+        self.query_string = query_string
+        self.query = query
+        self.headers = headers
         self._raw_body = raw_body
+
+    @classmethod
+    async def from_http(cls, fastapi_request: FastAPIRequest) -> "Request":
+        raw_body = await fastapi_request.body()
+        return cls(
+            method=fastapi_request.method,
+            path=fastapi_request.url.path,
+            query_string=str(fastapi_request.url.query),
+            query=dict(fastapi_request.query_params),
+            headers=dict(fastapi_request.headers),
+            raw_body=raw_body.decode(),
+        )
 
     @property
     def body(self) -> dict | list | str:
-        content_type = self.headers.get("Content-Type", "")
+        content_type = self.headers.get("content-type", "")
         if "application/json" in content_type and self._raw_body:
             try:
                 return json.loads(self._raw_body)

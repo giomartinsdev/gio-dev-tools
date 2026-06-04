@@ -1,4 +1,5 @@
 import json
+from fastapi.responses import JSONResponse
 
 
 class Response:
@@ -13,17 +14,23 @@ class Response:
         headers: dict[str, str] | None = None,
     ) -> None:
         self.status_code = status_code
-        self.headers = {"Content-Type": "application/json", **(headers or {})}
+        self.headers = headers or {}
         self.body = body
 
-    def send(self) -> str:
+    def send(self) -> JSONResponse:
         def _serialize(obj):
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             return str(obj)
 
-        return json.dumps({
-            "statusCode": self.status_code,
-            "headers": self.headers,
-            "body": self.body,
-        }, default=_serialize)
+        body = (
+            json.loads(json.dumps(self.body, default=_serialize))
+            if isinstance(self.body, (dict, list))
+            else self.body
+        )
+
+        return JSONResponse(
+            content=body,
+            status_code=self.status_code,
+            headers=self.headers,
+        )
