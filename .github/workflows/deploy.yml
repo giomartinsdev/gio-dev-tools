@@ -59,7 +59,9 @@ jobs:
           context: functions/${{ matrix.function }}
           file: ${{ steps.dockerfile.outputs.path }}
           push: true
-          tags: re.giomartins.dev/${{ matrix.function }}:latest
+          tags: |
+            re.giomartins.dev/${{ matrix.function }}:latest
+            re.giomartins.dev/${{ matrix.function }}:${{ github.sha }}
 
       - name: Instala faas-cli
         run: curl -sSL https://cli.openfaas.com | sudo sh
@@ -72,17 +74,21 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
+      - name: Remove função existente
+        run: |
+          faas-cli remove ${{ matrix.function }} \
+            --gateway ${{ secrets.OPENFAAS_URL }} || true
+          sleep 3
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
       - name: Deploy da função
         run: |
           faas-cli deploy \
-            --image re.giomartins.dev/${{ matrix.function }}:latest \
+            --image re.giomartins.dev/${{ matrix.function }}:${{ github.sha }} \
             --name ${{ matrix.function }} \
-            --gateway ${{ secrets.OPENFAAS_URL }} \
-          || faas-cli deploy \
-            --image re.giomartins.dev/${{ matrix.function }}:latest \
-            --name ${{ matrix.function }} \
-            --gateway ${{ secrets.OPENFAAS_URL }} \
-            --update
+            --gateway ${{ secrets.OPENFAAS_URL }}
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
