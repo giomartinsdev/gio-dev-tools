@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Detecta funções alteradas
+      - name: Detect changed functions
         id: changes
         run: |
           CHANGED=$(git diff --name-only HEAD~1 HEAD \
@@ -27,7 +27,7 @@ jobs:
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
 
-  deploy:
+  build:
     needs: detect-changes
     runs-on: ubuntu-latest
     if: needs.detect-changes.outputs.functions != '[]'
@@ -38,14 +38,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      - name: Login no registry
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
         uses: docker/login-action@v3.3.0
         with:
           registry: re.giomartins.dev
           username: ${{ secrets.REGISTRY_USER }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Escolhe Dockerfile
+      - name: Resolve Dockerfile path
         id: dockerfile
         run: |
           if [ -f "functions/${{ matrix.function }}/Dockerfile" ]; then
@@ -54,10 +57,7 @@ jobs:
             echo "path=Dockerfile" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build e push
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: functions
@@ -70,14 +70,23 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.function }}
           cache-to: type=gha,mode=max,scope=${{ matrix.function }}
 
-      - name: Instala cloudflared
+  deploy:
+    needs: [detect-changes, build]
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.functions != '[]'
+    strategy:
+      matrix:
+        function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
+
+    steps:
+      - name: Install cloudflared
         run: |
           curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
             -o cloudflared
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
 
-      - name: Configura SSH
+      - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
@@ -89,27 +98,40 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
           EOF
 
-      - name: Pull, limpa e deploya
+      - name: Pull image on server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             sudo ctr -n openfaas-fn images pull \
               --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
               re.giomartins.dev/${{ matrix.function }}:latest
 
+      - name: Remove existing function
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             faas-cli remove ${{ matrix.function }} \
               --gateway http://127.0.0.1:8080 || true
 
+      - name: Wait for container cleanup
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
             for i in $(seq 1 30); do
               if ! sudo ctr -n openfaas-fn containers list | grep -q "^${{ matrix.function }}"; then
-                echo "Limpo após ${i}s"
+                echo "Clean after ${i}s"
                 break
               fi
-              echo "Aguardando... ${i}s"
+              echo "Waiting... ${i}s"
               sleep 1
             done
+          EOF
 
+      - name: Remove stale snapshot
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             sudo ctr -n openfaas-fn snapshots rm ${{ matrix.function }}-snapshot 2>/dev/null || true
 
+      - name: Deploy function
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             faas-cli deploy \
               --image re.giomartins.dev/${{ matrix.function }}:latest \
               --name ${{ matrix.function }} \
@@ -122,4 +144,3 @@ jobs:
               --env OTEL_METRICS_EXPORTER=none \
               --env OTEL_LOGS_EXPORTER=none \
               --env OTEL_PYTHON_LOG_CORRELATION=true
-          EOF
