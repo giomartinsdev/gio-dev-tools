@@ -56,8 +56,9 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: functions/${{ matrix.function }}
+          context: functions
           file: ${{ steps.dockerfile.outputs.path }}
+          build-args: FUNCTION_DIR=${{ matrix.function }}
           push: true
           tags: |
             re.giomartins.dev/${{ matrix.function }}:latest
