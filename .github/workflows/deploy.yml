@@ -82,20 +82,6 @@ jobs:
             IdentityFile ~/.ssh/id_ed25519
           EOF
 
-      - name: Força pull e limpa container antigo
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
-            sudo ctr -n openfaas-fn images pull \
-              --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
-              re.giomartins.dev/${{ matrix.function }}:latest
-            sudo ctr -n openfaas-fn tasks kill ${{ matrix.function }} 2>/dev/null || true
-            sleep 5
-            sudo ctr -n openfaas-fn tasks rm ${{ matrix.function }} 2>/dev/null || true
-            sudo ctr -n openfaas-fn containers rm ${{ matrix.function }} 2>/dev/null || true
-            sudo ctr -n openfaas-fn snapshots rm ${{ matrix.function }}-snapshot 2>/dev/null || true
-            sleep 2
-          EOF
-
       - name: Instala faas-cli
         run: curl -sSL https://cli.openfaas.com | sudo sh
 
@@ -111,10 +97,24 @@ jobs:
         run: |
           faas-cli remove ${{ matrix.function }} \
             --gateway ${{ secrets.OPENFAAS_URL }} || true
-          sleep 5
+          sleep 3
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Força pull e limpa container antigo
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash << 'EOF'
+            sudo ctr -n openfaas-fn images pull \
+              --user ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} \
+              re.giomartins.dev/${{ matrix.function }}:latest
+            sudo ctr -n openfaas-fn tasks kill ${{ matrix.function }} 2>/dev/null || true
+            sleep 5
+            sudo ctr -n openfaas-fn tasks rm ${{ matrix.function }} 2>/dev/null || true
+            sudo ctr -n openfaas-fn containers rm ${{ matrix.function }} 2>/dev/null || true
+            sudo ctr -n openfaas-fn snapshots rm ${{ matrix.function }}-snapshot 2>/dev/null || true
+            sleep 2
+          EOF
 
       - name: Deploy da função
         run: |
