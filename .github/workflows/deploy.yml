@@ -12,7 +12,7 @@ jobs:
     outputs:
       functions: ${{ steps.changes.outputs.functions }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 2
 
@@ -35,10 +35,10 @@ jobs:
         function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Login no registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3.3.0
         with:
           registry: re.giomartins.dev
           username: ${{ secrets.REGISTRY_USER }}
@@ -54,7 +54,7 @@ jobs:
           fi
 
       - name: Build e push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: functions/${{ matrix.function }}
           file: ${{ steps.dockerfile.outputs.path }}
@@ -68,6 +68,9 @@ jobs:
         run: |
           echo ${{ secrets.OPENFAAS_PASSWORD }} | faas-cli login -s \
             --gateway ${{ secrets.OPENFAAS_URL }}
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
       - name: Deploy da função
         run: |
@@ -80,3 +83,6 @@ jobs:
             --name ${{ matrix.function }} \
             --gateway ${{ secrets.OPENFAAS_URL }} \
             --update
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
