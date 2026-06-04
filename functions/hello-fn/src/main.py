@@ -15,7 +15,7 @@ def main(request: Request) -> Response:
                 "col2": [6, 7, 8, 9, 10],
                 "col3": [11, 12, 13, 14, 15]
             }).to_dict(orient="records"),
-            "request": request
+            "request": request,
         },
         status_code=200,
     )
