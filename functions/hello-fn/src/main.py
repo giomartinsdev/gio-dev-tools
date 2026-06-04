@@ -1,8 +1,10 @@
+import logging
 import random
 import pandas as pd
 from shared.request import Request
 from shared.response import Response
 
+logger = logging.getLogger(__name__)
 
 def main(request: Request) -> Response:
     match request.body:
@@ -36,4 +38,5 @@ def main(request: Request) -> Response:
                 status_code=200,
             )
 
+    logger.info(response)
     return response
