@@ -1,5 +1,5 @@
 import sys
-from src.main import MainHandler
+from .src.main import MainHandler
 
 def handle(req):
     return MainHandler().handle(req)
