@@ -136,7 +136,7 @@ jobs:
             EXTRA_ENVS="--env EVOLUTION_URL=${{ secrets.EVOLUTION_URL }} --env EVOLUTION_API_KEY=${{ secrets.EVOLUTION_API_KEY }} --env EVOLUTION_INSTANCE_NAME=${{ secrets.EVOLUTION_INSTANCE_NAME }}"
           fi
           if [ "${{ matrix.function }}" = "finance" ]; then
-            EXTRA_ENVS="--env FINANCE_DB_PATH=/data/finance.db"
+            EXTRA_ENVS="--env DATABASE_URL=${{ secrets.FINANCE_DATABASE_URL }}"
           fi
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             faas-cli deploy \
