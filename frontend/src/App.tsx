@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WpMessageModule, wpMessageMeta } from '@/modules/wp-message/WpMessageModule'
+import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 
-const modules = [wpMessageMeta]
+const modules = [wpMessageMeta, financeMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -62,6 +63,7 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto p-6">
           {activeId === 'wp-message' && <WpMessageModule />}
+          {activeId === 'finance' && <FinanceModule />}
         </main>
       </div>
     </div>
