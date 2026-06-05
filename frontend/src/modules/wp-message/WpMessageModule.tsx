@@ -34,14 +34,14 @@ export function WpMessageModule() {
       const data = await res.json()
 
       if (res.ok) {
-        setResult({ status: 'success', message: 'Mensagem enviada com sucesso!' })
+        setResult({ status: 'success', message: 'Message sent successfully!' })
         setNumber('')
         setMessage('')
       } else {
-        setResult({ status: 'error', message: data.error ?? 'Erro ao enviar mensagem.' })
+        setResult({ status: 'error', message: data.error ?? 'Failed to send message.' })
       }
     } catch {
-      setResult({ status: 'error', message: 'Falha na conexão com o gateway.' })
+      setResult({ status: 'error', message: 'Failed to connect to the gateway.' })
     }
   }
 
@@ -55,14 +55,14 @@ export function WpMessageModule() {
             </div>
             <div>
               <CardTitle>WhatsApp Message</CardTitle>
-              <CardDescription>Envie uma mensagem via WhatsApp</CardDescription>
+              <CardDescription>Send a WhatsApp message</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="number">Número</Label>
+              <Label htmlFor="number">Phone number</Label>
               <Input
                 id="number"
                 type="tel"
@@ -72,15 +72,15 @@ export function WpMessageModule() {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Formato: código do país + DDD + número (sem + ou espaços)
+                Format: country code + area code + number (no + or spaces)
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="message">Mensagem</Label>
+              <Label htmlFor="message">Message</Label>
               <Textarea
                 id="message"
-                placeholder="Digite sua mensagem..."
+                placeholder="Type your message..."
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 rows={4}
@@ -114,12 +114,12 @@ export function WpMessageModule() {
               {result?.status === 'loading' ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Enviando...
+                  Sending...
                 </>
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  Enviar mensagem
+                  Send message
                 </>
               )}
             </Button>
@@ -133,7 +133,7 @@ export function WpMessageModule() {
 export const wpMessageMeta = {
   id: 'wp-message',
   label: 'WP Message',
-  description: 'Enviar mensagens via WhatsApp',
+  description: 'Send WhatsApp messages',
   icon: MessageCircle,
-  badge: <Badge variant="success">Ativo</Badge>,
+  badge: <Badge variant="success">Active</Badge>,
 }

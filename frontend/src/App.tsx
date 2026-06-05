@@ -24,7 +24,7 @@ export default function App() {
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <p className="mb-1 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Módulos
+            Modules
           </p>
           <ul className="space-y-0.5">
             {modules.map(mod => {
