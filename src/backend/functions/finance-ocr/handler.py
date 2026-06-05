@@ -12,3 +12,4 @@ app = FastAPI()
 @app.post("/{path:path}")
 async def handle(file: UploadFile = File(...)):
     return await main(file)
+
