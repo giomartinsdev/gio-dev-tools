@@ -48,9 +48,15 @@ SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "manual")
 IMAGE_LATEST="$REGISTRY/$FUNCTION:latest"
 IMAGE_SHA="$REGISTRY/$FUNCTION:$SHA"
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTEXT="$REPO_ROOT/functions"
 DOCKERFILE="$CONTEXT/$FUNCTION/Dockerfile"
+
+if [[ ! -d "$CONTEXT" ]]; then
+    echo "ERROR: Run this script from anywhere inside the repo." >&2
+    echo "       Could not find: $CONTEXT" >&2
+    exit 1
+fi
 
 if command -v docker &>/dev/null; then
     BUILD="docker"

@@ -26,9 +26,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         opentelemetry-instrumentation-urllib3==0.55b0 \
         wrapt==1.17.2
 
-# CPU-only torch — installed before requirements so pip cache is shared across rebuilds
+# CPU-only torch — transformers requires >= 2.4
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
+    pip install "torch>=2.4.0" --index-url https://download.pytorch.org/whl/cpu
 
 ARG FUNCTION_DIR
 WORKDIR /app
