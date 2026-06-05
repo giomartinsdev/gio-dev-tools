@@ -55,4 +55,5 @@ def health():
     return {
         "status": "OK",
         "faas_gateway_url": FAAS_GATEWAY_URL,
+        "dockhand_gateway_webhook": os.environ.get("DOCKHAND_GATEWAY_WEBHOOK")
     }
