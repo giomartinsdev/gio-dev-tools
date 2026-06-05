@@ -294,40 +294,28 @@ export function FinanceModule() {
             </tr>
           </tbody>
 
-          {/* Totals footer */}
-          <tfoot className="border-t-2">
-            <tr className="bg-muted/20">
-              <td className="px-3 py-2" />
-              <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</td>
-              <td colSpan={2} />
-              <td className="px-3 py-2 text-right font-semibold tabular-nums text-green-600 dark:text-green-400">
-                {formatBRL(totals.income)}
-              </td>
-              <td />
-            </tr>
-            <tr className="bg-muted/20">
-              <td className="px-3 py-2" />
-              <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</td>
-              <td colSpan={2} />
-              <td className="px-3 py-2 text-right font-semibold tabular-nums text-red-600 dark:text-red-400">
-                {formatBRL(totals.expenses)}
-              </td>
-              <td />
-            </tr>
-            <tr className="bg-muted/20 border-t">
-              <td className="px-3 py-2.5" />
-              <td className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground">Balance</td>
-              <td colSpan={2} />
-              <td className={cn(
-                'px-3 py-2.5 text-right font-bold tabular-nums text-base',
-                totals.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              )}>
-                {formatBRL(totals.balance)}
-              </td>
-              <td />
-            </tr>
-          </tfoot>
         </table>
+      </div>
+
+      {/* Totals */}
+      <div className="rounded-lg border bg-card divide-y">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</span>
+          <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{formatBRL(totals.income)}</span>
+        </div>
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</span>
+          <span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{formatBRL(totals.expenses)}</span>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3">
+          <span className="text-xs font-bold uppercase tracking-wide">Balance</span>
+          <span className={cn(
+            'text-base font-bold tabular-nums',
+            totals.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+          )}>
+            {formatBRL(totals.balance)}
+          </span>
+        </div>
       </div>
     </div>
   )
