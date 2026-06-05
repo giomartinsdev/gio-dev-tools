@@ -1,0 +1,17 @@
+services:
+  gateway:
+    image: re.giomartins.dev/gateway:latest
+    ports:
+      - "3002:3000"
+    environment:
+      FAAS_GATEWAY_URL: https://of.giomartins.dev
+      CF_ACCESS_CLIENT_ID: ${CF_ACCESS_CLIENT_ID}
+      CF_ACCESS_CLIENT_SECRET: ${CF_ACCESS_CLIENT_SECRET}
+      PORT: 3000
+    restart: unless-stopped
+
+  gio-faas-dashboard:
+    image: re.giomartins.dev/gio-faas-dashboard:latest
+    ports:
+      - "8079:80"
+    restart: unless-stopped
