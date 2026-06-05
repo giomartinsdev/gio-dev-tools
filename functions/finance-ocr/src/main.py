@@ -19,26 +19,22 @@ _CF_CLIENT_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 # Keyword-based classifier — instant, no ML inference needed
 # ---------------------------------------------------------------------------
 _KEYWORDS: dict[str, list[str]] = {
+    "Transaction": [
+        "pix", "ted", "doc", "transferência", "transferencia", "débito",
+        "debito", "boleto", "pagamento", "uber", "99app", "taxi",
+        "posto ", "shell", "petrobras", "ipiranga", "combustível",
+        "gasolina", "estacionamento", "pedágio", "metrô", "ônibus",
+        "passagem", "gol ", "latam", "azul ", "aluguel", "condomínio",
+        "copasa", "cemig", "sabesp", "enel", "neoenergia", "vivo",
+        "claro", "tim ", "oi ", "net ", "internet", "conta de luz",
+    ],
     "Food": [
         "restaurante", "lanchonete", "pizzaria", "padaria", "supermercado",
         "mercado", "hortifruti", "açougue", "peixaria", "ifood", "rappi",
         "uber eats", "mcdonald", "burger", "subway", "pizza", "sushi",
-        "hamburguer", "lanche", "café", "coffee", "bakery", "pão de açúcar",
+        "hamburguer", "lanche", "café", "coffee", "pão de açúcar",
         "carrefour", "extra ", "wal-mart", "atacadão", "assaí", "makro",
-        "dia ", "spar", "panificadora", "sorveteria", "doceria", "bistrô",
-    ],
-    "Transport": [
-        "uber", "99app", "taxi", "posto ", "shell", "petrobras", "ipiranga",
-        "br distribuidora", "combustível", "gasolina", "etanol", "diesel",
-        "estacionamento", "parking", "pedágio", "metrô", "ônibus",
-        "passagem", "bilhete único", "gol ", "latam", "azul ", "aeroporto",
-        "moto", "bicicleta", "patinete", "brt ", "trem",
-    ],
-    "Housing": [
-        "aluguel", "condomínio", "copasa", "cemig", "sabesp", "comgas",
-        "enel", "neoenergia", "energisa", "coelba", "vivo", "claro",
-        "tim ", "oi ", "net ", "sky ", "internet", "telefone", "imóvel",
-        "imobiliária", "agua e esgoto", "conta de luz", "conta de água",
+        "panificadora", "sorveteria", "doceria", "bistrô",
     ],
     "Health": [
         "farmácia", "drogaria", "ultrafarma", "droga", "pague menos",
@@ -79,7 +75,7 @@ def _classify(text: str) -> tuple[str, str]:
     text_lower = text.lower()
 
     if any(kw in text_lower for kw in _INCOME_KW):
-        return "income", "Other"
+        return "income", "Transaction"
 
     scores: dict[str, int] = {cat: 0 for cat in _KEYWORDS}
     for cat, keywords in _KEYWORDS.items():

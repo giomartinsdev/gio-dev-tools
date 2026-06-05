@@ -25,8 +25,8 @@ interface Draft {
 }
 
 const CATEGORIES: Record<TransactionType, string[]> = {
-  income: ['Salary', 'Freelance', 'Investment', 'Gift', 'Other'],
-  expense: ['Food', 'Transport', 'Housing', 'Health', 'Entertainment', 'Education', 'Shopping', 'Other'],
+  income: ['Transaction', 'Food', 'Health', 'Entertainment', 'Education', 'Shopping', 'Other'],
+  expense: ['Transaction', 'Food', 'Health', 'Entertainment', 'Education', 'Shopping', 'Other'],
 }
 
 function toYearMonth(d: Date) {
@@ -41,7 +41,7 @@ function defaultDate(year: number, month: number) {
 }
 
 function emptyDraft(year: number, month: number): Draft {
-  return { date: defaultDate(year, month), description: '', category: 'Food', type: 'expense', amount: '' }
+  return { date: defaultDate(year, month), description: '', category: 'Transaction', type: 'expense', amount: '' }
 }
 
 function formatBRL(value: number) {
