@@ -147,7 +147,7 @@ export function FinanceModule() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-6">
       {/* Month navigator */}
       <div className="flex items-center justify-between">
         <button
@@ -298,23 +298,23 @@ export function FinanceModule() {
       </div>
 
       {/* Totals */}
-      <div className="rounded-lg border bg-card divide-y">
-        <div className="flex items-center justify-between px-4 py-2.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</span>
-          <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{formatBRL(totals.income)}</span>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-lg border bg-card px-4 py-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</p>
+          <p className="text-lg font-bold tabular-nums text-green-600 dark:text-green-400">{formatBRL(totals.income)}</p>
         </div>
-        <div className="flex items-center justify-between px-4 py-2.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</span>
-          <span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{formatBRL(totals.expenses)}</span>
+        <div className="rounded-lg border bg-card px-4 py-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</p>
+          <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400">{formatBRL(totals.expenses)}</p>
         </div>
-        <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-xs font-bold uppercase tracking-wide">Balance</span>
-          <span className={cn(
-            'text-base font-bold tabular-nums',
+        <div className="rounded-lg border bg-card px-4 py-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Balance</p>
+          <p className={cn(
+            'text-lg font-bold tabular-nums',
             totals.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
           )}>
             {formatBRL(totals.balance)}
-          </span>
+          </p>
         </div>
       </div>
     </div>
