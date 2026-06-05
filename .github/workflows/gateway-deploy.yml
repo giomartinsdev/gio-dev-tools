@@ -42,4 +42,6 @@ jobs:
     steps:
       - name: Trigger Dockhand redeploy
         run: |
-          curl -fsSL -X POST "${{ secrets.DOCKHAND_GATEWAY_WEBHOOK }}"
+          curl -fsSL -X POST "${{ secrets.DOCKHAND_GATEWAY_WEBHOOK }}" \
+            -H "CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            -H "CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}"
