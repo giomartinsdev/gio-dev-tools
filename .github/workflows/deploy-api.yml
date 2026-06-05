@@ -52,7 +52,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: src/backend/api/${{ matrix.api }}
+          context: src/backend
           file: src/backend/api/${{ matrix.api }}/Dockerfile
           push: true
           tags: |

@@ -62,7 +62,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: src/backend/functions
+          context: src/backend
           file: ${{ steps.dockerfile.outputs.path }}
           build-args: FUNCTION_DIR=${{ matrix.function }}
           push: true
