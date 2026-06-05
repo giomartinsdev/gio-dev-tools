@@ -29,12 +29,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 ARG FUNCTION_DIR
 WORKDIR /app
 
-COPY ${FUNCTION_DIR}/requirements.txt .
+COPY functions/${FUNCTION_DIR}/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 COPY shared/ shared/
-COPY ${FUNCTION_DIR}/ .
+COPY functions/${FUNCTION_DIR}/ .
 
 ENV fprocess="opentelemetry-instrument uvicorn handler:app --host 0.0.0.0 --port 5000"
 ENV mode="http"

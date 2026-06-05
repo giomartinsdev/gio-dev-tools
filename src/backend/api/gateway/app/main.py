@@ -1,3 +1,6 @@
+from shared.auto_trace import install
+install(["app"])
+
 import os
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware

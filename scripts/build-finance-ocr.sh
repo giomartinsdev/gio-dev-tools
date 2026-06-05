@@ -64,11 +64,11 @@ LOCAL_IMAGE_SHA="$LOCAL_REGISTRY/$FUNCTION:$SHA"
 REMOTE_IMAGE_LATEST="$REMOTE_REGISTRY/$FUNCTION:latest"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONTEXT="$REPO_ROOT/src/backend/functions"
+CONTEXT="$REPO_ROOT/src/backend"
 DOCKERFILE="$CONTEXT/$FUNCTION/Dockerfile"
 
 if [[ ! -d "$CONTEXT" ]]; then
-    echo "ERROR: could not find src/backend/functions/ dir at $CONTEXT" >&2
+    echo "ERROR: could not find src/backend/ dir at $CONTEXT" >&2
     exit 1
 fi
 
