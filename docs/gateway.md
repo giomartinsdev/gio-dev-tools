@@ -1,5 +1,7 @@
 # Gateway
 
+Located at `src/backend/api/gateway/`.
+
 ## Routing
 
 All requests follow the pattern:
@@ -35,17 +37,23 @@ GET /health
 ## Running locally
 
 ```bash
-cd gateway
+cd src/backend/api/gateway
 CF_ACCESS_CLIENT_ID=xxx CF_ACCESS_CLIENT_SECRET=yyy uvicorn app.main:app --port 3000
+```
+
+Or via the infra compose (brings up gateway + all frontends):
+
+```bash
+docker compose -f src/infra/docker-compose.yml up -d
 ```
 
 ## Dockhand stack
 
-The gateway runs as a Docker container managed by Dockhand. The stack is defined in `gateway/docker-compose.yml` and deployed from this repo via webhook.
+The gateway runs as a Docker container managed by Dockhand. Redeploys are triggered automatically by the CI pipeline via the `DOCKHAND_GATEWAY_WEBHOOK` secret.
 
-`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` must be set as environment variable overrides in Dockhand (not committed to the compose file).
+`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` for the container must be set as environment variable overrides in Dockhand (not committed to the compose file).
 
-To trigger a manual redeploy, use the Dockhand UI or call the webhook directly:
+To trigger a manual redeploy:
 
 ```bash
 curl -X POST "<DOCKHAND_WEBHOOK_URL>" \

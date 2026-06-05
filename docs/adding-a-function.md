@@ -3,7 +3,7 @@
 ## 1. Scaffold the directory
 
 ```
-functions/{your-fn}/
+src/backend/functions/{your-fn}/
 ├── handler.py
 ├── requirements.txt
 └── src/
@@ -55,15 +55,15 @@ src/
 └── main.py          # Wires everything, handles 400/500 responses
 ```
 
-See `functions/wp-message/` for a complete example.
+See `src/backend/functions/wp-message/` for a complete example.
 
 ## 3. Add dependencies
 
-List only function-specific packages in `requirements.txt`. Base dependencies (fastapi, uvicorn, opentelemetry) are installed in the shared base image.
+List only function-specific packages in `requirements.txt`. Base dependencies (fastapi, uvicorn, opentelemetry) are installed in the shared base image (`src/backend/functions/Dockerfile`).
 
 ## 4. Add environment variables (if needed)
 
-In `.github/workflows/deploy.yml`, add a conditional block in the deploy step:
+In `.github/workflows/deploy-functions.yml`, add a conditional block in the deploy step:
 
 ```yaml
 if [ "${{ matrix.function }}" = "your-fn" ]; then
@@ -75,7 +75,7 @@ Then add the corresponding secret in **GitHub → Settings → Secrets → Actio
 
 ## 5. Deploy
 
-Push any change under `functions/{your-fn}/` to `main`. The CI pipeline will detect the change, build the image, push it to `re.giomartins.dev/{your-fn}:latest`, and deploy it to faasd automatically.
+Push any change under `src/backend/functions/{your-fn}/` to `main`. The CI pipeline detects the change, builds the image, pushes `re.giomartins.dev/{your-fn}:latest`, and deploys it to faasd automatically.
 
 ## 6. Call via gateway
 
