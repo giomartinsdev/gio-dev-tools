@@ -153,17 +153,17 @@ export function FinanceModule() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch(`${GATEWAY}/fn-async/finance-ocr`, {
+      setOcrState('processing')
+      const res = await fetch(`${GATEWAY}/fn/finance-ocr`, {
         method: 'POST',
         body: formData,
       })
-      if (!res.ok && res.status !== 202) throw new Error(`Upload failed: ${res.status}`)
-      setOcrState('processing')
-      setTimeout(async () => {
-        await fetchTransactions(year, month)
-        setOcrState('idle')
-      }, 8000)
+      if (!res.ok) throw new Error(`OCR failed: ${res.status}`)
+      await fetchTransactions(year, month)
     } catch {
+      // silent — transaction list refresh still runs
+      await fetchTransactions(year, month)
+    } finally {
       setOcrState('idle')
     }
   }

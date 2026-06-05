@@ -149,6 +149,9 @@ faas-cli deploy \
     --image "$REMOTE_IMAGE_LATEST" \
     --name "$FUNCTION" \
     --gateway "$GATEWAY" \
+    --env "read_timeout=120s" \
+    --env "write_timeout=120s" \
+    --env "exec_timeout=120s" \
     --env "CF_ACCESS_CLIENT_ID=$CF_ACCESS_CLIENT_ID" \
     --env "CF_ACCESS_CLIENT_SECRET=$CF_ACCESS_CLIENT_SECRET" \
     --env "FINANCE_URL=$FINANCE_URL" \

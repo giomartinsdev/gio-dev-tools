@@ -37,7 +37,7 @@ async def _forward(request: Request, target: str) -> Response:
             headers=headers,
             content=await request.body(),
             params=request.query_params,
-            timeout=60.0,
+            timeout=120.0,
         )
 
     response_headers = {
