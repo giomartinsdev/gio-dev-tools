@@ -19,7 +19,7 @@ export default function App() {
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
             <Zap className="h-4 w-4 text-primary-foreground" />
           </div>
-          <span className="font-semibold text-sidebar-foreground">Gio FaaS board</span>
+          <span className="font-semibold text-sidebar-foreground">Gio FaaS dashboard</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
