@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { DollarSign, Trash2, Loader2, Plus } from 'lucide-react'
+import { DollarSign, Trash2, Loader2, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -29,12 +29,19 @@ const CATEGORIES: Record<TransactionType, string[]> = {
   expense: ['Food', 'Transport', 'Housing', 'Health', 'Entertainment', 'Education', 'Shopping', 'Other'],
 }
 
-function today() {
-  return new Date().toISOString().split('T')[0]
+function toYearMonth(d: Date) {
+  return { year: d.getFullYear(), month: d.getMonth() + 1 }
 }
 
-function emptyDraft(): Draft {
-  return { date: today(), description: '', category: 'Food', type: 'expense', amount: '' }
+function defaultDate(year: number, month: number) {
+  const now = new Date()
+  const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month
+  if (isCurrentMonth) return now.toISOString().split('T')[0]
+  return new Date(year, month - 1, 1).toISOString().split('T')[0]
+}
+
+function emptyDraft(year: number, month: number): Draft {
+  return { date: defaultDate(year, month), description: '', category: 'Food', type: 'expense', amount: '' }
 }
 
 function formatBRL(value: number) {
@@ -48,12 +55,17 @@ function formatDate(iso: string) {
 const cellInput = 'w-full rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground'
 
 export function FinanceModule() {
+  const [cursor, setCursor] = useState(() => new Date())
+  const { year, month } = toYearMonth(cursor)
+
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-  const [draft, setDraft] = useState<Draft>(emptyDraft)
+  const [draft, setDraft] = useState<Draft>(() => emptyDraft(year, month))
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const dateRef = useRef<HTMLInputElement>(null)
+
+  const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   const totals = useMemo(() => {
     const draftAmt = parseFloat(draft.amount) || 0
@@ -68,13 +80,25 @@ export function FinanceModule() {
     return { income, expenses, balance: income - expenses }
   }, [transactions, draft.amount, draft.type])
 
-  const fetchTransactions = useCallback(async () => {
-    const res = await fetch(`${GATEWAY}/fn/finance`)
+  const fetchTransactions = useCallback(async (y: number, m: number) => {
+    setLoading(true)
+    const res = await fetch(`${GATEWAY}/fn/finance?month=${m}&year=${y}`)
     if (res.ok) setTransactions(await res.json())
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchTransactions() }, [fetchTransactions])
+  useEffect(() => {
+    fetchTransactions(year, month)
+    setDraft(emptyDraft(year, month))
+  }, [year, month, fetchTransactions])
+
+  function prevMonth() {
+    setCursor(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+  }
+
+  function nextMonth() {
+    setCursor(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+  }
 
   function set<K extends keyof Draft>(field: K, value: Draft[K]) {
     setDraft(d => ({ ...d, [field]: value }))
@@ -95,8 +119,8 @@ export function FinanceModule() {
         body: JSON.stringify(draft),
       })
       if (res.ok) {
-        await fetchTransactions()
-        setDraft(emptyDraft())
+        await fetchTransactions(year, month)
+        setDraft(emptyDraft(year, month))
         setTimeout(() => dateRef.current?.focus(), 0)
       }
     } finally {
@@ -112,7 +136,7 @@ export function FinanceModule() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
-      if (res.ok) await fetchTransactions()
+      if (res.ok) await fetchTransactions(year, month)
     } finally {
       setDeletingId(null)
     }
@@ -123,164 +147,188 @@ export function FinanceModule() {
   }
 
   return (
-    <div className="rounded-lg border bg-card overflow-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <Th className="w-32">Date</Th>
-            <Th>Description</Th>
-            <Th className="w-36">Category</Th>
-            <Th className="w-24">Type</Th>
-            <Th className="w-36 text-right">Amount</Th>
-            <th className="w-10" />
-          </tr>
-        </thead>
+    <div className="space-y-3">
+      {/* Month navigator */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={prevMonth}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold">{monthLabel}</span>
+        <button
+          onClick={nextMonth}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
 
-        <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan={6} className="py-16 text-center">
-                <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-              </td>
+      {/* Table */}
+      <div className="rounded-lg border bg-card overflow-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <Th className="w-32">Date</Th>
+              <Th>Description</Th>
+              <Th className="w-36">Category</Th>
+              <Th className="w-24">Type</Th>
+              <Th className="w-36 text-right">Amount</Th>
+              <th className="w-10" />
             </tr>
-          ) : (
-            transactions.map(tx => (
-              <tr key={tx.id} className="border-b group hover:bg-muted/30 transition-colors">
-                <Td className="tabular-nums text-muted-foreground">{formatDate(tx.date)}</Td>
-                <Td className="font-medium">{tx.description}</Td>
-                <Td className="text-muted-foreground">{tx.category}</Td>
-                <Td>
-                  <TypePill type={tx.type} />
-                </Td>
-                <Td className={cn(
-                  'text-right font-semibold tabular-nums',
-                  tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                )}>
-                  {tx.type === 'income' ? '+' : '−'}{formatBRL(parseFloat(tx.amount.amount))}
-                </Td>
-                <td className="px-1.5">
-                  <button
-                    onClick={() => remove(tx.id)}
-                    disabled={deletingId === tx.id}
-                    className="opacity-0 group-hover:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-opacity disabled:opacity-30"
-                  >
-                    {deletingId === tx.id
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
+          </thead>
+
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-16 text-center">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                 </td>
               </tr>
-            ))
-          )}
+            ) : transactions.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  No transactions in {monthLabel}.
+                </td>
+              </tr>
+            ) : (
+              transactions.map(tx => (
+                <tr key={tx.id} className="border-b group hover:bg-muted/30 transition-colors">
+                  <Td className="tabular-nums text-muted-foreground">{formatDate(tx.date)}</Td>
+                  <Td className="font-medium">{tx.description}</Td>
+                  <Td className="text-muted-foreground">{tx.category}</Td>
+                  <Td><TypePill type={tx.type} /></Td>
+                  <Td className={cn(
+                    'text-right font-semibold tabular-nums',
+                    tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                  )}>
+                    {tx.type === 'income' ? '+' : '−'}{formatBRL(parseFloat(tx.amount.amount))}
+                  </Td>
+                  <td className="px-1.5">
+                    <button
+                      onClick={() => remove(tx.id)}
+                      disabled={deletingId === tx.id}
+                      className="opacity-0 group-hover:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-opacity disabled:opacity-30"
+                    >
+                      {deletingId === tx.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
 
-          {/* Input row */}
-          <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
-            <td className="px-1.5 py-1.5">
-              <input
-                ref={dateRef}
-                type="date"
-                value={draft.date}
-                onChange={e => set('date', e.target.value)}
-                onKeyDown={onKeyDown}
-                className={cellInput}
-              />
-            </td>
-            <td className="px-1.5 py-1.5">
-              <input
-                type="text"
-                value={draft.description}
-                onChange={e => set('description', e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Description..."
-                className={cellInput}
-              />
-            </td>
-            <td className="px-1.5 py-1.5">
-              <select
-                value={draft.category}
-                onChange={e => set('category', e.target.value)}
-                onKeyDown={onKeyDown}
-                className={cellInput}
-              >
-                {CATEGORIES[draft.type].map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </td>
-            <td className="px-1.5 py-1.5">
-              <button
-                type="button"
-                onClick={toggleType}
-                className={cn(
-                  'w-full rounded px-2 py-1 text-xs font-medium border transition-colors',
-                  draft.type === 'income'
-                    ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
-                    : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
-                )}
-              >
-                {draft.type === 'income' ? 'Income' : 'Expense'}
-              </button>
-            </td>
-            <td className="px-1.5 py-1.5">
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={draft.amount}
-                onChange={e => set('amount', e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="0.00"
-                className={cn(cellInput, 'text-right')}
-              />
-            </td>
-            <td className="px-1.5 py-1.5">
-              <button
-                onClick={submit}
-                disabled={submitting || !draft.amount || !draft.description}
-                className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30"
-              >
-                {submitting
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Plus className="h-3.5 w-3.5" />}
-              </button>
-            </td>
-          </tr>
-        </tbody>
+            {/* Input row */}
+            <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
+              <td className="px-1.5 py-1.5">
+                <input
+                  ref={dateRef}
+                  type="date"
+                  value={draft.date}
+                  onChange={e => set('date', e.target.value)}
+                  onKeyDown={onKeyDown}
+                  className={cellInput}
+                />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <input
+                  type="text"
+                  value={draft.description}
+                  onChange={e => set('description', e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Description..."
+                  className={cellInput}
+                />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <select
+                  value={draft.category}
+                  onChange={e => set('category', e.target.value)}
+                  onKeyDown={onKeyDown}
+                  className={cellInput}
+                >
+                  {CATEGORIES[draft.type].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-1.5 py-1.5">
+                <button
+                  type="button"
+                  onClick={toggleType}
+                  className={cn(
+                    'w-full rounded px-2 py-1 text-xs font-medium border transition-colors',
+                    draft.type === 'income'
+                      ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
+                      : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
+                  )}
+                >
+                  {draft.type === 'income' ? 'Income' : 'Expense'}
+                </button>
+              </td>
+              <td className="px-1.5 py-1.5">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={draft.amount}
+                  onChange={e => set('amount', e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="0.00"
+                  className={cn(cellInput, 'text-right')}
+                />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <button
+                  onClick={submit}
+                  disabled={submitting || !draft.amount || !draft.description}
+                  className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30"
+                >
+                  {submitting
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Plus className="h-3.5 w-3.5" />}
+                </button>
+              </td>
+            </tr>
+          </tbody>
 
-        {/* Totals footer */}
-        <tfoot className="border-t-2">
-          <tr className="bg-muted/20">
-            <td className="px-3 py-2" />
-            <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</td>
-            <td colSpan={2} />
-            <td className="px-3 py-2 text-right font-semibold tabular-nums text-green-600 dark:text-green-400">
-              {formatBRL(totals.income)}
-            </td>
-            <td />
-          </tr>
-          <tr className="bg-muted/20">
-            <td className="px-3 py-2" />
-            <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</td>
-            <td colSpan={2} />
-            <td className="px-3 py-2 text-right font-semibold tabular-nums text-red-600 dark:text-red-400">
-              {formatBRL(totals.expenses)}
-            </td>
-            <td />
-          </tr>
-          <tr className="bg-muted/20 border-t">
-            <td className="px-3 py-2.5" />
-            <td className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground">Balance</td>
-            <td colSpan={2} />
-            <td className={cn(
-              'px-3 py-2.5 text-right font-bold tabular-nums text-base',
-              totals.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-            )}>
-              {formatBRL(totals.balance)}
-            </td>
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+          {/* Totals footer */}
+          <tfoot className="border-t-2">
+            <tr className="bg-muted/20">
+              <td className="px-3 py-2" />
+              <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</td>
+              <td colSpan={2} />
+              <td className="px-3 py-2 text-right font-semibold tabular-nums text-green-600 dark:text-green-400">
+                {formatBRL(totals.income)}
+              </td>
+              <td />
+            </tr>
+            <tr className="bg-muted/20">
+              <td className="px-3 py-2" />
+              <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</td>
+              <td colSpan={2} />
+              <td className="px-3 py-2 text-right font-semibold tabular-nums text-red-600 dark:text-red-400">
+                {formatBRL(totals.expenses)}
+              </td>
+              <td />
+            </tr>
+            <tr className="bg-muted/20 border-t">
+              <td className="px-3 py-2.5" />
+              <td className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground">Balance</td>
+              <td colSpan={2} />
+              <td className={cn(
+                'px-3 py-2.5 text-right font-bold tabular-nums text-base',
+                totals.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              )}>
+                {formatBRL(totals.balance)}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   )
 }

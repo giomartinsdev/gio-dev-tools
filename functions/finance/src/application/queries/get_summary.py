@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -7,7 +8,8 @@ from ...domain.transaction import TransactionType
 
 
 class GetSummaryQuery(BaseModel):
-    pass
+    month: Optional[int] = None
+    year: Optional[int] = None
 
 
 class Summary(BaseModel):
@@ -29,8 +31,8 @@ class GetSummaryHandler:
     def __init__(self, repo: TransactionRepository):
         self._repo = repo
 
-    def handle(self, _query: GetSummaryQuery) -> Summary:
-        transactions = self._repo.find_all(limit=10_000)
+    def handle(self, query: GetSummaryQuery) -> Summary:
+        transactions = self._repo.find_all(limit=10_000, month=query.month, year=query.year)
         income = sum(
             (t.amount.amount for t in transactions if t.type == TransactionType.INCOME),
             Decimal("0"),

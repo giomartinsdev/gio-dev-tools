@@ -11,7 +11,13 @@ class TransactionRepository(ABC):
     def delete(self, transaction_id: str) -> bool: ...
 
     @abstractmethod
-    def find_all(self, limit: int = 50, offset: int = 0) -> list[Transaction]: ...
+    def find_all(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        month: Optional[int] = None,
+        year: Optional[int] = None,
+    ) -> list[Transaction]: ...
 
     @abstractmethod
     def find_by_id(self, transaction_id: str) -> Optional[Transaction]: ...

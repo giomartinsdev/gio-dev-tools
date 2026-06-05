@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, extract
 from sqlalchemy.orm import Session
 
 from ..domain.repository import TransactionRepository
@@ -45,11 +45,20 @@ class PostgresTransactionRepository(TransactionRepository):
             s.delete(row)
             return True
 
-    def find_all(self, limit: int = 50, offset: int = 0) -> list[Transaction]:
+    def find_all(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        month: Optional[int] = None,
+        year: Optional[int] = None,
+    ) -> list[Transaction]:
         with _session() as s:
+            q = s.query(TransactionModel)
+            if month is not None and year is not None:
+                q = q.filter(extract("month", TransactionModel.date) == month)
+                q = q.filter(extract("year", TransactionModel.date) == year)
             rows = (
-                s.query(TransactionModel)
-                .order_by(TransactionModel.date.desc())
+                q.order_by(TransactionModel.date.desc())
                 .limit(limit)
                 .offset(offset)
                 .all()

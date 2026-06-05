@@ -80,12 +80,16 @@ def _delete(request: Request) -> Response:
 
 
 def _list(request: Request) -> Response:
+    month = int(request.query["month"]) if request.query.get("month") else None
+    year = int(request.query["year"]) if request.query.get("year") else None
     return Response(
         body=[
             t.to_dict() for t in ListTransactionsHandler(_repo).handle(
                 ListTransactionsQuery(
                     limit=int(request.query.get("limit", 50)),
-                    offset=int(request.query.get("offset", 0))
+                    offset=int(request.query.get("offset", 0)),
+                    month=month,
+                    year=year,
                 )
             )
         ],
@@ -93,8 +97,10 @@ def _list(request: Request) -> Response:
     )
 
 
-def _summary(_: Request) -> Response:
+def _summary(request: Request) -> Response:
+    month = int(request.query["month"]) if request.query.get("month") else None
+    year = int(request.query["year"]) if request.query.get("year") else None
     return Response(
-        body=GetSummaryHandler(_repo).handle(GetSummaryQuery()).to_dict(),
+        body=GetSummaryHandler(_repo).handle(GetSummaryQuery(month=month, year=year)).to_dict(),
         status_code=200
     )
