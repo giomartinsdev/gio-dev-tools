@@ -8,13 +8,13 @@ from .application.queries.get_summary import GetSummaryQuery, GetSummaryHandler
 from .application.queries.list_transactions import ListTransactionsQuery, ListTransactionsHandler
 from .domain.events import TransactionDeleted, TransactionRecorded
 from .infrastructure.event_bus import get_event_bus
-from .infrastructure.sqlite_repository import SQLiteTransactionRepository, migrate
+from .infrastructure.postgres_repository import PostgresTransactionRepository, migrate
 
 logger = get_logger(__name__)
 
 migrate()
 
-_repo = SQLiteTransactionRepository()
+_repo = PostgresTransactionRepository()
 _bus = get_event_bus()
 _bus.subscribe(TransactionRecorded, lambda e: logger.info(f"TransactionRecorded id={e.transaction_id} type={e.type} amount={e.amount}"))
 _bus.subscribe(TransactionDeleted, lambda e: logger.info(f"TransactionDeleted id={e.transaction_id}"))

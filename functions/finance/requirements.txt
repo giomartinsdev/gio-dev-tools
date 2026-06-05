@@ -1,1 +1,1 @@
-# sqlite3 is part of Python stdlib — no extra dependencies needed
+psycopg2-binary==2.9.9
