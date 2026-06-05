@@ -164,3 +164,4 @@ async def _record_transaction(data: dict) -> None:
         )
         logger.info(f"Finance response: status={response.status_code}")
         response.raise_for_status()
+
