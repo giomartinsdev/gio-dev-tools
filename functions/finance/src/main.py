@@ -28,54 +28,73 @@ def main(request: Request) -> Response:
             return _delete(request)
         if request.method == "GET":
             return _summary(request) if request.query.get("summary") == "true" else _list(request)
-        return Response(body={"error": "method not allowed"}, status_code=405)
+        return Response(
+            body={"error": "method not allowed"},
+            status_code=405
+        )
+
     except ValueError as e:
-        return Response(body={"error": str(e)}, status_code=400)
+        return Response(
+            body={"error": str(e)},
+            status_code=400
+        )
     except Exception as e:
-        logger.error(f"unhandled error: {e}", exc_info=True)
-        return Response(body={"error": "internal server error"}, status_code=500)
+        logger.error(
+            f"unhandled error: {e}",
+            exc_info=True
+        )
+        return Response(
+            body={"error": "internal server error"},
+            status_code=500
+        )
 
 
 def _record(request: Request) -> Response:
-    body = request.body
-    if not isinstance(body, dict):
-        raise ValueError("JSON body required")
-
     cmd = RecordTransactionCommand(
-        amount=str(body.get("amount", "")),
-        type=str(body.get("type", "")),
-        category=str(body.get("category", "")),
-        description=str(body.get("description", "")),
-        date=body.get("date"),
+        amount=str(request.body.get("amount", "")),
+        type=str(request.body.get("type", "")),
+        category=str(request.body.get("category", "")),
+        description=str(request.body.get("description", "")),
+        date=request.body.get("date"),
     )
-    transaction = RecordTransactionHandler(_repo, _bus).handle(cmd)
-    return Response(body=transaction.to_dict(), status_code=201)
+    return Response(
+        body=RecordTransactionHandler(_repo, _bus).handle(cmd).to_dict(),
+        status_code=201
+    )
 
 
 def _delete(request: Request) -> Response:
-    body = request.body
-    if not isinstance(body, dict):
-        raise ValueError("JSON body required")
-
-    transaction_id = body.get("id")
-    if not transaction_id:
-        raise ValueError("id is required")
-
     deleted = DeleteTransactionHandler(_repo, _bus).handle(
-        DeleteTransactionCommand(transaction_id=str(transaction_id))
+        DeleteTransactionCommand(transaction_id=str(request.body.get("id")))
     )
     if not deleted:
-        return Response(body={"error": "transaction not found"}, status_code=404)
-    return Response(body={"deleted": True}, status_code=200)
+        return Response(
+            body={"error": "transaction not found"},
+            status_code=404
+        )
+
+    return Response(
+        body={"deleted": True},
+        status_code=200
+    )
 
 
 def _list(request: Request) -> Response:
-    limit = int(request.query.get("limit", 50))
-    offset = int(request.query.get("offset", 0))
-    transactions = ListTransactionsHandler(_repo).handle(ListTransactionsQuery(limit=limit, offset=offset))
-    return Response(body=[t.to_dict() for t in transactions], status_code=200)
+    return Response(
+        body=[
+            t.to_dict() for t in ListTransactionsHandler(_repo).handle(
+                ListTransactionsQuery(
+                    limit=int(request.query.get("limit", 50)),
+                    offset=int(request.query.get("offset", 0))
+                )
+            )
+        ],
+        status_code=200
+    )
 
 
-def _summary(request: Request) -> Response:
-    summary = GetSummaryHandler(_repo).handle(GetSummaryQuery())
-    return Response(body=summary.to_dict(), status_code=200)
+def _summary(_: Request) -> Response:
+    return Response(
+        body=GetSummaryHandler(_repo).handle(GetSummaryQuery()).to_dict(),
+        status_code=200
+    )
