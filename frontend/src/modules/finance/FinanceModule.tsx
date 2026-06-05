@@ -1,51 +1,27 @@
-import { useState, useEffect, useCallback } from 'react'
-import {
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Plus,
-  Trash2,
-  Loader2,
-  CheckCircle,
-  XCircle,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { DollarSign, Trash2, Loader2, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 
 type TransactionType = 'income' | 'expense'
 
-interface Money {
-  amount: string
-  currency: string
-}
-
 interface Transaction {
   id: string
-  amount: Money
+  amount: { amount: string; currency: string }
   type: TransactionType
   category: string
   description: string
   date: string
 }
 
-interface Summary {
-  total_income: string
-  total_expenses: string
-  balance: string
-  transaction_count: number
+interface Draft {
+  date: string
+  description: string
+  category: string
+  type: TransactionType
+  amount: string
 }
 
 const CATEGORIES: Record<TransactionType, string[]> = {
@@ -53,79 +29,82 @@ const CATEGORIES: Record<TransactionType, string[]> = {
   expense: ['Food', 'Transport', 'Housing', 'Health', 'Entertainment', 'Education', 'Shopping', 'Other'],
 }
 
-type Status = 'idle' | 'loading' | 'success' | 'error'
-
-function formatBRL(value: string): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value))
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-}
-
-function today(): string {
+function today() {
   return new Date().toISOString().split('T')[0]
 }
 
+function emptyDraft(): Draft {
+  return { date: today(), description: '', category: 'Food', type: 'expense', amount: '' }
+}
+
+function formatBRL(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+const cellInput = 'w-full rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground'
+
 export function FinanceModule() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [loadingData, setLoadingData] = useState(true)
-
-  const [amount, setAmount] = useState('')
-  const [type, setType] = useState<TransactionType>('expense')
-  const [category, setCategory] = useState('')
-  const [description, setDescription] = useState('')
-  const [date, setDate] = useState(today)
-  const [submitStatus, setSubmitStatus] = useState<Status>('idle')
-  const [submitMsg, setSubmitMsg] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [draft, setDraft] = useState<Draft>(emptyDraft)
+  const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const dateRef = useRef<HTMLInputElement>(null)
 
-  const fetchAll = useCallback(async () => {
-    try {
-      const [txRes, sumRes] = await Promise.all([
-        fetch(`${GATEWAY}/fn/finance`),
-        fetch(`${GATEWAY}/fn/finance?summary=true`),
-      ])
-      if (txRes.ok) setTransactions(await txRes.json())
-      if (sumRes.ok) setSummary(await sumRes.json())
-    } finally {
-      setLoadingData(false)
+  const totals = useMemo(() => {
+    const draftAmt = parseFloat(draft.amount) || 0
+    let income = 0, expenses = 0
+    for (const t of transactions) {
+      const amt = parseFloat(t.amount.amount)
+      t.type === 'income' ? (income += amt) : (expenses += amt)
     }
+    if (draftAmt > 0) {
+      draft.type === 'income' ? (income += draftAmt) : (expenses += draftAmt)
+    }
+    return { income, expenses, balance: income - expenses }
+  }, [transactions, draft.amount, draft.type])
+
+  const fetchTransactions = useCallback(async () => {
+    const res = await fetch(`${GATEWAY}/fn/finance`)
+    if (res.ok) setTransactions(await res.json())
+    setLoading(false)
   }, [])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { fetchTransactions() }, [fetchTransactions])
 
-  useEffect(() => { setCategory('') }, [type])
+  function set<K extends keyof Draft>(field: K, value: Draft[K]) {
+    setDraft(d => ({ ...d, [field]: value }))
+  }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitStatus('loading')
+  function toggleType() {
+    const next: TransactionType = draft.type === 'income' ? 'expense' : 'income'
+    setDraft(d => ({ ...d, type: next, category: CATEGORIES[next][0] }))
+  }
+
+  async function submit() {
+    if (!draft.amount || !draft.description || !draft.category) return
+    setSubmitting(true)
     try {
       const res = await fetch(`${GATEWAY}/fn/finance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, type, category, description, date }),
+        body: JSON.stringify(draft),
       })
-      const data = await res.json()
       if (res.ok) {
-        setSubmitStatus('success')
-        setSubmitMsg('Transaction recorded.')
-        setAmount('')
-        setDescription('')
-        setDate(today())
-        await fetchAll()
-      } else {
-        setSubmitStatus('error')
-        setSubmitMsg(data.error ?? 'Failed to record transaction.')
+        await fetchTransactions()
+        setDraft(emptyDraft())
+        setTimeout(() => dateRef.current?.focus(), 0)
       }
-    } catch {
-      setSubmitStatus('error')
-      setSubmitMsg('Failed to connect to the gateway.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  async function handleDelete(id: string) {
+  async function remove(id: string) {
     setDeletingId(id)
     try {
       const res = await fetch(`${GATEWAY}/fn/finance`, {
@@ -133,259 +112,201 @@ export function FinanceModule() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
-      if (res.ok) await fetchAll()
+      if (res.ok) await fetchTransactions()
     } finally {
       setDeletingId(null)
     }
   }
 
-  const balancePositive = summary ? Number(summary.balance) >= 0 : true
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); submit() }
+  }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
-        <SummaryCard
-          label="Balance"
-          value={summary ? formatBRL(summary.balance) : '—'}
-          icon={DollarSign}
-          positive={balancePositive}
-          loading={loadingData}
-        />
-        <SummaryCard
-          label="Income"
-          value={summary ? formatBRL(summary.total_income) : '—'}
-          icon={TrendingUp}
-          positive
-          loading={loadingData}
-        />
-        <SummaryCard
-          label="Expenses"
-          value={summary ? formatBRL(summary.total_expenses) : '—'}
-          icon={TrendingDown}
-          positive={false}
-          loading={loadingData}
-        />
-      </div>
+    <div className="rounded-lg border bg-card overflow-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            <Th className="w-32">Date</Th>
+            <Th>Description</Th>
+            <Th className="w-36">Category</Th>
+            <Th className="w-24">Type</Th>
+            <Th className="w-36 text-right">Amount</Th>
+            <th className="w-10" />
+          </tr>
+        </thead>
 
-      {/* Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">New Transaction</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex gap-2">
-              {(['income', 'expense'] as const).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={cn(
-                    'flex-1 rounded-md border py-2 text-sm font-medium transition-colors',
-                    type === t
-                      ? t === 'income'
-                        ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
-                        : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
-                      : 'border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  {t === 'income' ? 'Income' : 'Expense'}
-                </button>
-              ))}
-            </div>
+        <tbody>
+          {loading ? (
+            <tr>
+              <td colSpan={6} className="py-16 text-center">
+                <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+              </td>
+            </tr>
+          ) : (
+            transactions.map(tx => (
+              <tr key={tx.id} className="border-b group hover:bg-muted/30 transition-colors">
+                <Td className="tabular-nums text-muted-foreground">{formatDate(tx.date)}</Td>
+                <Td className="font-medium">{tx.description}</Td>
+                <Td className="text-muted-foreground">{tx.category}</Td>
+                <Td>
+                  <TypePill type={tx.type} />
+                </Td>
+                <Td className={cn(
+                  'text-right font-semibold tabular-nums',
+                  tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                )}>
+                  {tx.type === 'income' ? '+' : '−'}{formatBRL(parseFloat(tx.amount.amount))}
+                </Td>
+                <td className="px-1.5">
+                  <button
+                    onClick={() => remove(tx.id)}
+                    disabled={deletingId === tx.id}
+                    className="opacity-0 group-hover:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-opacity disabled:opacity-30"
+                  >
+                    {deletingId === tx.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (R$)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={date}
-                  onChange={e => setDate(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={category} onValueChange={setCategory} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES[type].map(c => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  placeholder="e.g. Supermarket"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {submitStatus !== 'idle' && submitStatus !== 'loading' && (
-              <div
+          {/* Input row */}
+          <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
+            <td className="px-1.5 py-1.5">
+              <input
+                ref={dateRef}
+                type="date"
+                value={draft.date}
+                onChange={e => set('date', e.target.value)}
+                onKeyDown={onKeyDown}
+                className={cellInput}
+              />
+            </td>
+            <td className="px-1.5 py-1.5">
+              <input
+                type="text"
+                value={draft.description}
+                onChange={e => set('description', e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Description..."
+                className={cellInput}
+              />
+            </td>
+            <td className="px-1.5 py-1.5">
+              <select
+                value={draft.category}
+                onChange={e => set('category', e.target.value)}
+                onKeyDown={onKeyDown}
+                className={cellInput}
+              >
+                {CATEGORIES[draft.type].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </td>
+            <td className="px-1.5 py-1.5">
+              <button
+                type="button"
+                onClick={toggleType}
                 className={cn(
-                  'flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
-                  submitStatus === 'success'
-                    ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
+                  'w-full rounded px-2 py-1 text-xs font-medium border transition-colors',
+                  draft.type === 'income'
+                    ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
+                    : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
                 )}
               >
-                {submitStatus === 'success' ? (
-                  <CheckCircle className="h-4 w-4 shrink-0" />
-                ) : (
-                  <XCircle className="h-4 w-4 shrink-0" />
-                )}
-                {submitMsg}
-              </div>
-            )}
+                {draft.type === 'income' ? 'Income' : 'Expense'}
+              </button>
+            </td>
+            <td className="px-1.5 py-1.5">
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={draft.amount}
+                onChange={e => set('amount', e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="0.00"
+                className={cn(cellInput, 'text-right')}
+              />
+            </td>
+            <td className="px-1.5 py-1.5">
+              <button
+                onClick={submit}
+                disabled={submitting || !draft.amount || !draft.description}
+                className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30"
+              >
+                {submitting
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Plus className="h-3.5 w-3.5" />}
+              </button>
+            </td>
+          </tr>
+        </tbody>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={submitStatus === 'loading' || !category}
-            >
-              {submitStatus === 'loading' ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
-              ) : (
-                <><Plus className="h-4 w-4" /> Record transaction</>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Transactions
-            {summary && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {summary.transaction_count} total
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingData ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : transactions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No transactions yet.
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {transactions.map(tx => (
-                <li key={tx.id} className="flex items-center gap-3 py-3">
-                  <div
-                    className={cn(
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-                      tx.type === 'income'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                    )}
-                  >
-                    {tx.category.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{tx.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.category} · {formatDate(tx.date)}
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      'text-sm font-semibold tabular-nums',
-                      tx.type === 'income'
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    )}
-                  >
-                    {tx.type === 'income' ? '+' : '−'}{formatBRL(tx.amount.amount)}
-                  </span>
-                  <button
-                    onClick={() => handleDelete(tx.id)}
-                    disabled={deletingId === tx.id}
-                    className="ml-1 rounded p-1 text-muted-foreground opacity-40 transition-opacity hover:opacity-100 hover:text-destructive disabled:opacity-20"
-                  >
-                    {deletingId === tx.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+        {/* Totals footer */}
+        <tfoot className="border-t-2">
+          <tr className="bg-muted/20">
+            <td className="px-3 py-2" />
+            <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Income</td>
+            <td colSpan={2} />
+            <td className="px-3 py-2 text-right font-semibold tabular-nums text-green-600 dark:text-green-400">
+              {formatBRL(totals.income)}
+            </td>
+            <td />
+          </tr>
+          <tr className="bg-muted/20">
+            <td className="px-3 py-2" />
+            <td className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</td>
+            <td colSpan={2} />
+            <td className="px-3 py-2 text-right font-semibold tabular-nums text-red-600 dark:text-red-400">
+              {formatBRL(totals.expenses)}
+            </td>
+            <td />
+          </tr>
+          <tr className="bg-muted/20 border-t">
+            <td className="px-3 py-2.5" />
+            <td className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground">Balance</td>
+            <td colSpan={2} />
+            <td className={cn(
+              'px-3 py-2.5 text-right font-bold tabular-nums text-base',
+              totals.balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+            )}>
+              {formatBRL(totals.balance)}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
     </div>
   )
 }
 
-function SummaryCard({
-  label,
-  value,
-  icon: Icon,
-  positive,
-  loading,
-}: {
-  label: string
-  value: string
-  icon: React.ElementType
-  positive: boolean
-  loading: boolean
-}) {
+function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <Icon className={cn('h-4 w-4', positive ? 'text-green-500' : 'text-red-500')} />
-        </div>
-        {loading ? (
-          <div className="h-7 w-24 animate-pulse rounded bg-muted" />
-        ) : (
-          <p
-            className={cn(
-              'text-xl font-bold',
-              positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-            )}
-          >
-            {value}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <th className={cn('px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground', className)}>
+      {children}
+    </th>
+  )
+}
+
+function Td({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <td className={cn('px-3 py-2.5', className)}>{children}</td>
+}
+
+function TypePill({ type }: { type: TransactionType }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+      type === 'income'
+        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+        : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+    )}>
+      {type === 'income' ? 'Income' : 'Expense'}
+    </span>
   )
 }
 
