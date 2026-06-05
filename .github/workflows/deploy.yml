@@ -60,6 +60,7 @@ jobs:
           fi
 
       - name: Build and push image
+        if: matrix.function != 'finance-ocr'
         uses: docker/build-push-action@v6
         with:
           context: functions
@@ -71,6 +72,10 @@ jobs:
             re.giomartins.dev/${{ matrix.function }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.function }}
           cache-to: type=gha,mode=max,scope=${{ matrix.function }}
+
+      - name: Skip build (image managed manually)
+        if: matrix.function == 'finance-ocr'
+        run: echo "finance-ocr is built manually on the server. Skipping CI build."
 
   deploy:
     needs: [detect-changes, build]
@@ -139,6 +144,9 @@ jobs:
           fi
           if [ "${{ matrix.function }}" = "finance" ]; then
             EXTRA_ENVS="--env DATABASE_URL=${{ secrets.DATABASE_URL }}"
+          fi
+          if [ "${{ matrix.function }}" = "finance-ocr" ]; then
+            EXTRA_ENVS="--env CF_ACCESS_CLIENT_ID=${{ secrets.CF_ACCESS_CLIENT_ID }} --env CF_ACCESS_CLIENT_SECRET=${{ secrets.CF_ACCESS_CLIENT_SECRET }} --env FINANCE_URL=https://of.giomartins.dev/function/finance"
           fi
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             faas-cli deploy \

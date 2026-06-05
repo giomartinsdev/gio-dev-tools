@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { DollarSign, Trash2, Loader2, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { DollarSign, Trash2, Loader2, Plus, ChevronLeft, ChevronRight, ScanLine } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -63,7 +63,9 @@ export function FinanceModule() {
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(year, month))
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [ocrState, setOcrState] = useState<'idle' | 'uploading' | 'processing'>('idle')
   const dateRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
@@ -146,8 +148,42 @@ export function FinanceModule() {
     if (e.key === 'Enter') { e.preventDefault(); submit() }
   }
 
+  async function uploadReceipt(file: File) {
+    setOcrState('uploading')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`${GATEWAY}/fn-async/finance-ocr`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok && res.status !== 202) throw new Error(`Upload failed: ${res.status}`)
+      setOcrState('processing')
+      setTimeout(async () => {
+        await fetchTransactions(year, month)
+        setOcrState('idle')
+      }, 8000)
+    } catch {
+      setOcrState('idle')
+    }
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) uploadReceipt(file)
+    e.target.value = ''
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        className="hidden"
+        onChange={onFileChange}
+      />
+
       {/* Month navigator */}
       <div className="flex items-center justify-between">
         <button
@@ -157,12 +193,28 @@ export function FinanceModule() {
           <ChevronLeft className="h-4 w-4" />
         </button>
         <span className="text-sm font-semibold">{monthLabel}</span>
-        <button
-          onClick={nextMonth}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {ocrState !== 'idle' && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {ocrState === 'uploading' ? 'Sending...' : 'Processing receipt...'}
+            </span>
+          )}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={ocrState !== 'idle'}
+            title="Import receipt via OCR"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40"
+          >
+            <ScanLine className="h-4 w-4" />
+          </button>
+          <button
+            onClick={nextMonth}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Table */}
