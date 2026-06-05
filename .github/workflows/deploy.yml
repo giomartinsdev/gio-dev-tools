@@ -60,7 +60,6 @@ jobs:
           fi
 
       - name: Build and push image
-        if: matrix.function != 'finance-ocr'
         uses: docker/build-push-action@v6
         with:
           context: functions
@@ -72,10 +71,6 @@ jobs:
             re.giomartins.dev/${{ matrix.function }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.function }}
           cache-to: type=gha,mode=max,scope=${{ matrix.function }}
-
-      - name: Skip build (image managed manually)
-        if: matrix.function == 'finance-ocr'
-        run: echo "finance-ocr is built manually on the server. Skipping CI build."
 
   deploy:
     needs: [detect-changes, build]
