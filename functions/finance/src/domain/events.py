@@ -1,13 +1,12 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 
-
-@dataclass
-class DomainEvent:
-    occurred_at: datetime = field(default_factory=datetime.utcnow)
+from pydantic import BaseModel, Field
 
 
-@dataclass
+class DomainEvent(BaseModel):
+    occurred_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class TransactionRecorded(DomainEvent):
     transaction_id: str = ""
     amount: str = ""
@@ -15,6 +14,5 @@ class TransactionRecorded(DomainEvent):
     category: str = ""
 
 
-@dataclass
 class TransactionDeleted(DomainEvent):
     transaction_id: str = ""

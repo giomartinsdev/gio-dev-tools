@@ -1,7 +1,8 @@
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
+
+from pydantic import BaseModel
 
 from ...domain.events import TransactionRecorded
 from ...domain.repository import TransactionRepository
@@ -9,8 +10,7 @@ from ...domain.transaction import Transaction, TransactionType
 from ...infrastructure.event_bus import EventBus
 
 
-@dataclass
-class RecordTransactionCommand:
+class RecordTransactionCommand(BaseModel):
     amount: str
     type: str
     category: str

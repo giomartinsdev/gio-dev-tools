@@ -1,9 +1,10 @@
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
 import uuid
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class TransactionType(str, Enum):
@@ -11,21 +12,24 @@ class TransactionType(str, Enum):
     EXPENSE = "expense"
 
 
-@dataclass(frozen=True)
-class Money:
+class Money(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     amount: Decimal
     currency: str = "BRL"
 
-    def __post_init__(self):
-        if self.amount <= 0:
+    @field_validator("amount")
+    @classmethod
+    def must_be_positive(cls, v: Decimal) -> Decimal:
+        if v <= 0:
             raise ValueError("Amount must be positive")
+        return v
 
     def to_dict(self) -> dict:
         return {"amount": str(self.amount), "currency": self.currency}
 
 
-@dataclass
-class Transaction:
+class Transaction(BaseModel):
     id: str
     amount: Money
     type: TransactionType

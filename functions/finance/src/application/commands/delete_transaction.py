@@ -1,12 +1,11 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from ...domain.events import TransactionDeleted
 from ...domain.repository import TransactionRepository
 from ...infrastructure.event_bus import EventBus
 
 
-@dataclass
-class DeleteTransactionCommand:
+class DeleteTransactionCommand(BaseModel):
     transaction_id: str
 
 

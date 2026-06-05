@@ -1,12 +1,16 @@
-from dataclasses import dataclass
 from decimal import Decimal
+
+from pydantic import BaseModel
 
 from ...domain.repository import TransactionRepository
 from ...domain.transaction import TransactionType
 
 
-@dataclass
-class Summary:
+class GetSummaryQuery(BaseModel):
+    pass
+
+
+class Summary(BaseModel):
     total_income: Decimal
     total_expenses: Decimal
     balance: Decimal
@@ -19,11 +23,6 @@ class Summary:
             "balance": str(self.balance),
             "transaction_count": self.transaction_count,
         }
-
-
-@dataclass
-class GetSummaryQuery:
-    pass
 
 
 class GetSummaryHandler:

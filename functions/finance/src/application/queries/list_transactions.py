@@ -1,11 +1,10 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from ...domain.repository import TransactionRepository
 from ...domain.transaction import Transaction
 
 
-@dataclass
-class ListTransactionsQuery:
+class ListTransactionsQuery(BaseModel):
     limit: int = 50
     offset: int = 0
 
