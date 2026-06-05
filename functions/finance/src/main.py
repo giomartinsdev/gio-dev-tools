@@ -4,6 +4,7 @@ from shared.response import Response
 
 from .application.commands.delete_transaction import DeleteTransactionCommand, DeleteTransactionHandler
 from .application.commands.record_transaction import RecordTransactionCommand, RecordTransactionHandler
+from .application.commands.update_transaction import UpdateTransactionCommand, UpdateTransactionHandler
 from .application.queries.get_summary import GetSummaryQuery, GetSummaryHandler
 from .application.queries.list_transactions import ListTransactionsQuery, ListTransactionsHandler
 from .domain.events import TransactionDeleted, TransactionRecorded
@@ -24,6 +25,8 @@ def main(request: Request) -> Response:
     try:
         if request.method == "POST":
             return _record(request)
+        if request.method == "PATCH":
+            return _update(request)
         if request.method == "DELETE":
             return _delete(request)
         if request.method == "GET":
@@ -60,6 +63,26 @@ def _record(request: Request) -> Response:
     return Response(
         body=RecordTransactionHandler(_repo, _bus).handle(cmd).to_dict(),
         status_code=201
+    )
+
+
+def _update(request: Request) -> Response:
+    result = UpdateTransactionHandler(_repo, _bus).handle(
+        UpdateTransactionCommand(
+            transaction_id=str(request.body.get("id")),
+            amount=str(request.body.get("amount", "")),
+            type=str(request.body.get("type", "")),
+            category=str(request.body.get("category", "")),
+            description=str(request.body.get("description", "")),
+            date=request.body.get("date"),
+        )
+    )
+    if result is None:
+        return Response(body={"error": "transaction not found"}, status_code=404)
+    reversal, new_entry = result
+    return Response(
+        body={"reversal": reversal.to_dict(), "transaction": new_entry.to_dict()},
+        status_code=200,
     )
 
 

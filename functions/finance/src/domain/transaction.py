@@ -20,9 +20,9 @@ class Money(BaseModel):
 
     @field_validator("amount")
     @classmethod
-    def must_be_positive(cls, v: Decimal) -> Decimal:
-        if v <= 0:
-            raise ValueError("Amount must be positive")
+    def must_be_nonzero(cls, v: Decimal) -> Decimal:
+        if v == 0:
+            raise ValueError("Amount cannot be zero")
         return v
 
     def to_dict(self) -> dict:
