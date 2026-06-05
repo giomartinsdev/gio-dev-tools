@@ -5,7 +5,6 @@ from io import BytesIO
 from datetime import date as date_type
 from PIL import Image, ImageEnhance
 import pytesseract
-from transformers import pipeline
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
 from shared.logger import get_logger
@@ -16,27 +15,85 @@ _FINANCE_URL = os.environ.get("FINANCE_URL", "https://of.giomartins.dev/function
 _CF_CLIENT_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
 _CF_CLIENT_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 
-_classifier = pipeline(
-    "zero-shot-classification",
-    model="facebook/bart-large-mnli",
-    device=-1,
-)
-
-_EXPENSE_CATEGORIES = [
-    "Food", "Transport", "Housing", "Health",
-    "Entertainment", "Education", "Shopping", "Other",
-]
-_INCOME_CATEGORIES = [
-    "Salary", "Freelance", "Investment", "Gift", "Other"
-]
+# ---------------------------------------------------------------------------
+# Keyword-based classifier — instant, no ML inference needed
+# ---------------------------------------------------------------------------
+_KEYWORDS: dict[str, list[str]] = {
+    "Food": [
+        "restaurante", "lanchonete", "pizzaria", "padaria", "supermercado",
+        "mercado", "hortifruti", "açougue", "peixaria", "ifood", "rappi",
+        "uber eats", "mcdonald", "burger", "subway", "pizza", "sushi",
+        "hamburguer", "lanche", "café", "coffee", "bakery", "pão de açúcar",
+        "carrefour", "extra ", "wal-mart", "atacadão", "assaí", "makro",
+        "dia ", "spar", "panificadora", "sorveteria", "doceria", "bistrô",
+    ],
+    "Transport": [
+        "uber", "99app", "taxi", "posto ", "shell", "petrobras", "ipiranga",
+        "br distribuidora", "combustível", "gasolina", "etanol", "diesel",
+        "estacionamento", "parking", "pedágio", "metrô", "ônibus",
+        "passagem", "bilhete único", "gol ", "latam", "azul ", "aeroporto",
+        "moto", "bicicleta", "patinete", "brt ", "trem",
+    ],
+    "Housing": [
+        "aluguel", "condomínio", "copasa", "cemig", "sabesp", "comgas",
+        "enel", "neoenergia", "energisa", "coelba", "vivo", "claro",
+        "tim ", "oi ", "net ", "sky ", "internet", "telefone", "imóvel",
+        "imobiliária", "agua e esgoto", "conta de luz", "conta de água",
+    ],
+    "Health": [
+        "farmácia", "drogaria", "ultrafarma", "droga", "pague menos",
+        "raia", "dpsp", "panvel", "hospital", "clínica", "médico",
+        "dentista", "laboratório", "exame", "consulta", "plano de saúde",
+        "unimed", "bradesco saúde", "amil", "sulamerica", "hapvida",
+        "notredame", "remédio", "medicamento",
+    ],
+    "Entertainment": [
+        "netflix", "spotify", "amazon prime", "disney+", "hbo", "globoplay",
+        "paramount", "apple tv", "cinema", "ingresso", "teatro", "show",
+        "evento", "live", "steam", "playstation", "xbox", "nintendo",
+        "game", "parque", "museu",
+    ],
+    "Education": [
+        "escola", "faculdade", "universidade", "curso", "udemy", "coursera",
+        "alura", "livro", "livraria", "kindle", "material escolar",
+        "mensalidade", "matrícula", "apostila", "treinamento",
+    ],
+    "Shopping": [
+        "americanas", "magazine luiza", "magalu", "submarino", "amazon",
+        "mercado livre", "shopee", "shein", "zara", "renner", "c&a",
+        "riachuelo", "hering", "nike", "adidas", "centauro", "decathlon",
+        "leroy merlin", "tok stok", "casas bahia", "ponto frio",
+        "fast shop", "kabum", "terabyte",
+    ],
+}
 
 _INCOME_KW = {
-    "salário", "salario", "salary", "depósito", "deposito",
-    "crédito", "credito", "pix recebido", "transferência recebida",
-    "transferencia recebida", "rendimento",
+    "salário", "salario", "depósito", "deposito", "crédito em conta",
+    "credito em conta", "pix recebido", "transferência recebida",
+    "transferencia recebida", "rendimento", "dividendo", "freelance",
+    "pagamento recebido",
 }
 
 
+def _classify(text: str) -> tuple[str, str]:
+    text_lower = text.lower()
+
+    if any(kw in text_lower for kw in _INCOME_KW):
+        return "income", "Other"
+
+    scores: dict[str, int] = {cat: 0 for cat in _KEYWORDS}
+    for cat, keywords in _KEYWORDS.items():
+        for kw in keywords:
+            if kw in text_lower:
+                scores[cat] += 1
+
+    best = max(scores, key=lambda c: scores[c])
+    return "expense", best if scores[best] > 0 else "Other"
+
+
+# ---------------------------------------------------------------------------
+# OCR helpers
+# ---------------------------------------------------------------------------
 def _preprocess(img: Image.Image) -> Image.Image:
     img = img.convert("L")
     return ImageEnhance.Contrast(img).enhance(2.0)
@@ -49,17 +106,15 @@ def _ocr(image_bytes: bytes) -> str:
 
 
 def _extract_amount(text: str) -> float | None:
-    # Priority: labeled totals first, then any R$ value, then last numeric value
     patterns = [
         r"(?:TOTAL|VALOR\s+TOTAL|VALOR)[^\d]*R?\$?\s*([\d.,]+)",
         r"R\$\s*([\d.,]+)",
         r"([\d.,]+)\s*(?:\n|$)",
     ]
-    amounts = []
     for pattern in patterns:
+        amounts = []
         for m in re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE):
             raw = m.group(1).strip()
-            # Brazilian format 1.234,56 → 1234.56
             if re.match(r"^\d{1,3}(?:\.\d{3})+,\d{2}$", raw):
                 raw = raw.replace(".", "").replace(",", ".")
             elif "," in raw and raw.rindex(",") == len(raw) - 3:
@@ -78,25 +133,13 @@ def _extract_amount(text: str) -> float | None:
 
 
 def _extract_date(text: str) -> str | None:
-    # DD/MM/YYYY
     m = re.search(r"\b(\d{2})/(\d{2})/(\d{4})\b", text)
     if m:
         return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
-    # YYYY-MM-DD
     m = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
     if m:
         return m.group(0)
     return None
-
-
-def _classify(text: str) -> tuple[str, str]:
-    text_lower = text.lower()
-    is_income = any(kw in text_lower for kw in _INCOME_KW)
-    categories = _INCOME_CATEGORIES if is_income else _EXPENSE_CATEGORIES
-    tx_type = "income" if is_income else "expense"
-
-    result = _classifier(text[:512], candidate_labels=categories, multi_label=False)
-    return tx_type, result["labels"][0]
 
 
 def _description(text: str) -> str:
@@ -107,6 +150,9 @@ def _description(text: str) -> str:
     return "Receipt import"
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 async def main(file: UploadFile) -> JSONResponse:
     try:
         image_bytes = await file.read()
@@ -164,4 +210,3 @@ async def _record_transaction(data: dict) -> None:
         )
         logger.info(f"Finance response: status={response.status_code}")
         response.raise_for_status()
-

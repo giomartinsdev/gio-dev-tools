@@ -26,10 +26,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         opentelemetry-instrumentation-urllib3==0.55b0 \
         wrapt==1.17.2
 
-# CPU-only torch — transformers requires >= 2.4
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install "torch>=2.4.0" --index-url https://download.pytorch.org/whl/cpu
-
 ARG FUNCTION_DIR
 WORKDIR /app
 
@@ -37,18 +33,12 @@ COPY ${FUNCTION_DIR}/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Bake model so cold starts don't hit the network
-RUN python -c "\
-from transformers import pipeline; \
-pipeline('zero-shot-classification', model='facebook/bart-large-mnli', device=-1)"
-
 COPY shared/ shared/
 COPY ${FUNCTION_DIR}/ .
 
 ENV fprocess="opentelemetry-instrument uvicorn handler:app --host 0.0.0.0 --port 5000"
 ENV mode="http"
 ENV upstream_url="http://127.0.0.1:5000"
-ENV TRANSFORMERS_OFFLINE=1
 
 HEALTHCHECK --interval=5s CMD curl -sf http://localhost:8080/_/health || exit 1
 CMD ["/usr/bin/fwatchdog"]
