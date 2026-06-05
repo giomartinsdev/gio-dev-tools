@@ -4,11 +4,14 @@
 #
 #   bash scripts/build-finance-ocr.sh
 #
+# Pushes to localhost:5000 (bypasses Cloudflare upload limit).
+# The deploy still uses re.giomartins.dev (pulling works fine through Cloudflare).
 # Credentials are stored in ~/.faas-cf-creds after the first run.
 
 set -euo pipefail
 
-REGISTRY="${REGISTRY:-re.giomartins.dev}"
+LOCAL_REGISTRY="localhost:5000"
+REMOTE_REGISTRY="${REGISTRY:-re.giomartins.dev}"
 GATEWAY="${GATEWAY:-http://127.0.0.1:8080}"
 FINANCE_URL="${FINANCE_URL:-https://of.giomartins.dev/function/finance}"
 OTEL_ENDPOINT="${OTEL_ENDPOINT:-https://optel.giomartins.dev}"
@@ -17,44 +20,55 @@ FUNCTION="finance-ocr"
 CREDS_FILE="$HOME/.faas-cf-creds"
 
 # ---------------------------------------------------------------------------
-# Load / prompt for CF credentials
+# Load / prompt for credentials
 # ---------------------------------------------------------------------------
-if [[ -z "${CF_ACCESS_CLIENT_ID:-}" && -f "$CREDS_FILE" ]]; then
+if [[ -f "$CREDS_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$CREDS_FILE"
     echo "==> Loaded credentials from $CREDS_FILE"
 fi
 
-if [[ -z "${CF_ACCESS_CLIENT_ID:-}" ]]; then
-    echo "CF credentials not found. Enter them now (saved to $CREDS_FILE for future runs)."
-    read -rp "CF_ACCESS_CLIENT_ID: " CF_ACCESS_CLIENT_ID
-    read -rsp "CF_ACCESS_CLIENT_SECRET: " CF_ACCESS_CLIENT_SECRET
-    echo ""
+_need_creds=0
+[[ -z "${CF_ACCESS_CLIENT_ID:-}"  ]] && _need_creds=1
+[[ -z "${REGISTRY_USER:-}"        ]] && _need_creds=1
+[[ -z "${REGISTRY_PASSWORD:-}"    ]] && _need_creds=1
+
+if [[ "$_need_creds" == "1" ]]; then
+    echo "Some credentials are missing. Enter them now (saved to $CREDS_FILE)."
+    [[ -z "${CF_ACCESS_CLIENT_ID:-}"  ]] && read -rp  "CF_ACCESS_CLIENT_ID:     " CF_ACCESS_CLIENT_ID
+    [[ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]] && read -rsp "CF_ACCESS_CLIENT_SECRET: " CF_ACCESS_CLIENT_SECRET && echo ""
+    [[ -z "${REGISTRY_USER:-}"        ]] && read -rp  "REGISTRY_USER:           " REGISTRY_USER
+    [[ -z "${REGISTRY_PASSWORD:-}"    ]] && read -rsp "REGISTRY_PASSWORD:       " REGISTRY_PASSWORD && echo ""
 
     {
         echo "CF_ACCESS_CLIENT_ID=$CF_ACCESS_CLIENT_ID"
         echo "CF_ACCESS_CLIENT_SECRET=$CF_ACCESS_CLIENT_SECRET"
+        echo "REGISTRY_USER=$REGISTRY_USER"
+        echo "REGISTRY_PASSWORD=$REGISTRY_PASSWORD"
     } > "$CREDS_FILE"
     chmod 600 "$CREDS_FILE"
     echo "==> Saved to $CREDS_FILE"
 fi
 
-export CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET
+export CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET REGISTRY_USER REGISTRY_PASSWORD
 
 # ---------------------------------------------------------------------------
-# Build
+# Resolve paths
 # ---------------------------------------------------------------------------
 SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "manual")
-IMAGE_LATEST="$REGISTRY/$FUNCTION:latest"
-IMAGE_SHA="$REGISTRY/$FUNCTION:$SHA"
+
+# Push to localhost:5000 to bypass Cloudflare's upload limit.
+# Pull / deploy still reference re.giomartins.dev (same registry, download is fine).
+LOCAL_IMAGE_LATEST="$LOCAL_REGISTRY/$FUNCTION:latest"
+LOCAL_IMAGE_SHA="$LOCAL_REGISTRY/$FUNCTION:$SHA"
+REMOTE_IMAGE_LATEST="$REMOTE_REGISTRY/$FUNCTION:latest"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTEXT="$REPO_ROOT/functions"
 DOCKERFILE="$CONTEXT/$FUNCTION/Dockerfile"
 
 if [[ ! -d "$CONTEXT" ]]; then
-    echo "ERROR: Run this script from anywhere inside the repo." >&2
-    echo "       Could not find: $CONTEXT" >&2
+    echo "ERROR: could not find functions/ dir at $CONTEXT" >&2
     exit 1
 fi
 
@@ -67,22 +81,39 @@ else
     exit 1
 fi
 
-echo "==> Build tool : $BUILD"
-echo "==> Image      : $IMAGE_LATEST  (sha: $SHA)"
+echo "==> Build tool  : $BUILD"
+echo "==> Local push  : $LOCAL_IMAGE_LATEST"
+echo "==> Deploy ref  : $REMOTE_IMAGE_LATEST"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Login to local registry
+# ---------------------------------------------------------------------------
+echo "==> Logging in to $LOCAL_REGISTRY..."
+echo "$REGISTRY_PASSWORD" | $BUILD login "$LOCAL_REGISTRY" \
+    --username "$REGISTRY_USER" --password-stdin
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
 echo ""
 echo "==> Building (first run downloads torch + model, may take a while)..."
 
 $BUILD build \
     --file "$DOCKERFILE" \
     --build-arg "FUNCTION_DIR=$FUNCTION" \
-    --tag "$IMAGE_LATEST" \
-    --tag "$IMAGE_SHA" \
+    --tag "$LOCAL_IMAGE_LATEST" \
+    --tag "$LOCAL_IMAGE_SHA" \
     "$CONTEXT"
 
+# ---------------------------------------------------------------------------
+# Push to localhost:5000 (same registry as re.giomartins.dev, but bypasses
+# Cloudflare so there's no 413 on large layers)
+# ---------------------------------------------------------------------------
 echo ""
-echo "==> Pushing images..."
-$BUILD push "$IMAGE_LATEST"
-$BUILD push "$IMAGE_SHA"
+echo "==> Pushing to $LOCAL_REGISTRY (bypassing Cloudflare)..."
+$BUILD push "$LOCAL_IMAGE_LATEST"
+$BUILD push "$LOCAL_IMAGE_SHA"
 
 # ---------------------------------------------------------------------------
 # Deploy
@@ -93,8 +124,10 @@ if [[ "$SKIP_DEPLOY" == "1" ]]; then
 fi
 
 echo ""
-echo "==> Pulling image into openfaas-fn namespace..."
-sudo ctr -n openfaas-fn images pull "$IMAGE_LATEST"
+echo "==> Pulling image into openfaas-fn namespace (via $REMOTE_REGISTRY)..."
+sudo ctr -n openfaas-fn images pull \
+    --user "$REGISTRY_USER:$REGISTRY_PASSWORD" \
+    "$REMOTE_IMAGE_LATEST"
 
 echo "==> Removing existing function (if any)..."
 faas-cli remove "$FUNCTION" --gateway "$GATEWAY" 2>/dev/null || true
@@ -113,7 +146,7 @@ sudo ctr -n openfaas-fn snapshots rm "${FUNCTION}-snapshot" 2>/dev/null || true
 
 echo "==> Deploying $FUNCTION..."
 faas-cli deploy \
-    --image "$IMAGE_LATEST" \
+    --image "$REMOTE_IMAGE_LATEST" \
     --name "$FUNCTION" \
     --gateway "$GATEWAY" \
     --env "CF_ACCESS_CLIENT_ID=$CF_ACCESS_CLIENT_ID" \
