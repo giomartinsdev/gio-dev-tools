@@ -79,3 +79,4 @@ def _list(request: Request) -> Response:
 def _summary(request: Request) -> Response:
     summary = GetSummaryHandler(_repo).handle(GetSummaryQuery())
     return Response(body=summary.to_dict(), status_code=200)
+
