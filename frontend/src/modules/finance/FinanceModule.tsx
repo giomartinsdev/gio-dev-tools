@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { DollarSign, Trash2, Loader2, Plus, ChevronLeft, ChevronRight, ScanLine } from 'lucide-react'
+import { DollarSign, Trash2, Loader2, Plus, ChevronLeft, ChevronRight, ScanLine, Pencil, Check, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -64,6 +64,9 @@ export function FinanceModule() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [ocrState, setOcrState] = useState<'idle' | 'uploading' | 'processing'>('idle')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<Draft | null>(null)
+  const [saving, setSaving] = useState(false)
   const dateRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -146,6 +149,55 @@ export function FinanceModule() {
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') { e.preventDefault(); submit() }
+  }
+
+  function startEdit(tx: Transaction) {
+    setEditingId(tx.id)
+    setEditDraft({
+      date: tx.date.split('T')[0],
+      description: tx.description,
+      category: tx.category,
+      type: tx.type,
+      amount: tx.amount.amount,
+    })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditDraft(null)
+  }
+
+  function setEdit<K extends keyof Draft>(field: K, value: Draft[K]) {
+    setEditDraft(d => d ? { ...d, [field]: value } : d)
+  }
+
+  function toggleEditType() {
+    if (!editDraft) return
+    const next: TransactionType = editDraft.type === 'income' ? 'expense' : 'income'
+    setEditDraft(d => d ? { ...d, type: next, category: CATEGORIES[next][0] } : d)
+  }
+
+  async function saveEdit() {
+    if (!editDraft || !editingId) return
+    setSaving(true)
+    try {
+      const res = await fetch(`${GATEWAY}/fn/finance`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, ...editDraft }),
+      })
+      if (res.ok) {
+        await fetchTransactions(year, month)
+        cancelEdit()
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function onEditKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
+    if (e.key === 'Escape') cancelEdit()
   }
 
   async function uploadReceipt(file: File) {
@@ -245,31 +297,102 @@ export function FinanceModule() {
                 </td>
               </tr>
             ) : (
-              transactions.map(tx => (
-                <tr key={tx.id} className="border-b group hover:bg-muted/30 transition-colors">
-                  <Td className="tabular-nums text-muted-foreground">{formatDate(tx.date)}</Td>
-                  <Td className="font-medium">{tx.description}</Td>
-                  <Td className="text-muted-foreground">{tx.category}</Td>
-                  <Td><TypePill type={tx.type} /></Td>
-                  <Td className={cn(
-                    'text-right font-semibold tabular-nums',
-                    tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              transactions.map(tx => {
+                const isReversal = tx.description.startsWith('[reversal]')
+                const rawAmt = parseFloat(tx.amount.amount)
+                const isEditing = editingId === tx.id
+
+                if (isEditing && editDraft) {
+                  return (
+                    <tr key={tx.id} className="border-b bg-amber-50/40 dark:bg-amber-950/20">
+                      <td className="px-1.5 py-1.5">
+                        <input type="date" value={editDraft.date}
+                          onChange={e => setEdit('date', e.target.value)}
+                          onKeyDown={onEditKeyDown} className={cellInput} />
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input type="text" value={editDraft.description}
+                          onChange={e => setEdit('description', e.target.value)}
+                          onKeyDown={onEditKeyDown} placeholder="Description..." className={cellInput} />
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <select value={editDraft.category}
+                          onChange={e => setEdit('category', e.target.value)}
+                          onKeyDown={onEditKeyDown} className={cellInput}>
+                          {CATEGORIES[editDraft.type].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <button type="button" onClick={toggleEditType}
+                          className={cn(
+                            'w-full rounded px-2 py-1 text-xs font-medium border transition-colors',
+                            editDraft.type === 'income'
+                              ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
+                              : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
+                          )}>
+                          {editDraft.type === 'income' ? 'Income' : 'Expense'}
+                        </button>
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input type="number" min="0.01" step="0.01" value={editDraft.amount}
+                          onChange={e => setEdit('amount', e.target.value)}
+                          onKeyDown={onEditKeyDown} placeholder="0.00"
+                          className={cn(cellInput, 'text-right')} />
+                      </td>
+                      <td className="px-1.5 py-1.5 flex items-center gap-1">
+                        <button onClick={saveEdit} disabled={saving || !editDraft.amount || !editDraft.description}
+                          className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </button>
+                        <button onClick={cancelEdit}
+                          className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                }
+
+                return (
+                  <tr key={tx.id} className={cn(
+                    'border-b group hover:bg-muted/30 transition-colors',
+                    isReversal && 'opacity-50'
                   )}>
-                    {tx.type === 'income' ? '+' : '−'}{formatBRL(parseFloat(tx.amount.amount))}
-                  </Td>
-                  <td className="px-1.5">
-                    <button
-                      onClick={() => remove(tx.id)}
-                      disabled={deletingId === tx.id}
-                      className="opacity-0 group-hover:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-opacity disabled:opacity-30"
-                    >
-                      {deletingId === tx.id
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
-                  </td>
-                </tr>
-              ))
+                    <Td className="tabular-nums text-muted-foreground">{formatDate(tx.date)}</Td>
+                    <Td className={cn('font-medium', isReversal && 'italic text-muted-foreground')}>{tx.description}</Td>
+                    <Td className="text-muted-foreground">{tx.category}</Td>
+                    <Td><TypePill type={tx.type} /></Td>
+                    <Td className={cn(
+                      'text-right font-semibold tabular-nums',
+                      isReversal
+                        ? 'text-muted-foreground'
+                        : tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    )}>
+                      {isReversal
+                        ? `(${formatBRL(Math.abs(rawAmt))})`
+                        : `${tx.type === 'income' ? '+' : '−'}${formatBRL(rawAmt)}`}
+                    </Td>
+                    <td className="px-1.5">
+                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                        {!isReversal && (
+                          <button onClick={() => startEdit(tx)} disabled={!!editingId}
+                            className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button onClick={() => remove(tx.id)} disabled={deletingId === tx.id}
+                          className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30">
+                          {deletingId === tx.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
             )}
 
             {/* Input row */}
