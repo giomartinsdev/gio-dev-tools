@@ -33,6 +33,7 @@ jobs:
               | cut -d'/' -f4 \
               | grep -v '^shared$' \
               | sort -u \
+              | while read fn; do [ -d "src/backend/functions/$fn" ] && echo "$fn"; done \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
