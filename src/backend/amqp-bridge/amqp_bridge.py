@@ -12,20 +12,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-RABBITMQ_URI = os.environ["RABBITMQ_URI"]              
-RABBITMQ_EXCHANGE = os.environ["RABBITMQ_EXCHANGE_NAME"] 
-EVOLUTION_INSTANCE = os.environ["EVOLUTION_INSTANCE_NAME"]
-FUNCTION_URL = os.environ["FUNCTION_URL"]            
+RABBITMQ_URI = os.environ["RABBITMQ_URI"]
+RABBITMQ_EXCHANGE = os.environ["EVOLUTION_INSTANCE_NAME"]
+FUNCTION_URL = os.environ["FUNCTION_URL"]
 
 QUEUE_NAME = "whatsapp-bridge"
-ROUTING_KEY = f"{EVOLUTION_INSTANCE}.#"
+ROUTING_KEY = "#"
 
 RECONNECT_DELAY = 5
 
 
 def routing_key_to_event(routing_key: str) -> str:
-    parts = routing_key.split(".", 1)
-    return parts[1].replace(".", "_").upper() if len(parts) == 2 else routing_key.upper()
+    # "messages.upsert" -> "MESSAGES_UPSERT"
+    return routing_key.replace(".", "_").upper()
 
 
 async def forward(body: dict) -> None:
