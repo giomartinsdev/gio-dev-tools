@@ -28,8 +28,51 @@ jobs:
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
 
-  build:
+  test:
     needs: detect-changes
+    if: needs.detect-changes.outputs.functions != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
+
+    name: BDD — ${{ matrix.function }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Check for BDD tests
+        id: has-tests
+        run: |
+          if [ -d "src/backend/functions/${{ matrix.function }}/features" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        if: steps.has-tests.outputs.exists == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.has-tests.outputs.exists == 'true'
+        run: |
+          pip install \
+            -r src/backend/functions/${{ matrix.function }}/requirements.txt \
+            -r src/backend/functions/${{ matrix.function }}/requirements-dev.txt
+
+      - name: Run BDD tests
+        if: steps.has-tests.outputs.exists == 'true'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src/backend/functions/${{ matrix.function }}:${{ github.workspace }}/src/backend
+        working-directory: src/backend/functions/${{ matrix.function }}
+        run: python -m behave --no-capture --format progress2
+
+  build:
+    needs: [detect-changes, test]
     runs-on: self-hosted
     if: needs.detect-changes.outputs.functions != '[]'
     strategy:

@@ -1,0 +1,60 @@
+name: Test functions
+
+on:
+  push:
+    paths:
+      - 'src/backend/functions/**'
+      - 'src/backend/shared/**'
+  pull_request:
+    paths:
+      - 'src/backend/functions/**'
+      - 'src/backend/shared/**'
+
+jobs:
+  detect-testable:
+    runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.scan.outputs.functions }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Find functions with BDD test suites
+        id: scan
+        run: |
+          TESTABLE=$(find src/backend/functions -maxdepth 2 -name "features" -type d \
+            | sed 's|src/backend/functions/||; s|/features||' \
+            | sort -u \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "functions=$TESTABLE" >> $GITHUB_OUTPUT
+          echo "Functions with BDD tests: $TESTABLE"
+
+  bdd:
+    needs: detect-testable
+    if: needs.detect-testable.outputs.functions != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        function: ${{ fromJson(needs.detect-testable.outputs.functions) }}
+
+    name: BDD — ${{ matrix.function }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            -r src/backend/functions/${{ matrix.function }}/requirements.txt \
+            -r src/backend/functions/${{ matrix.function }}/requirements-dev.txt
+
+      - name: Run BDD tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src/backend/functions/${{ matrix.function }}:${{ github.workspace }}/src/backend
+        working-directory: src/backend/functions/${{ matrix.function }}
+        run: python -m behave --no-capture --format progress2
