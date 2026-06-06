@@ -1,0 +1,10 @@
+{
+  "default": {
+    "paths": [
+      "src/backend/functions/finance/features/**/*.feature"
+    ],
+    "require": [
+      "src/backend/functions/finance/features/steps/**/*.py"
+    ]
+  }
+}
