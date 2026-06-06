@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { WpMessageModule, wpMessageMeta } from '@/modules/wp-message/WpMessageModule'
+import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
 import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
-import { PatrimonioModule, patrimonioMeta } from '@/modules/patrimonio/PatrimonioModule'
+import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioModule'
 import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
 import { ObsidianModule, obsidianMeta } from '@/modules/obsidian/ObsidianModule'
 
-const modules = [wpMessageMeta, financeMeta, patrimonioMeta, kanbanMeta, obsidianMeta]
+const modules = [whatsappMeta, financeMeta, portfolioMeta, kanbanMeta, obsidianMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
 export default function App() {
-  const [activeId, setActiveId] = useState<ModuleId>('wp-message')
+  const [activeId, setActiveId] = useState<ModuleId>('whatsapp')
 
   const active = modules.find(m => m.id === activeId)!
 
@@ -65,9 +65,9 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6">
-          {activeId === 'wp-message' && <WpMessageModule />}
+          {activeId === 'whatsapp' && <WhatsappModule />}
           {activeId === 'finance' && <FinanceModule />}
-          {activeId === 'patrimonio' && <PatrimonioModule />}
+          {activeId === 'portfolio' && <PortfolioModule />}
           {activeId === 'kanban' && <KanbanModule />}
           {activeId === 'obsidian' && <ObsidianModule />}
         </main>

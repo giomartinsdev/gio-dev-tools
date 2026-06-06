@@ -55,7 +55,7 @@ function formatQty(value: string) {
 
 const cellInput = 'w-full rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground'
 
-export function PatrimonioModule() {
+export function PortfolioModule() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [draft, setDraft] = useState<Draft>(emptyDraft)
@@ -67,7 +67,7 @@ export function PatrimonioModule() {
 
   const fetchAssets = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`${GATEWAY}/fn/patrimonio`)
+    const res = await fetch(`${GATEWAY}/fn/portfolio`)
     if (res.ok) setAssets(await res.json())
     setLoading(false)
   }, [])
@@ -78,7 +78,7 @@ export function PatrimonioModule() {
     if (!draft.name || !draft.institution || !draft.quantity || !draft.purchase_price) return
     setSubmitting(true)
     try {
-      const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
+      const res = await fetch(`${GATEWAY}/fn/portfolio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),
@@ -90,7 +90,7 @@ export function PatrimonioModule() {
   async function remove(id: string) {
     setDeletingId(id)
     try {
-      const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
+      const res = await fetch(`${GATEWAY}/fn/portfolio`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
@@ -120,7 +120,7 @@ export function PatrimonioModule() {
     if (!editDraft || !editingId) return
     setSaving(true)
     try {
-      const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
+      const res = await fetch(`${GATEWAY}/fn/portfolio`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editingId, ...editDraft }),
@@ -348,8 +348,8 @@ function Td({ children, className }: { children?: React.ReactNode; className?: s
   return <td className={cn('px-3 py-2.5', className)}>{children}</td>
 }
 
-export const patrimonioMeta = {
-  id: 'patrimonio' as const,
+export const portfolioMeta = {
+  id: 'portfolio' as const,
   label: 'Portfolio',
   description: 'Track your investments and assets',
   icon: Landmark,
