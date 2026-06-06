@@ -202,6 +202,9 @@ jobs:
           if [ "${{ matrix.function }}" = "finance-ocr" ]; then
             EXTRA_ENVS="--env CF_ACCESS_CLIENT_ID=${{ secrets.CF_ACCESS_CLIENT_ID }} --env CF_ACCESS_CLIENT_SECRET=${{ secrets.CF_ACCESS_CLIENT_SECRET }} --env FINANCE_URL=https://of.giomartins.dev/function/finance"
           fi
+          if [ "${{ matrix.function }}" = "obsidian" ]; then
+            EXTRA_ENVS="--env WEBDAV_URL=${{ secrets.WEBDAV_URL }} --env WEBDAV_USER=${{ secrets.WEBDAV_USER }} --env WEBDAV_PASSWORD=${{ secrets.WEBDAV_PASSWORD }}"
+          fi
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             faas-cli deploy \
               --image re.giomartins.dev/${{ matrix.function }}:latest \
