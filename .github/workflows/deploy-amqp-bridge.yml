@@ -1,0 +1,66 @@
+name: Deploy amqp-bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/backend/amqp-bridge/**'
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Log in to registry
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: re.giomartins.dev
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: src/backend/amqp-bridge
+          file: src/backend/amqp-bridge/Dockerfile
+          push: true
+          tags: |
+            re.giomartins.dev/amqp-bridge:latest
+            re.giomartins.dev/amqp-bridge:${{ github.sha }}
+          cache-from: type=gha,scope=amqp-bridge
+          cache-to: type=gha,mode=max,scope=amqp-bridge
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >> ~/.ssh/config << EOF
+          Host ${{ secrets.SSH_HOST }}
+            ProxyCommand cloudflared access ssh --hostname %h
+            StrictHostKeyChecking no
+            IdentityFile ~/.ssh/id_ed25519
+          EOF
+
+      - name: Pull and restart on server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "docker pull re.giomartins.dev/amqp-bridge:latest && \
+             docker compose -f ~/stacks/evolution/docker-compose.yml up -d --no-deps amqp-bridge"
