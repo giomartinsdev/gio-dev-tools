@@ -15,13 +15,3 @@ services:
     ports:
       - "8079:80"
     restart: unless-stopped
-
-  amqp-bridge:
-    image: re.giomartins.dev/amqp-bridge:latest
-    container_name: evolution-amqp-bridge
-    restart: unless-stopped
-    environment:
-      - RABBITMQ_URI=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}
-      - RABBITMQ_EXCHANGE_NAME=${RABBITMQ_EXCHANGE_NAME}
-      - EVOLUTION_INSTANCE_NAME=${EVOLUTION_INSTANCE_NAME}
-      - FUNCTION_URL=${FUNCTION_URL}
