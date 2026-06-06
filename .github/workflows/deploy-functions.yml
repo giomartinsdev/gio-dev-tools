@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/backend/functions/**'
+      - 'src/backend/shared/**'
 
 jobs:
   detect-changes:
@@ -19,13 +20,21 @@ jobs:
       - name: Detect changed functions
         id: changes
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD \
-            | grep '^src/backend/functions/' \
-            | awk -F'/' 'NF >= 5' \
-            | cut -d'/' -f4 \
-            | grep -v '^shared$' \
-            | sort -u \
-            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          SHARED_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -c '^src/backend/shared/' || true)
+          if [ "$SHARED_CHANGED" -gt 0 ]; then
+            CHANGED=$(find src/backend/functions -maxdepth 1 -mindepth 1 -type d \
+              | sed 's|src/backend/functions/||' \
+              | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD \
+              | grep '^src/backend/functions/' \
+              | awk -F'/' 'NF >= 5' \
+              | cut -d'/' -f4 \
+              | grep -v '^shared$' \
+              | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
 
   test:
