@@ -34,7 +34,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 COPY shared/ shared/
-RUN python -c "import site, shutil; shutil.copy('shared/sitecustomize.py', site.getsitepackages()[0] + '/sitecustomize.py')"
 COPY functions/${FUNCTION_DIR}/ .
 
 ENV fprocess="opentelemetry-instrument uvicorn handler:app --host 0.0.0.0 --port 5000"

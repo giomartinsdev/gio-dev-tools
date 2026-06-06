@@ -1,3 +1,5 @@
+from shared.auto_trace import install
+install(["src"])
 from fastapi import FastAPI
 from fastapi.requests import Request as FastAPIRequest
 from shared.request import Request
@@ -10,4 +12,3 @@ async def handle(fastapi_request: FastAPIRequest):
     req = await Request.from_http(fastapi_request)
     res = main(req).send()
     return res
-    

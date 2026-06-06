@@ -169,10 +169,10 @@ class TransactionManager:
 
             yield session
         except Exception:
-            session.rollback()
             logger.exception("Read-only session error (id=%s)", id(session))
             raise
         finally:
+            session.rollback()  # always rollback — returns connection to pool clean
             session.close()
             logger.debug("Read-only session closed (id=%s)", id(session))
 
