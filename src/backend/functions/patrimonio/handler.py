@@ -1,6 +1,3 @@
-from shared.auto_trace import install
-install(["src"])
-
 from fastapi import FastAPI
 from fastapi.requests import Request as FastAPIRequest
 from shared.request import Request

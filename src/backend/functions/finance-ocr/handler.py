@@ -1,6 +1,3 @@
-from shared.auto_trace import install
-install(["src"])
-
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from src.main import main
