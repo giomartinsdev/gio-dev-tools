@@ -4,6 +4,7 @@ from shared.logger import get_logger
 from shared.request import Request
 from shared.response import Response
 from shared.transaction_manager import TransactionConfig, TransactionManager
+from sqlalchemy import inspect
 
 from .application.commands.create_asset import CreateAssetCommand, CreateAssetHandler
 from .application.commands.update_asset import UpdateAssetCommand, UpdateAssetHandler
@@ -15,8 +16,23 @@ from .infrastructure.repository import PostgresAssetRepository
 
 logger = get_logger(__name__)
 
+
+def _migrate() -> None:
+    engine = TransactionManager.get().engine
+    insp = inspect(engine)
+    if "assets" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("assets")}
+    if "amount" in cols:
+        logger.info("migration: old schema (amount) detected — recreating assets table")
+        Base.metadata.drop_all(engine, tables=[Base.metadata.tables["assets"]])
+        Base.metadata.create_all(engine, tables=[Base.metadata.tables["assets"]])
+
+
 TransactionManager.configure(TransactionConfig(url=os.environ["DATABASE_URL"]))
 Base.metadata.create_all(TransactionManager.get().engine)
+_migrate()
+
 
 _repo = PostgresAssetRepository()
 _bus = get_event_bus()
