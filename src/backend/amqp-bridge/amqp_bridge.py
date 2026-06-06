@@ -64,6 +64,7 @@ async def consume() -> None:
                     RABBITMQ_EXCHANGE,
                     aio_pika.ExchangeType.TOPIC,
                     durable=True,
+                    passive=True,
                 )
 
                 queue = await channel.declare_queue(QUEUE_NAME, durable=True)
