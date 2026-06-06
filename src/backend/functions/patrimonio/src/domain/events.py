@@ -11,13 +11,16 @@ class AssetCreated(DomainEvent):
     asset_id: str = ""
     name: str = ""
     type: str = ""
-    amount: str = ""
+    quantity: str = ""
+    purchase_price: str = ""
 
 
 class AssetUpdated(DomainEvent):
-    asset_id: str = ""
+    old_asset_id: str = ""
+    new_asset_id: str = ""
     name: str = ""
-    amount: str = ""
+    quantity: str = ""
+    purchase_price: str = ""
 
 
 class AssetDeleted(DomainEvent):

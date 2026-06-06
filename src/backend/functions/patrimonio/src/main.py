@@ -20,8 +20,8 @@ Base.metadata.create_all(TransactionManager.get().engine)
 
 _repo = PostgresAssetRepository()
 _bus = get_event_bus()
-_bus.subscribe(AssetCreated, lambda e: logger.info(f"AssetCreated id={e.asset_id} type={e.type} amount={e.amount}"))
-_bus.subscribe(AssetUpdated, lambda e: logger.info(f"AssetUpdated id={e.asset_id} name={e.name} amount={e.amount}"))
+_bus.subscribe(AssetCreated, lambda e: logger.info(f"AssetCreated id={e.asset_id} type={e.type} qty={e.quantity} price={e.purchase_price}"))
+_bus.subscribe(AssetUpdated, lambda e: logger.info(f"AssetUpdated old={e.old_asset_id} new={e.new_asset_id} qty={e.quantity} price={e.purchase_price}"))
 _bus.subscribe(AssetDeleted, lambda e: logger.info(f"AssetDeleted id={e.asset_id}"))
 
 
@@ -53,7 +53,8 @@ def _create(request: Request) -> Response:
         name=str(request.body.get("name", "")),
         type=str(request.body.get("type", "")),
         institution=str(request.body.get("institution", "")),
-        amount=str(request.body.get("amount", "")),
+        quantity=str(request.body.get("quantity", "")),
+        purchase_price=str(request.body.get("purchase_price", "")),
     ))
     return Response(body=asset.to_dict(), status_code=201)
 
@@ -64,7 +65,8 @@ def _update(request: Request) -> Response:
         name=str(request.body.get("name", "")),
         type=str(request.body.get("type", "")),
         institution=str(request.body.get("institution", "")),
-        amount=str(request.body.get("amount", "")),
+        quantity=str(request.body.get("quantity", "")),
+        purchase_price=str(request.body.get("purchase_price", "")),
     ))
     if asset is None:
         return Response(body={"error": "asset not found"}, status_code=404)

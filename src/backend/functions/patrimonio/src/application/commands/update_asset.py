@@ -14,7 +14,8 @@ class UpdateAssetCommand(BaseModel):
     name: str
     type: str
     institution: str
-    amount: str
+    quantity: str
+    purchase_price: str
 
 
 class UpdateAssetHandler:
@@ -23,8 +24,8 @@ class UpdateAssetHandler:
         self._bus = bus
 
     def handle(self, cmd: UpdateAssetCommand) -> Optional[Asset]:
-        asset = self._repo.find_by_id(cmd.asset_id)
-        if not asset:
+        original = self._repo.find_by_id(cmd.asset_id)
+        if not original:
             return None
 
         if not cmd.name.strip():
@@ -32,24 +33,36 @@ class UpdateAssetHandler:
         if not cmd.institution.strip():
             raise ValueError("institution is required")
         try:
-            amount = Decimal(cmd.amount)
+            quantity = Decimal(cmd.quantity)
         except InvalidOperation:
-            raise ValueError(f"Invalid amount: {cmd.amount!r}")
+            raise ValueError(f"Invalid quantity: {cmd.quantity!r}")
+        try:
+            purchase_price = Decimal(cmd.purchase_price)
+        except InvalidOperation:
+            raise ValueError(f"Invalid purchase_price: {cmd.purchase_price!r}")
         try:
             asset_type = AssetType(cmd.type)
         except ValueError:
             raise ValueError(f"Invalid type: {cmd.type!r}")
 
-        asset.name = cmd.name.strip()
-        asset.type = asset_type
-        asset.institution = cmd.institution.strip()
-        asset.amount = amount
-        self._repo.save(asset)
+        # Immutable ledger: soft-delete the original, insert a new entry
+        self._repo.delete(cmd.asset_id)
+
+        new_asset = Asset.create(
+            name=cmd.name.strip(),
+            type=asset_type,
+            institution=cmd.institution.strip(),
+            quantity=quantity,
+            purchase_price=purchase_price,
+        )
+        self._repo.save(new_asset)
 
         self._bus.publish(AssetUpdated(
-            asset_id=asset.id,
-            name=asset.name,
-            amount=str(asset.amount),
+            old_asset_id=cmd.asset_id,
+            new_asset_id=new_asset.id,
+            name=new_asset.name,
+            quantity=str(new_asset.quantity),
+            purchase_price=str(new_asset.purchase_price),
         ))
 
-        return asset
+        return new_asset

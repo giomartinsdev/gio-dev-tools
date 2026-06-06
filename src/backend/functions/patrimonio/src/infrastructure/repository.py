@@ -14,21 +14,15 @@ _SP = TimezoneAware("America/Sao_Paulo")
 class PostgresAssetRepository(AssetRepository):
     def save(self, asset: Asset) -> None:
         with TransactionManager.get().session() as s:
-            existing = s.get(AssetModel, asset.id)
-            if existing:
-                existing.name = asset.name
-                existing.type = asset.type.value
-                existing.institution = asset.institution
-                existing.amount = asset.amount
-            else:
-                s.add(AssetModel(
-                    id=asset.id,
-                    name=asset.name,
-                    type=asset.type.value,
-                    institution=asset.institution,
-                    amount=asset.amount,
-                    currency=asset.currency,
-                ))
+            s.add(AssetModel(
+                id=asset.id,
+                name=asset.name,
+                type=asset.type.value,
+                institution=asset.institution,
+                quantity=asset.quantity,
+                purchase_price=asset.purchase_price,
+                currency=asset.currency,
+            ))
 
     def delete(self, asset_id: str) -> bool:
         with TransactionManager.get().session() as s:
@@ -62,7 +56,8 @@ def _to_domain(row: AssetModel) -> Asset:
         name=row.name,
         type=AssetType(row.type),
         institution=row.institution,
-        amount=Decimal(str(row.amount)),
+        quantity=Decimal(str(row.quantity)),
+        purchase_price=Decimal(str(row.purchase_price)),
         currency=row.currency,
         created_at=row.created_at,
         updated_at=row.updated_at,

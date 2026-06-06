@@ -16,7 +16,9 @@ interface Asset {
   name: string
   type: AssetType
   institution: string
-  amount: string
+  quantity: string
+  purchase_price: string
+  total_value: string
   currency: string
 }
 
@@ -24,7 +26,8 @@ interface Draft {
   name: string
   type: AssetType
   institution: string
-  amount: string
+  quantity: string
+  purchase_price: string
 }
 
 const TYPE_COLORS: Record<AssetType, string> = {
@@ -38,11 +41,16 @@ const TYPE_COLORS: Record<AssetType, string> = {
 }
 
 function emptyDraft(): Draft {
-  return { name: '', type: 'CDB', institution: '', amount: '' }
+  return { name: '', type: 'CDB', institution: '', quantity: '', purchase_price: '' }
 }
 
 function formatBRL(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+function formatQty(value: string) {
+  const n = parseFloat(value)
+  return Number.isInteger(n) ? n.toString() : n.toFixed(4).replace(/\.?0+$/, '')
 }
 
 const cellInput = 'w-full rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground'
@@ -67,7 +75,7 @@ export function PatrimonioModule() {
   useEffect(() => { fetchAssets() }, [fetchAssets])
 
   async function submit() {
-    if (!draft.name || !draft.institution || !draft.amount) return
+    if (!draft.name || !draft.institution || !draft.quantity || !draft.purchase_price) return
     setSubmitting(true)
     try {
       const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
@@ -93,7 +101,13 @@ export function PatrimonioModule() {
 
   function startEdit(asset: Asset) {
     setEditingId(asset.id)
-    setEditDraft({ name: asset.name, type: asset.type, institution: asset.institution, amount: asset.amount })
+    setEditDraft({
+      name: asset.name,
+      type: asset.type,
+      institution: asset.institution,
+      quantity: asset.quantity,
+      purchase_price: asset.purchase_price,
+    })
   }
 
   function cancelEdit() { setEditingId(null); setEditDraft(null) }
@@ -124,19 +138,25 @@ export function PatrimonioModule() {
     if (e.key === 'Escape') cancelEdit()
   }
 
-  const total = useMemo(() => assets.reduce((s, a) => s + parseFloat(a.amount), 0), [assets])
+  const total = useMemo(
+    () => assets.reduce((s, a) => s + parseFloat(a.total_value), 0),
+    [assets]
+  )
 
   const byType = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const a of assets) map[a.type] = (map[a.type] || 0) + parseFloat(a.amount)
+    for (const a of assets) map[a.type] = (map[a.type] || 0) + parseFloat(a.total_value)
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
   }, [assets])
 
   const byInstitution = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const a of assets) map[a.institution] = (map[a.institution] || 0) + parseFloat(a.amount)
+    for (const a of assets) map[a.institution] = (map[a.institution] || 0) + parseFloat(a.total_value)
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
   }, [assets])
+
+  const editValid = editDraft && editDraft.name && editDraft.institution && editDraft.quantity && editDraft.purchase_price
+  const addValid = draft.name && draft.institution && draft.quantity && draft.purchase_price
 
   return (
     <div className="flex flex-col gap-6">
@@ -164,17 +184,19 @@ export function PatrimonioModule() {
           <thead>
             <tr className="border-b bg-muted/50">
               <Th>Name</Th>
-              <Th className="w-36">Type</Th>
-              <Th className="w-40">Institution</Th>
-              <Th className="w-40 text-right">Amount</Th>
+              <Th className="w-32">Type</Th>
+              <Th className="w-36">Institution</Th>
+              <Th className="w-28 text-right">Quantity</Th>
+              <Th className="w-36 text-right">Unit Price</Th>
+              <Th className="w-36 text-right">Total</Th>
               <th className="w-10" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="py-16 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+              <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
             ) : assets.length === 0 ? (
-              <tr><td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">No assets yet. Add one below.</td></tr>
+              <tr><td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">No assets yet. Add one below.</td></tr>
             ) : assets.map(asset => {
               const isEditing = editingId === asset.id
               if (isEditing && editDraft) {
@@ -192,10 +214,18 @@ export function PatrimonioModule() {
                       <input type="text" value={editDraft.institution} onChange={e => setEdit('institution', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Institution..." className={cellInput} />
                     </td>
                     <td className="px-1.5 py-1.5">
-                      <input type="number" min="0" step="0.01" value={editDraft.amount} onChange={e => setEdit('amount', e.target.value)} onKeyDown={onEditKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
+                      <input type="number" min="0" step="any" value={editDraft.quantity} onChange={e => setEdit('quantity', e.target.value)} onKeyDown={onEditKeyDown} placeholder="0" className={cn(cellInput, 'text-right')} />
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <input type="number" min="0" step="0.01" value={editDraft.purchase_price} onChange={e => setEdit('purchase_price', e.target.value)} onKeyDown={onEditKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
+                      {editDraft.quantity && editDraft.purchase_price
+                        ? formatBRL(parseFloat(editDraft.quantity) * parseFloat(editDraft.purchase_price))
+                        : '—'}
                     </td>
                     <td className="px-1.5 py-1.5 flex items-center gap-1">
-                      <button onClick={saveEdit} disabled={saving || !editDraft.name || !editDraft.institution || !editDraft.amount} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                      <button onClick={saveEdit} disabled={saving || !editValid} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
                         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                       </button>
                       <button onClick={cancelEdit} className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors">
@@ -216,7 +246,9 @@ export function PatrimonioModule() {
                     </span>
                   </Td>
                   <Td className="text-muted-foreground">{asset.institution}</Td>
-                  <Td className="text-right font-semibold tabular-nums">{formatBRL(parseFloat(asset.amount))}</Td>
+                  <Td className="text-right tabular-nums">{formatQty(asset.quantity)}</Td>
+                  <Td className="text-right tabular-nums">{formatBRL(parseFloat(asset.purchase_price))}</Td>
+                  <Td className="text-right font-semibold tabular-nums">{formatBRL(parseFloat(asset.total_value))}</Td>
                   <td className="px-1.5">
                     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
                       <button onClick={() => startEdit(asset)} disabled={!!editingId} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
@@ -245,10 +277,18 @@ export function PatrimonioModule() {
                 <input type="text" value={draft.institution} onChange={e => setDraft(d => ({ ...d, institution: e.target.value }))} onKeyDown={onKeyDown} placeholder="Institution..." className={cellInput} />
               </td>
               <td className="px-1.5 py-1.5">
-                <input type="number" min="0" step="0.01" value={draft.amount} onChange={e => setDraft(d => ({ ...d, amount: e.target.value }))} onKeyDown={onKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
+                <input type="number" min="0" step="any" value={draft.quantity} onChange={e => setDraft(d => ({ ...d, quantity: e.target.value }))} onKeyDown={onKeyDown} placeholder="0" className={cn(cellInput, 'text-right')} />
               </td>
               <td className="px-1.5 py-1.5">
-                <button onClick={submit} disabled={submitting || !draft.name || !draft.institution || !draft.amount} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                <input type="number" min="0" step="0.01" value={draft.purchase_price} onChange={e => setDraft(d => ({ ...d, purchase_price: e.target.value }))} onKeyDown={onKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
+              </td>
+              <td className="px-3 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
+                {draft.quantity && draft.purchase_price
+                  ? formatBRL(parseFloat(draft.quantity) * parseFloat(draft.purchase_price))
+                  : '—'}
+              </td>
+              <td className="px-1.5 py-1.5">
+                <button onClick={submit} disabled={submitting || !addValid} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
                   {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 </button>
               </td>
@@ -260,7 +300,6 @@ export function PatrimonioModule() {
       {/* Charts */}
       {assets.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Pie: by type */}
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Type</p>
             <ResponsiveContainer width="100%" height={240}>
@@ -275,7 +314,6 @@ export function PatrimonioModule() {
             </ResponsiveContainer>
           </div>
 
-          {/* Bar: by institution */}
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Institution</p>
             <ResponsiveContainer width="100%" height={240}>
@@ -284,7 +322,7 @@ export function PatrimonioModule() {
                 <XAxis type="number" tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
                 <Tooltip formatter={(v) => formatBRL(Number(v))} />
-                <Bar dataKey="value" name="Amount" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="value" name="Total" radius={[0, 4, 4, 0]}>
                   {byInstitution.map((_, i) => (
                     <Cell key={i} fill={Object.values(TYPE_COLORS)[i % Object.values(TYPE_COLORS).length]} />
                   ))}
