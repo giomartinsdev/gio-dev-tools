@@ -82,6 +82,18 @@ services:
       - "5672:5672"
       - "15672:15672"
 
+  amqp-bridge:
+    image: re.giomartins.dev/amqp-bridge:latest
+    container_name: evolution-amqp-bridge
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}
+      - RABBITMQ_EXCHANGE_NAME=${RABBITMQ_EXCHANGE_NAME}
+      - EVOLUTION_INSTANCE_NAME=${EVOLUTION_INSTANCE_NAME}
+      - FUNCTION_URL=${FUNCTION_URL}
+    depends_on:
+      - rabbitmq
+
 volumes:
   evolution_instances:
   postgres_data:
