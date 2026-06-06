@@ -5,8 +5,9 @@ import { WpMessageModule, wpMessageMeta } from '@/modules/wp-message/WpMessageMo
 import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PatrimonioModule, patrimonioMeta } from '@/modules/patrimonio/PatrimonioModule'
 import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
+import { ObsidianModule, obsidianMeta } from '@/modules/obsidian/ObsidianModule'
 
-const modules = [wpMessageMeta, financeMeta, patrimonioMeta, kanbanMeta]
+const modules = [wpMessageMeta, financeMeta, patrimonioMeta, kanbanMeta, obsidianMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -68,6 +69,7 @@ export default function App() {
           {activeId === 'finance' && <FinanceModule />}
           {activeId === 'patrimonio' && <PatrimonioModule />}
           {activeId === 'kanban' && <KanbanModule />}
+          {activeId === 'obsidian' && <ObsidianModule />}
         </main>
       </div>
     </div>
