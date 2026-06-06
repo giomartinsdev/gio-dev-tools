@@ -1,10 +1,20 @@
 {
   "default": {
     "paths": [
-      "src/backend/functions/finance/features/**/*.feature"
+      "src/backend/functions/finance/features/**/*.feature",
+      "src/backend/functions/whatsapp/features/**/*.feature",
+      "src/backend/functions/finance-ocr/features/**/*.feature",
+      "src/backend/functions/kanban/features/**/*.feature",
+      "src/backend/functions/obsidian/features/**/*.feature",
+      "src/backend/functions/portifolio/features/**/*.feature"
     ],
     "require": [
-      "src/backend/functions/finance/features/steps/**/*.py"
+      "src/backend/functions/finance/features/steps/**/*.py",
+      "src/backend/functions/whatsapp/features/steps/**/*.py",
+      "src/backend/functions/finance-ocr/features/steps/**/*.py",
+      "src/backend/functions/kanban/features/steps/**/*.py",
+      "src/backend/functions/obsidian/features/steps/**/*.py",
+      "src/backend/functions/portifolio/features/steps/**/*.py"
     ]
   }
 }
