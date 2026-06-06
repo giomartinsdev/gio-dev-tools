@@ -6,13 +6,9 @@ from shared.timezone_handler import TimezoneAware
 
 from ..domain.asset import Asset, AssetType
 from ..domain.repository import AssetRepository
-from .models import Base, AssetModel
+from .models import AssetModel
 
 _SP = TimezoneAware("America/Sao_Paulo")
-
-
-def migrate() -> None:
-    Base.metadata.create_all(TransactionManager.get().engine)
 
 
 class PostgresAssetRepository(AssetRepository):
@@ -24,7 +20,6 @@ class PostgresAssetRepository(AssetRepository):
                 existing.type = asset.type.value
                 existing.institution = asset.institution
                 existing.amount = asset.amount
-                existing.updated_at = _SP.now
             else:
                 s.add(AssetModel(
                     id=asset.id,
@@ -40,9 +35,7 @@ class PostgresAssetRepository(AssetRepository):
             row = s.get(AssetModel, asset_id)
             if row is None or row.deleted_at is not None:
                 return False
-            now = _SP.now
-            row.deleted_at = now
-            row.updated_at = now
+            row.deleted_at = _SP.now
             return True
 
     def find_all(self) -> list[Asset]:

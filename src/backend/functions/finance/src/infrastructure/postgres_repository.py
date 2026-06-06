@@ -8,22 +8,9 @@ from shared.timezone_handler import TimezoneAware
 
 from ..domain.repository import TransactionRepository
 from ..domain.transaction import Money, Transaction, TransactionType
-from .models import Base, TransactionModel
+from .models import TransactionModel
 
 _SP = TimezoneAware("America/Sao_Paulo")
-
-
-def migrate() -> None:
-    engine = TransactionManager.get().engine
-    Base.metadata.create_all(engine)
-    with engine.connect() as conn:
-        conn.execute(text("""
-            ALTER TABLE transactions
-                ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL
-        """))
-        conn.commit()
 
 
 class PostgresTransactionRepository(TransactionRepository):
@@ -44,9 +31,7 @@ class PostgresTransactionRepository(TransactionRepository):
             row = s.get(TransactionModel, transaction_id)
             if row is None or row.deleted_at is not None:
                 return False
-            now = _SP.now
-            row.deleted_at = now
-            row.updated_at = now
+            row.deleted_at = _SP.now
             return True
 
     def find_all(

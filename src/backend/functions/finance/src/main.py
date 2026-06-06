@@ -12,12 +12,13 @@ from .application.queries.get_summary import GetSummaryQuery, GetSummaryHandler
 from .application.queries.list_transactions import ListTransactionsQuery, ListTransactionsHandler
 from .domain.events import TransactionDeleted, TransactionRecorded
 from .infrastructure.event_bus import get_event_bus
-from .infrastructure.postgres_repository import PostgresTransactionRepository, migrate
+from .infrastructure.models import Base
+from .infrastructure.postgres_repository import PostgresTransactionRepository
 
 logger = get_logger(__name__)
 
 TransactionManager.configure(TransactionConfig(url=os.environ["DATABASE_URL"]))
-migrate()
+Base.metadata.create_all(TransactionManager.get().engine)
 
 _repo = PostgresTransactionRepository()
 _bus = get_event_bus()

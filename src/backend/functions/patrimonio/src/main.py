@@ -10,12 +10,13 @@ from .application.commands.update_asset import UpdateAssetCommand, UpdateAssetHa
 from .application.commands.delete_asset import DeleteAssetCommand, DeleteAssetHandler
 from .domain.events import AssetCreated, AssetUpdated, AssetDeleted
 from .infrastructure.event_bus import get_event_bus
-from .infrastructure.repository import PostgresAssetRepository, migrate
+from .infrastructure.models import Base
+from .infrastructure.repository import PostgresAssetRepository
 
 logger = get_logger(__name__)
 
 TransactionManager.configure(TransactionConfig(url=os.environ["DATABASE_URL"]))
-migrate()
+Base.metadata.create_all(TransactionManager.get().engine)
 
 _repo = PostgresAssetRepository()
 _bus = get_event_bus()
