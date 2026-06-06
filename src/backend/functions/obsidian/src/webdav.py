@@ -16,8 +16,8 @@ _PROPFIND_BODY = (
 )
 
 
-def _auth() -> tuple[str, str]:
-    return (WEBDAV_USER, WEBDAV_PASSWORD)
+def _auth() -> httpx.DigestAuth:
+    return httpx.DigestAuth(WEBDAV_USER, WEBDAV_PASSWORD)
 
 
 def _url(path: str) -> str:
