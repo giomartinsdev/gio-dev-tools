@@ -3,7 +3,7 @@ import { Landmark, Trash2, Loader2, Plus, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
@@ -265,12 +265,12 @@ export function PatrimonioModule() {
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Type</p>
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={byType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie data={byType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
                   {byType.map(entry => (
                     <Cell key={entry.name} fill={TYPE_COLORS[entry.name as AssetType] ?? '#9ca3af'} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => formatBRL(v)} />
+                <Tooltip formatter={(v) => formatBRL(Number(v))} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -283,7 +283,7 @@ export function PatrimonioModule() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                 <XAxis type="number" tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-                <Tooltip formatter={(v: number) => formatBRL(v)} />
+                <Tooltip formatter={(v) => formatBRL(Number(v))} />
                 <Bar dataKey="value" name="Amount" radius={[0, 4, 4, 0]}>
                   {byInstitution.map((_, i) => (
                     <Cell key={i} fill={Object.values(TYPE_COLORS)[i % Object.values(TYPE_COLORS).length]} />

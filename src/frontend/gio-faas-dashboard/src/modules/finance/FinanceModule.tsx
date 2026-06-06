@@ -527,12 +527,12 @@ function MonthCharts({ transactions, pieData, totals }: {
           : (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
                   {pieData.map(entry => (
                     <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] ?? '#9ca3af'} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => formatBRL(v)} />
+                <Tooltip formatter={(v) => formatBRL(Number(v))} />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -544,7 +544,7 @@ function MonthCharts({ transactions, pieData, totals }: {
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-            <Tooltip formatter={(v: number) => formatBRL(v)} />
+            <Tooltip formatter={(v) => formatBRL(Number(v))} />
             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
               {barData.map(entry => (
                 <Cell key={entry.name} fill={entry.name === 'Income' ? INCOME_COLOR : EXPENSE_COLOR} />
@@ -584,7 +584,7 @@ function RangeCharts({ data }: { data: MonthData[] }) {
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-            <Tooltip formatter={(v: number) => formatBRL(v)} />
+            <Tooltip formatter={(v) => formatBRL(Number(v))} />
             <Legend />
             <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[3, 3, 0, 0]} />
             <Bar dataKey="expenses" name="Expenses" fill={EXPENSE_COLOR} radius={[3, 3, 0, 0]} />
@@ -599,7 +599,7 @@ function RangeCharts({ data }: { data: MonthData[] }) {
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-            <Tooltip formatter={(v: number) => formatBRL(v)} />
+            <Tooltip formatter={(v) => formatBRL(Number(v))} />
             <Line type="monotone" dataKey="balance" name="Balance" stroke={BALANCE_COLOR} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
@@ -613,7 +613,7 @@ function RangeCharts({ data }: { data: MonthData[] }) {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-              <Tooltip formatter={(v: number) => formatBRL(v)} />
+              <Tooltip formatter={(v) => formatBRL(Number(v))} />
               <Legend />
               {allCategories.map(cat => (
                 <Bar key={cat} dataKey={cat} stackId="a" fill={CATEGORY_COLORS[cat] ?? '#9ca3af'} radius={allCategories[allCategories.length - 1] === cat ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
