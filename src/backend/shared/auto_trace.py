@@ -1,4 +1,3 @@
-# shared/auto_tracer.py
 import sys
 import inspect
 import functools
