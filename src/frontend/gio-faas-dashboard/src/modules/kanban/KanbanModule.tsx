@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 const GW = import.meta.env.VITE_GATEWAY_URL
 
-type CardStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done'
+type CardStatus = 'backlog' | 'todo' | 'in_progress' | 'done'
 
 interface Board {
   id: string
@@ -27,7 +27,6 @@ const COLUMNS: { id: CardStatus; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
   { id: 'todo', label: 'To Do' },
   { id: 'in_progress', label: 'In Progress' },
-  { id: 'review', label: 'Review' },
   { id: 'done', label: 'Done' },
 ]
 
@@ -54,6 +53,11 @@ export function KanbanModule() {
   const [addingCard, setAddingCard] = useState<CardStatus | null>(null)
   const [newCardTitle, setNewCardTitle] = useState('')
   const [loading, setLoading] = useState(true)
+
+  // Drag state
+  const draggingCard = useRef<Card | null>(null)
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<CardStatus | null>(null)
 
   const fetchBoards = useCallback(async () => {
     const data = await apiFetch('')
@@ -112,16 +116,29 @@ export function KanbanModule() {
     setAddingCard(null)
   }
 
+  async function moveCardToStatus(card: Card, newStatus: CardStatus) {
+    if (card.status === newStatus) return
+    // Optimistic update
+    setCards(prev => prev.map(c => c.id === card.id ? { ...c, status: newStatus } : c))
+    if (openCard?.id === card.id) setOpenCard(prev => prev ? { ...prev, status: newStatus } : null)
+    try {
+      const updated = await apiFetch('', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: card.id, title: card.title, content: card.content, status: newStatus, board_id: card.board_id }),
+      })
+      setCards(prev => prev.map(c => c.id === card.id ? updated : c))
+      if (openCard?.id === card.id) setOpenCard(updated)
+    } catch {
+      // Revert on failure
+      setCards(prev => prev.map(c => c.id === card.id ? card : c))
+      if (openCard?.id === card.id) setOpenCard(card)
+    }
+  }
+
   async function moveCard(card: Card, direction: -1 | 1) {
     const newIndex = COLUMN_INDEX[card.status] + direction
     if (newIndex < 0 || newIndex >= COLUMNS.length) return
-    const newStatus = COLUMNS[newIndex].id
-    const updated = await apiFetch('', {
-      method: 'PATCH',
-      body: JSON.stringify({ id: card.id, title: card.title, content: card.content, status: newStatus, board_id: card.board_id }),
-    })
-    setCards(prev => prev.map(c => c.id === card.id ? updated : c))
-    if (openCard?.id === card.id) setOpenCard(updated)
+    await moveCardToStatus(card, COLUMNS[newIndex].id)
   }
 
   async function saveCard(card: Card) {
@@ -140,6 +157,33 @@ export function KanbanModule() {
     })
     setCards(prev => prev.filter(c => c.id !== cardId))
     setOpenCard(null)
+  }
+
+  // Drag handlers
+  function handleDragStart(card: Card) {
+    draggingCard.current = card
+    setDraggingCardId(card.id)
+  }
+
+  function handleDragEnd() {
+    draggingCard.current = null
+    setDraggingCardId(null)
+    setDragOverColumn(null)
+  }
+
+  function handleColumnDragOver(e: React.DragEvent, status: CardStatus) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverColumn(status)
+  }
+
+  async function handleColumnDrop(e: React.DragEvent, targetStatus: CardStatus) {
+    e.preventDefault()
+    const card = draggingCard.current
+    draggingCard.current = null
+    setDraggingCardId(null)
+    setDragOverColumn(null)
+    if (card) await moveCardToStatus(card, targetStatus)
   }
 
   if (loading) {
@@ -189,13 +233,29 @@ export function KanbanModule() {
 
       {/* Kanban columns */}
       {activeBoardId ? (
-        <div className="flex flex-1 gap-3 overflow-x-auto pb-2">
+        <div
+          className="flex flex-1 gap-3 overflow-x-auto pb-2"
+          onDragLeave={e => {
+            // Only clear when leaving the entire board area, not between children
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setDragOverColumn(null)
+            }
+          }}
+        >
           {COLUMNS.map(col => {
             const colCards = cards.filter(c => c.status === col.id)
+            const isDropTarget = dragOverColumn === col.id && draggingCard.current?.status !== col.id
             return (
               <div
                 key={col.id}
-                className="flex w-64 shrink-0 flex-col rounded-lg border bg-muted/30"
+                onDragOver={e => handleColumnDragOver(e, col.id)}
+                onDrop={e => handleColumnDrop(e, col.id)}
+                className={cn(
+                  'flex w-64 shrink-0 flex-col rounded-lg border transition-colors',
+                  isDropTarget
+                    ? 'border-primary bg-primary/5 shadow-[0_0_0_2px] shadow-primary/30'
+                    : 'border-border bg-muted/30'
+                )}
               >
                 {/* Column header */}
                 <div className="flex items-center justify-between px-3 py-2.5">
@@ -211,13 +271,23 @@ export function KanbanModule() {
                     <KanbanCard
                       key={card.id}
                       card={card}
+                      isDragging={draggingCardId === card.id}
                       onOpen={() => setOpenCard(card)}
                       onMoveLeft={() => moveCard(card, -1)}
                       onMoveRight={() => moveCard(card, 1)}
+                      onDragStart={() => handleDragStart(card)}
+                      onDragEnd={handleDragEnd}
                       isFirst={COLUMN_INDEX[card.status] === 0}
                       isLast={COLUMN_INDEX[card.status] === COLUMNS.length - 1}
                     />
                   ))}
+
+                  {/* Drop hint when column is empty and is a valid drop target */}
+                  {isDropTarget && colCards.length === 0 && (
+                    <div className="flex h-16 items-center justify-center rounded-md border-2 border-dashed border-primary/40 text-xs text-primary/60">
+                      Drop here
+                    </div>
+                  )}
 
                   {/* Inline add */}
                   {addingCard === col.id ? (
@@ -287,31 +357,45 @@ export function KanbanModule() {
 
 function KanbanCard({
   card,
+  isDragging,
   onOpen,
   onMoveLeft,
   onMoveRight,
+  onDragStart,
+  onDragEnd,
   isFirst,
   isLast,
 }: {
   card: Card
+  isDragging: boolean
   onOpen: () => void
   onMoveLeft: () => void
   onMoveRight: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
   isFirst: boolean
   isLast: boolean
 }) {
   return (
-    <div className="group relative rounded-md border bg-background p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-      <div onClick={onOpen} className="pr-12">
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'group relative rounded-md border bg-background p-3 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing select-none',
+        isDragging && 'opacity-40 scale-95 rotate-1'
+      )}
+    >
+      <div onClick={onOpen} className="pr-12 cursor-pointer">
         <p className="text-sm font-medium leading-snug">{card.title}</p>
         {card.content && (
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{card.content.replace(/[#*`_\[\]]/g, '')}</p>
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{card.content.replace(/[#*`_[\]]/g, '')}</p>
         )}
       </div>
       <div className="absolute right-2 top-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {!isFirst && (
           <button
-            onClick={onMoveLeft}
+            onClick={e => { e.stopPropagation(); onMoveLeft() }}
             className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted"
           >
             <ChevronLeft className="h-3 w-3" />
@@ -319,7 +403,7 @@ function KanbanCard({
         )}
         {!isLast && (
           <button
-            onClick={onMoveRight}
+            onClick={e => { e.stopPropagation(); onMoveRight() }}
             className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted"
           >
             <ChevronRight className="h-3 w-3" />
