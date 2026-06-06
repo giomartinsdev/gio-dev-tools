@@ -132,7 +132,7 @@ export function WpMessageModule() {
 
 export const wpMessageMeta = {
   id: 'wp-message',
-  label: 'WP Message',
+  label: 'WhatsApp Messenger',
   description: 'Send WhatsApp messages',
   icon: MessageCircle,
   badge: <Badge variant="success">Active</Badge>,
