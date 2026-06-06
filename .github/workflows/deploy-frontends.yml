@@ -72,7 +72,7 @@ jobs:
       - name: Trigger Dockhand redeploy
         run: |
           if [ "${{ matrix.frontend }}" = "gio-faas-dashboard" ]; then
-            WEBHOOK_URL="${{ secrets.DOCKHAND_GIO_FAAS_DASHBOARD_WEBHOOK }}"
+            WEBHOOK_URL="${{ secrets.DOCKHAND_WEBHOOK }}"
           fi
           if [[ -z "$WEBHOOK_URL" ]]; then
             echo "No webhook configured for ${{ matrix.frontend }}, skipping deploy"

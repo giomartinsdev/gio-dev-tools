@@ -73,7 +73,7 @@ jobs:
       - name: Trigger Dockhand redeploy
         run: |
           if [ "${{ matrix.api }}" = "gateway" ]; then
-            WEBHOOK_URL="${{ secrets.DOCKHAND_GATEWAY_WEBHOOK }}"
+            WEBHOOK_URL="${{ secrets.DOCKHAND_WEBHOOK }}"
           fi
           if [[ -z "$WEBHOOK_URL" ]]; then
             echo "No webhook configured for ${{ matrix.api }}, skipping deploy"
