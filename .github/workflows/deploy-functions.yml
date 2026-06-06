@@ -37,7 +37,7 @@ jobs:
       matrix:
         function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
 
-    name: BDD — ${{ matrix.function }}
+    name: BDD (${{ matrix.function }})
     steps:
       - uses: actions/checkout@v4.2.2
 
