@@ -1,0 +1,318 @@
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Landmark, Trash2, Loader2, Plus, Pencil, Check, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+} from 'recharts'
+
+const GATEWAY = import.meta.env.VITE_GATEWAY_URL
+
+const ASSET_TYPES = ['CDB', 'FII', 'Stock', 'Treasury', 'Savings', 'Crypto', 'Other'] as const
+type AssetType = typeof ASSET_TYPES[number]
+
+interface Asset {
+  id: string
+  name: string
+  type: AssetType
+  institution: string
+  amount: string
+  currency: string
+}
+
+interface Draft {
+  name: string
+  type: AssetType
+  institution: string
+  amount: string
+}
+
+const TYPE_COLORS: Record<AssetType, string> = {
+  'CDB':      '#3b82f6',
+  'FII':      '#f97316',
+  'Stock':    '#22c55e',
+  'Treasury': '#a855f7',
+  'Savings':  '#06b6d4',
+  'Crypto':   '#f59e0b',
+  'Other':    '#9ca3af',
+}
+
+function emptyDraft(): Draft {
+  return { name: '', type: 'CDB', institution: '', amount: '' }
+}
+
+function formatBRL(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+const cellInput = 'w-full rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground'
+
+export function PatrimonioModule() {
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
+  const [draft, setDraft] = useState<Draft>(emptyDraft)
+  const [submitting, setSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<Draft | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const fetchAssets = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch(`${GATEWAY}/fn/patrimonio`)
+    if (res.ok) setAssets(await res.json())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchAssets() }, [fetchAssets])
+
+  async function submit() {
+    if (!draft.name || !draft.institution || !draft.amount) return
+    setSubmitting(true)
+    try {
+      const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      if (res.ok) { await fetchAssets(); setDraft(emptyDraft()) }
+    } finally { setSubmitting(false) }
+  }
+
+  async function remove(id: string) {
+    setDeletingId(id)
+    try {
+      const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) await fetchAssets()
+    } finally { setDeletingId(null) }
+  }
+
+  function startEdit(asset: Asset) {
+    setEditingId(asset.id)
+    setEditDraft({ name: asset.name, type: asset.type, institution: asset.institution, amount: asset.amount })
+  }
+
+  function cancelEdit() { setEditingId(null); setEditDraft(null) }
+
+  function setEdit<K extends keyof Draft>(field: K, value: Draft[K]) {
+    setEditDraft(d => d ? { ...d, [field]: value } : d)
+  }
+
+  async function saveEdit() {
+    if (!editDraft || !editingId) return
+    setSaving(true)
+    try {
+      const res = await fetch(`${GATEWAY}/fn/patrimonio`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, ...editDraft }),
+      })
+      if (res.ok) { await fetchAssets(); cancelEdit() }
+    } finally { setSaving(false) }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); submit() }
+  }
+
+  function onEditKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
+    if (e.key === 'Escape') cancelEdit()
+  }
+
+  const total = useMemo(() => assets.reduce((s, a) => s + parseFloat(a.amount), 0), [assets])
+
+  const byType = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const a of assets) map[a.type] = (map[a.type] || 0) + parseFloat(a.amount)
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+  }, [assets])
+
+  const byInstitution = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const a of assets) map[a.institution] = (map[a.institution] || 0) + parseFloat(a.amount)
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+  }, [assets])
+
+  return (
+    <div className="flex flex-col gap-6">
+
+      {/* Total card */}
+      <div className="rounded-lg border bg-card px-5 py-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Portfolio</p>
+          <p className="text-2xl font-bold tabular-nums text-foreground mt-0.5">{formatBRL(total)}</p>
+        </div>
+        <div className="flex gap-2 flex-wrap justify-end">
+          {byType.map(({ name, value }) => (
+            <div key={name} className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
+              <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TYPE_COLORS[name as AssetType] ?? '#9ca3af' }} />
+              <span className="text-muted-foreground">{name}</span>
+              <span className="tabular-nums">{formatBRL(value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border bg-card overflow-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <Th>Name</Th>
+              <Th className="w-36">Type</Th>
+              <Th className="w-40">Institution</Th>
+              <Th className="w-40 text-right">Amount</Th>
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} className="py-16 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+            ) : assets.length === 0 ? (
+              <tr><td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">No assets yet. Add one below.</td></tr>
+            ) : assets.map(asset => {
+              const isEditing = editingId === asset.id
+              if (isEditing && editDraft) {
+                return (
+                  <tr key={asset.id} className="border-b bg-amber-50/40 dark:bg-amber-950/20">
+                    <td className="px-1.5 py-1.5">
+                      <input type="text" value={editDraft.name} onChange={e => setEdit('name', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Asset name..." className={cellInput} />
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <select value={editDraft.type} onChange={e => setEdit('type', e.target.value as AssetType)} className={cellInput}>
+                        {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <input type="text" value={editDraft.institution} onChange={e => setEdit('institution', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Institution..." className={cellInput} />
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <input type="number" min="0" step="0.01" value={editDraft.amount} onChange={e => setEdit('amount', e.target.value)} onKeyDown={onEditKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
+                    </td>
+                    <td className="px-1.5 py-1.5 flex items-center gap-1">
+                      <button onClick={saveEdit} disabled={saving || !editDraft.name || !editDraft.institution || !editDraft.amount} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </button>
+                      <button onClick={cancelEdit} className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              }
+
+              return (
+                <tr key={asset.id} className="border-b group hover:bg-muted/30 transition-colors">
+                  <Td className="font-medium">{asset.name}</Td>
+                  <Td>
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: `${TYPE_COLORS[asset.type]}20`, color: TYPE_COLORS[asset.type] }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: TYPE_COLORS[asset.type] }} />
+                      {asset.type}
+                    </span>
+                  </Td>
+                  <Td className="text-muted-foreground">{asset.institution}</Td>
+                  <Td className="text-right font-semibold tabular-nums">{formatBRL(parseFloat(asset.amount))}</Td>
+                  <td className="px-1.5">
+                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                      <button onClick={() => startEdit(asset)} disabled={!!editingId} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => remove(asset.id)} disabled={deletingId === asset.id} className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30">
+                        {deletingId === asset.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+
+            {/* Input row */}
+            <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
+              <td className="px-1.5 py-1.5">
+                <input type="text" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} onKeyDown={onKeyDown} placeholder="Asset name..." className={cellInput} />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <select value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value as AssetType }))} className={cellInput}>
+                  {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </td>
+              <td className="px-1.5 py-1.5">
+                <input type="text" value={draft.institution} onChange={e => setDraft(d => ({ ...d, institution: e.target.value }))} onKeyDown={onKeyDown} placeholder="Institution..." className={cellInput} />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <input type="number" min="0" step="0.01" value={draft.amount} onChange={e => setDraft(d => ({ ...d, amount: e.target.value }))} onKeyDown={onKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <button onClick={submit} disabled={submitting || !draft.name || !draft.institution || !draft.amount} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
+                  {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Charts */}
+      {assets.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Pie: by type */}
+          <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Type</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={byType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                  {byType.map(entry => (
+                    <Cell key={entry.name} fill={TYPE_COLORS[entry.name as AssetType] ?? '#9ca3af'} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => formatBRL(v)} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Bar: by institution */}
+          <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Institution</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={byInstitution} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" tickFormatter={v => formatBRL(v)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip formatter={(v: number) => formatBRL(v)} />
+                <Bar dataKey="value" name="Amount" radius={[0, 4, 4, 0]}>
+                  {byInstitution.map((_, i) => (
+                    <Cell key={i} fill={Object.values(TYPE_COLORS)[i % Object.values(TYPE_COLORS).length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return (
+    <th className={cn('px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground', className)}>
+      {children}
+    </th>
+  )
+}
+
+function Td({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <td className={cn('px-3 py-2.5', className)}>{children}</td>
+}
+
+export const patrimonioMeta = {
+  id: 'patrimonio' as const,
+  label: 'Portfolio',
+  description: 'Track your investments and assets',
+  icon: Landmark,
+}
