@@ -1,6 +1,6 @@
 from behave import then, use_step_matcher, when
 
-from src.main import _classify, _extract_amount, _extract_date
+from src.parser import classify as _classify, extract_amount as _extract_amount, extract_date as _extract_date
 
 use_step_matcher("re")
 
