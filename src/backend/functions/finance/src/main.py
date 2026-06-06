@@ -1,6 +1,9 @@
+import os
+
 from shared.logger import get_logger
 from shared.request import Request
 from shared.response import Response
+from shared.transaction_manager import TransactionConfig, TransactionManager
 
 from .application.commands.delete_transaction import DeleteTransactionCommand, DeleteTransactionHandler
 from .application.commands.record_transaction import RecordTransactionCommand, RecordTransactionHandler
@@ -13,6 +16,7 @@ from .infrastructure.postgres_repository import PostgresTransactionRepository, m
 
 logger = get_logger(__name__)
 
+TransactionManager.configure(TransactionConfig(url=os.environ["DATABASE_URL"]))
 migrate()
 
 _repo = PostgresTransactionRepository()

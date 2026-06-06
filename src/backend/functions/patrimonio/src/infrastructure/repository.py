@@ -1,39 +1,30 @@
-import os
-from contextlib import contextmanager
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from shared.transaction_manager import TransactionManager
+from shared.timezone_handler import TimezoneAware
 
 from ..domain.asset import Asset, AssetType
 from ..domain.repository import AssetRepository
 from .models import Base, AssetModel
 
-_engine = create_engine(os.environ["DATABASE_URL"])
-
-
-@contextmanager
-def _session():
-    with Session(_engine) as session, session.begin():
-        yield session
+_SP = TimezoneAware("America/Sao_Paulo")
 
 
 def migrate() -> None:
-    Base.metadata.create_all(_engine)
+    Base.metadata.create_all(TransactionManager.get().engine)
 
 
 class PostgresAssetRepository(AssetRepository):
     def save(self, asset: Asset) -> None:
-        with _session() as s:
+        with TransactionManager.get().session() as s:
             existing = s.get(AssetModel, asset.id)
             if existing:
                 existing.name = asset.name
                 existing.type = asset.type.value
                 existing.institution = asset.institution
                 existing.amount = asset.amount
-                existing.updated_at = datetime.now(timezone.utc)
+                existing.updated_at = _SP.now
             else:
                 s.add(AssetModel(
                     id=asset.id,
@@ -45,16 +36,17 @@ class PostgresAssetRepository(AssetRepository):
                 ))
 
     def delete(self, asset_id: str) -> bool:
-        with _session() as s:
+        with TransactionManager.get().session() as s:
             row = s.get(AssetModel, asset_id)
             if row is None or row.deleted_at is not None:
                 return False
-            row.deleted_at = datetime.now(timezone.utc)
-            row.updated_at = datetime.now(timezone.utc)
+            now = _SP.now
+            row.deleted_at = now
+            row.updated_at = now
             return True
 
     def find_all(self) -> list[Asset]:
-        with _session() as s:
+        with TransactionManager.get().read_only() as s:
             rows = (
                 s.query(AssetModel)
                 .filter(AssetModel.deleted_at.is_(None))
@@ -64,7 +56,7 @@ class PostgresAssetRepository(AssetRepository):
             return [_to_domain(r) for r in rows]
 
     def find_by_id(self, asset_id: str) -> Optional[Asset]:
-        with _session() as s:
+        with TransactionManager.get().read_only() as s:
             row = s.get(AssetModel, asset_id)
             if row is None or row.deleted_at is not None:
                 return None

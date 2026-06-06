@@ -2,12 +2,14 @@ import os
 import re
 import httpx
 from io import BytesIO
-from datetime import date as date_type
 from PIL import Image, ImageEnhance
 import pytesseract
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
 from shared.logger import get_logger
+from shared.timezone_handler import TimezoneAware
+
+_SP = TimezoneAware("America/Sao_Paulo")
 
 logger = get_logger(__name__)
 
@@ -164,7 +166,7 @@ async def main(file: UploadFile) -> JSONResponse:
                 status_code=422,
             )
 
-        tx_date = _extract_date(text) or date_type.today().isoformat()
+        tx_date = _extract_date(text) or _SP.now.date().isoformat()
         tx_type, category = _classify(text)
         description = _description(text)
 

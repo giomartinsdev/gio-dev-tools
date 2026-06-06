@@ -1,6 +1,9 @@
+import os
+
 from shared.logger import get_logger
 from shared.request import Request
 from shared.response import Response
+from shared.transaction_manager import TransactionConfig, TransactionManager
 
 from .application.commands.create_asset import CreateAssetCommand, CreateAssetHandler
 from .application.commands.update_asset import UpdateAssetCommand, UpdateAssetHandler
@@ -11,6 +14,7 @@ from .infrastructure.repository import PostgresAssetRepository, migrate
 
 logger = get_logger(__name__)
 
+TransactionManager.configure(TransactionConfig(url=os.environ["DATABASE_URL"]))
 migrate()
 
 _repo = PostgresAssetRepository()

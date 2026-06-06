@@ -5,6 +5,9 @@ from typing import Optional
 import uuid
 
 from pydantic import BaseModel, ConfigDict, field_validator
+from shared.timezone_handler import TimezoneAware
+
+_SP = TimezoneAware("America/Sao_Paulo")
 
 
 class TransactionType(str, Enum):
@@ -52,7 +55,7 @@ class Transaction(BaseModel):
             type=type,
             category=category,
             description=description,
-            date=date or datetime.utcnow(),
+            date=date or _SP.now,
         )
 
     def to_dict(self) -> dict:
