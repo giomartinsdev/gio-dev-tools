@@ -4,8 +4,9 @@ import { cn } from '@/lib/utils'
 import { WpMessageModule, wpMessageMeta } from '@/modules/wp-message/WpMessageModule'
 import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PatrimonioModule, patrimonioMeta } from '@/modules/patrimonio/PatrimonioModule'
+import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
 
-const modules = [wpMessageMeta, financeMeta, patrimonioMeta]
+const modules = [wpMessageMeta, financeMeta, patrimonioMeta, kanbanMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -45,7 +46,7 @@ export default function App() {
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="flex-1 text-left">{mod.label}</span>
-                    {'badge' in mod && mod.badge}
+                    {'badge' in mod && (mod as { badge: React.ReactNode }).badge}
                   </button>
                 </li>
               )
@@ -66,6 +67,7 @@ export default function App() {
           {activeId === 'wp-message' && <WpMessageModule />}
           {activeId === 'finance' && <FinanceModule />}
           {activeId === 'patrimonio' && <PatrimonioModule />}
+          {activeId === 'kanban' && <KanbanModule />}
         </main>
       </div>
     </div>
