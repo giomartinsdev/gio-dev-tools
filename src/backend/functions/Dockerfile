@@ -18,6 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         opentelemetry-instrumentation-logging==0.55b0 \
         opentelemetry-instrumentation-requests==0.55b0 \
         opentelemetry-instrumentation-urllib3==0.55b0 \
+        opentelemetry-instrumentation-sqlalchemy==0.55b0 \
         wrapt==1.17.2
 
 ARG FUNCTION_DIR
