@@ -1,7 +1,5 @@
-from shared.auto_trace import install
-install(["src"])
+from shared.auto_trace import src  # noqa: F401
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
 from src.main import main
 
 app = FastAPI()

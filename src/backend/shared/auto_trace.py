@@ -153,3 +153,11 @@ def install(packages: list[str]):
         return
     _hook = _AutoTraceImportHook(packages)
     sys.meta_path.insert(0, _hook)
+
+def __getattr__(name: str):
+    import importlib
+    install([name])
+    try:
+        return importlib.import_module(name)
+    except ImportError:
+        raise AttributeError(name)
