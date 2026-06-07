@@ -7,12 +7,23 @@ from opentelemetry.trace import StatusCode
 tracer = trace.get_tracer("auto-tracer")
 
 def _wrap_func(func, span_name):
+    if inspect.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            with tracer.start_as_current_span(span_name) as span:
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(StatusCode.ERROR, str(e))
+                    raise
+        return async_wrapper
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with tracer.start_as_current_span(span_name) as span:
             try:
-                result = func(*args, **kwargs)
-                return result
+                return func(*args, **kwargs)
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(StatusCode.ERROR, str(e))
@@ -21,12 +32,23 @@ def _wrap_func(func, span_name):
 
 def _wrap_classmethod(func, span_name):
     original = func.__func__
+    if inspect.iscoroutinefunction(original):
+        @functools.wraps(original)
+        async def async_wrapper(cls, *args, **kwargs):
+            with tracer.start_as_current_span(span_name) as span:
+                try:
+                    return await original(cls, *args, **kwargs)
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(StatusCode.ERROR, str(e))
+                    raise
+        return classmethod(async_wrapper)
+
     @functools.wraps(original)
     def wrapper(cls, *args, **kwargs):
         with tracer.start_as_current_span(span_name) as span:
             try:
-                result = original(cls, *args, **kwargs)
-                return result
+                return original(cls, *args, **kwargs)
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(StatusCode.ERROR, str(e))
@@ -35,12 +57,23 @@ def _wrap_classmethod(func, span_name):
 
 def _wrap_staticmethod(func, span_name):
     original = func.__func__
+    if inspect.iscoroutinefunction(original):
+        @functools.wraps(original)
+        async def async_wrapper(*args, **kwargs):
+            with tracer.start_as_current_span(span_name) as span:
+                try:
+                    return await original(*args, **kwargs)
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(StatusCode.ERROR, str(e))
+                    raise
+        return staticmethod(async_wrapper)
+
     @functools.wraps(original)
     def wrapper(*args, **kwargs):
         with tracer.start_as_current_span(span_name) as span:
             try:
-                result = original(*args, **kwargs)
-                return result
+                return original(*args, **kwargs)
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(StatusCode.ERROR, str(e))
