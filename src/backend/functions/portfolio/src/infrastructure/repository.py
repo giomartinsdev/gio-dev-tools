@@ -22,6 +22,7 @@ class PostgresAssetRepository(AssetRepository):
                 quantity=asset.quantity,
                 purchase_price=asset.purchase_price,
                 currency=asset.currency,
+                ticker=asset.ticker,
             ))
 
     def delete(self, asset_id: str) -> bool:
@@ -59,6 +60,7 @@ def _to_domain(row: AssetModel) -> Asset:
         quantity=Decimal(str(row.quantity)),
         purchase_price=Decimal(str(row.purchase_price)),
         currency=row.currency,
+        ticker=row.ticker,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

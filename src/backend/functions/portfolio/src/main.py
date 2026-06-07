@@ -1,10 +1,11 @@
 import os
+from decimal import Decimal
 
 from shared.logger import get_logger
 from shared.request import Request
 from shared.response import Response
 from shared.transaction_manager import TransactionConfig, TransactionManager
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from .application.commands.create_asset import CreateAssetCommand, CreateAssetHandler
 from .application.commands.update_asset import UpdateAssetCommand, UpdateAssetHandler
@@ -27,6 +28,11 @@ def _migrate() -> None:
         logger.info("migration: old schema (amount) detected — recreating assets table")
         Base.metadata.drop_all(engine, tables=[Base.metadata.tables["assets"]])
         Base.metadata.create_all(engine, tables=[Base.metadata.tables["assets"]])
+        return
+    if "ticker" not in cols:
+        logger.info("migration: adding ticker column to assets")
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE assets ADD COLUMN ticker VARCHAR"))
 
 
 TransactionManager.configure(TransactionConfig(url=os.environ["DATABASE_URL"]))
@@ -41,10 +47,60 @@ _bus.subscribe(AssetUpdated, lambda e: logger.info(f"AssetUpdated old={e.old_ass
 _bus.subscribe(AssetDeleted, lambda e: logger.info(f"AssetDeleted id={e.asset_id}"))
 
 
+def _fetch_quotes(tickers: list[str]) -> dict[str, dict]:
+    if not tickers:
+        return {}
+    try:
+        with TransactionManager.get().read_only() as s:
+            rows = s.execute(
+                text("""
+                    SELECT DISTINCT ON (ticker)
+                        ticker, price, daily_change, daily_change_pct,
+                        last_dividend, last_dividend_date, recorded_at
+                    FROM quote_events
+                    WHERE ticker = ANY(:tickers)
+                    ORDER BY ticker, recorded_at DESC
+                """),
+                {"tickers": tickers},
+            ).fetchall()
+        return {r.ticker: dict(r._mapping) for r in rows}
+    except Exception as e:
+        logger.warning(f"failed to fetch quotes: {e}")
+        return {}
+
+
+def _build_quote(asset, raw: dict) -> dict | None:
+    if not raw:
+        return None
+    price = Decimal(str(raw["price"])) if raw.get("price") else None
+    if price is None:
+        return None
+    current_value = asset.quantity * price
+    gain_loss = current_value - asset.total_value
+    gain_loss_pct = (gain_loss / asset.total_value * 100) if asset.total_value else Decimal(0)
+    return {
+        "price": str(price),
+        "daily_change": str(raw["daily_change"]) if raw.get("daily_change") is not None else None,
+        "daily_change_pct": str(raw["daily_change_pct"]) if raw.get("daily_change_pct") is not None else None,
+        "current_value": str(current_value.quantize(Decimal("0.01"))),
+        "gain_loss": str(gain_loss.quantize(Decimal("0.01"))),
+        "gain_loss_pct": str(gain_loss_pct.quantize(Decimal("0.01"))),
+        "last_dividend": str(raw["last_dividend"]) if raw.get("last_dividend") is not None else None,
+        "last_dividend_date": raw["last_dividend_date"].isoformat() if raw.get("last_dividend_date") else None,
+        "recorded_at": raw["recorded_at"].isoformat() if raw.get("recorded_at") else None,
+    }
+
+
 def main(request: Request) -> Response:
     try:
         if request.method == "GET":
-            return Response(body=[a.to_dict() for a in _repo.find_all()], status_code=200)
+            assets = _repo.find_all()
+            tickers = [a.ticker for a in assets if a.ticker]
+            quotes = _fetch_quotes(tickers)
+            return Response(
+                body=[a.to_dict(quote=_build_quote(a, quotes.get(a.ticker, {}))) for a in assets],
+                status_code=200,
+            )
 
         if request.method == "POST":
             return _create(request)
@@ -71,6 +127,7 @@ def _create(request: Request) -> Response:
         institution=str(request.body.get("institution", "")),
         quantity=str(request.body.get("quantity", "")),
         purchase_price=str(request.body.get("purchase_price", "")),
+        ticker=str(request.body.get("ticker", "")),
     ))
     return Response(body=asset.to_dict(), status_code=201)
 
@@ -83,6 +140,7 @@ def _update(request: Request) -> Response:
         institution=str(request.body.get("institution", "")),
         quantity=str(request.body.get("quantity", "")),
         purchase_price=str(request.body.get("purchase_price", "")),
+        ticker=str(request.body.get("ticker", "")),
     ))
     if asset is None:
         return Response(body={"error": "asset not found"}, status_code=404)

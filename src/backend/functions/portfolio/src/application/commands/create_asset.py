@@ -14,6 +14,7 @@ class CreateAssetCommand(BaseModel):
     institution: str
     quantity: str
     purchase_price: str
+    ticker: str = ""
 
 
 class CreateAssetHandler:
@@ -45,6 +46,7 @@ class CreateAssetHandler:
             institution=cmd.institution.strip(),
             quantity=quantity,
             purchase_price=purchase_price,
+            ticker=cmd.ticker.strip().upper() or None,
         )
         self._repo.save(asset)
 

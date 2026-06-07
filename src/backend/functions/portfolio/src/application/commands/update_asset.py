@@ -16,6 +16,7 @@ class UpdateAssetCommand(BaseModel):
     institution: str
     quantity: str
     purchase_price: str
+    ticker: str = ""
 
 
 class UpdateAssetHandler:
@@ -54,6 +55,7 @@ class UpdateAssetHandler:
             institution=cmd.institution.strip(),
             quantity=quantity,
             purchase_price=purchase_price,
+            ticker=cmd.ticker.strip().upper() or None,
         )
         self._repo.save(new_asset)
 

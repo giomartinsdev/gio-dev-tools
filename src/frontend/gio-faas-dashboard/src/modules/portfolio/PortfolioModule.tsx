@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Landmark, Trash2, Loader2, Plus, Pencil, Check, X } from 'lucide-react'
+import { Landmark, Trash2, Loader2, Plus, Pencil, Check, X, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -11,6 +11,18 @@ const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 const ASSET_TYPES = ['CDB', 'FII', 'Stock', 'Treasury', 'Savings', 'Crypto', 'Other'] as const
 type AssetType = typeof ASSET_TYPES[number]
 
+interface Quote {
+  price: string
+  daily_change: string | null
+  daily_change_pct: string | null
+  current_value: string
+  gain_loss: string
+  gain_loss_pct: string
+  last_dividend: string | null
+  last_dividend_date: string | null
+  recorded_at: string | null
+}
+
 interface Asset {
   id: string
   name: string
@@ -20,6 +32,8 @@ interface Asset {
   purchase_price: string
   total_value: string
   currency: string
+  ticker: string | null
+  quote: Quote | null
 }
 
 interface Draft {
@@ -28,6 +42,7 @@ interface Draft {
   institution: string
   quantity: string
   purchase_price: string
+  ticker: string
 }
 
 const TYPE_COLORS: Record<AssetType, string> = {
@@ -41,7 +56,7 @@ const TYPE_COLORS: Record<AssetType, string> = {
 }
 
 function emptyDraft(): Draft {
-  return { name: '', type: 'CDB', institution: '', quantity: '', purchase_price: '' }
+  return { name: '', type: 'CDB', institution: '', quantity: '', purchase_price: '', ticker: '' }
 }
 
 function formatBRL(value: number) {
@@ -51,6 +66,12 @@ function formatBRL(value: number) {
 function formatQty(value: string) {
   const n = parseFloat(value)
   return Number.isInteger(n) ? n.toString() : n.toFixed(4).replace(/\.?0+$/, '')
+}
+
+function formatPct(value: string | null) {
+  if (value === null) return null
+  const n = parseFloat(value)
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
 }
 
 const cellInput = 'w-full rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground'
@@ -107,6 +128,7 @@ export function PortfolioModule() {
       institution: asset.institution,
       quantity: asset.quantity,
       purchase_price: asset.purchase_price,
+      ticker: asset.ticker ?? '',
     })
   }
 
@@ -138,25 +160,44 @@ export function PortfolioModule() {
     if (e.key === 'Escape') cancelEdit()
   }
 
+  // Use current_value from quote when available, fall back to total_value
   const total = useMemo(
-    () => assets.reduce((s, a) => s + parseFloat(a.total_value), 0),
+    () => assets.reduce((s, a) => s + parseFloat(a.quote?.current_value ?? a.total_value), 0),
     [assets]
   )
 
   const byType = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const a of assets) map[a.type] = (map[a.type] || 0) + parseFloat(a.total_value)
+    for (const a of assets) {
+      const val = parseFloat(a.quote?.current_value ?? a.total_value)
+      map[a.type] = (map[a.type] || 0) + val
+    }
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
   }, [assets])
 
   const byInstitution = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const a of assets) map[a.institution] = (map[a.institution] || 0) + parseFloat(a.total_value)
+    for (const a of assets) {
+      const val = parseFloat(a.quote?.current_value ?? a.total_value)
+      map[a.institution] = (map[a.institution] || 0) + val
+    }
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
   }, [assets])
 
+  const fiiWithDividend = useMemo(
+    () => assets.filter(a => a.quote?.last_dividend),
+    [assets]
+  )
+
+  const monthlyIncome = useMemo(
+    () => fiiWithDividend.reduce((s, a) => s + parseFloat(a.quantity) * parseFloat(a.quote!.last_dividend!), 0),
+    [fiiWithDividend]
+  )
+
   const editValid = editDraft && editDraft.name && editDraft.institution && editDraft.quantity && editDraft.purchase_price
   const addValid = draft.name && draft.institution && draft.quantity && draft.purchase_price
+
+  const hasQuotes = assets.some(a => a.quote)
 
   return (
     <div className="flex flex-col gap-6">
@@ -166,6 +207,7 @@ export function PortfolioModule() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Portfolio</p>
           <p className="text-2xl font-bold tabular-nums text-foreground mt-0.5">{formatBRL(total)}</p>
+          {hasQuotes && <p className="text-xs text-muted-foreground mt-0.5">com cotação atualizada</p>}
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           {byType.map(({ name, value }) => (
@@ -183,27 +225,30 @@ export function PortfolioModule() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <Th>Name</Th>
-              <Th className="w-32">Type</Th>
-              <Th className="w-36">Institution</Th>
-              <Th className="w-28 text-right">Quantity</Th>
-              <Th className="w-36 text-right">Unit Price</Th>
-              <Th className="w-36 text-right">Total</Th>
+              <Th>Nome</Th>
+              <Th className="w-28">Tipo</Th>
+              <Th className="w-32">Instituição</Th>
+              <Th className="w-20">Ticker</Th>
+              <Th className="w-24 text-right">Qtd</Th>
+              <Th className="w-32 text-right">Preço Compra</Th>
+              <Th className="w-32 text-right">Cotação</Th>
+              <Th className="w-32 text-right">Total</Th>
+              <Th className="w-32 text-right">Ganho/Perda</Th>
               <th className="w-10" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+              <tr><td colSpan={10} className="py-16 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
             ) : assets.length === 0 ? (
-              <tr><td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">No assets yet. Add one below.</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-sm text-muted-foreground">Nenhum ativo. Adicione um abaixo.</td></tr>
             ) : assets.map(asset => {
               const isEditing = editingId === asset.id
               if (isEditing && editDraft) {
                 return (
                   <tr key={asset.id} className="border-b bg-amber-50/40 dark:bg-amber-950/20">
                     <td className="px-1.5 py-1.5">
-                      <input type="text" value={editDraft.name} onChange={e => setEdit('name', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Asset name..." className={cellInput} />
+                      <input type="text" value={editDraft.name} onChange={e => setEdit('name', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Nome..." className={cellInput} />
                     </td>
                     <td className="px-1.5 py-1.5">
                       <select value={editDraft.type} onChange={e => setEdit('type', e.target.value as AssetType)} className={cellInput}>
@@ -211,7 +256,10 @@ export function PortfolioModule() {
                       </select>
                     </td>
                     <td className="px-1.5 py-1.5">
-                      <input type="text" value={editDraft.institution} onChange={e => setEdit('institution', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Institution..." className={cellInput} />
+                      <input type="text" value={editDraft.institution} onChange={e => setEdit('institution', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Instituição..." className={cellInput} />
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <input type="text" value={editDraft.ticker} onChange={e => setEdit('ticker', e.target.value.toUpperCase())} onKeyDown={onEditKeyDown} placeholder="MXRF11" className={cellInput} />
                     </td>
                     <td className="px-1.5 py-1.5">
                       <input type="number" min="0" step="any" value={editDraft.quantity} onChange={e => setEdit('quantity', e.target.value)} onKeyDown={onEditKeyDown} placeholder="0" className={cn(cellInput, 'text-right')} />
@@ -219,11 +267,13 @@ export function PortfolioModule() {
                     <td className="px-1.5 py-1.5">
                       <input type="number" min="0" step="0.01" value={editDraft.purchase_price} onChange={e => setEdit('purchase_price', e.target.value)} onKeyDown={onEditKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
                     </td>
+                    <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">—</td>
                     <td className="px-3 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
                       {editDraft.quantity && editDraft.purchase_price
                         ? formatBRL(parseFloat(editDraft.quantity) * parseFloat(editDraft.purchase_price))
                         : '—'}
                     </td>
+                    <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">—</td>
                     <td className="px-1.5 py-1.5 flex items-center gap-1">
                       <button onClick={saveEdit} disabled={saving || !editValid} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
                         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
@@ -236,6 +286,11 @@ export function PortfolioModule() {
                 )
               }
 
+              const q = asset.quote
+              const changePct = q ? parseFloat(q.daily_change_pct ?? '0') : null
+              const gainLoss = q ? parseFloat(q.gain_loss) : null
+              const gainLossPct = q ? parseFloat(q.gain_loss_pct) : null
+
               return (
                 <tr key={asset.id} className="border-b group hover:bg-muted/30 transition-colors">
                   <Td className="font-medium">{asset.name}</Td>
@@ -246,9 +301,47 @@ export function PortfolioModule() {
                     </span>
                   </Td>
                   <Td className="text-muted-foreground">{asset.institution}</Td>
+                  <Td>
+                    {asset.ticker ? (
+                      <span className="font-mono text-xs font-semibold text-foreground/80">{asset.ticker}</span>
+                    ) : (
+                      <span className="text-muted-foreground/40 text-xs">—</span>
+                    )}
+                  </Td>
                   <Td className="text-right tabular-nums">{formatQty(asset.quantity)}</Td>
                   <Td className="text-right tabular-nums">{formatBRL(parseFloat(asset.purchase_price))}</Td>
-                  <Td className="text-right font-semibold tabular-nums">{formatBRL(parseFloat(asset.total_value))}</Td>
+                  <Td className="text-right">
+                    {q ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="tabular-nums font-medium">{formatBRL(parseFloat(q.price))}</span>
+                        {changePct !== null && (
+                          <span className={cn('text-xs tabular-nums flex items-center gap-0.5', changePct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+                            {changePct >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            {formatPct(q.daily_change_pct)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/40 text-xs">—</span>
+                    )}
+                  </Td>
+                  <Td className="text-right font-semibold tabular-nums">
+                    {formatBRL(parseFloat(q?.current_value ?? asset.total_value))}
+                  </Td>
+                  <Td className="text-right">
+                    {gainLoss !== null && gainLossPct !== null ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className={cn('tabular-nums font-medium text-sm', gainLoss >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+                          {gainLoss >= 0 ? '+' : ''}{formatBRL(gainLoss)}
+                        </span>
+                        <span className={cn('text-xs tabular-nums', gainLossPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+                          {formatPct(q!.gain_loss_pct)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/40 text-xs">—</span>
+                    )}
+                  </Td>
                   <td className="px-1.5">
                     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
                       <button onClick={() => startEdit(asset)} disabled={!!editingId} className="rounded p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30">
@@ -266,7 +359,7 @@ export function PortfolioModule() {
             {/* Input row */}
             <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
               <td className="px-1.5 py-1.5">
-                <input type="text" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} onKeyDown={onKeyDown} placeholder="Asset name..." className={cellInput} />
+                <input type="text" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} onKeyDown={onKeyDown} placeholder="Nome..." className={cellInput} />
               </td>
               <td className="px-1.5 py-1.5">
                 <select value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value as AssetType }))} className={cellInput}>
@@ -274,7 +367,10 @@ export function PortfolioModule() {
                 </select>
               </td>
               <td className="px-1.5 py-1.5">
-                <input type="text" value={draft.institution} onChange={e => setDraft(d => ({ ...d, institution: e.target.value }))} onKeyDown={onKeyDown} placeholder="Institution..." className={cellInput} />
+                <input type="text" value={draft.institution} onChange={e => setDraft(d => ({ ...d, institution: e.target.value }))} onKeyDown={onKeyDown} placeholder="Instituição..." className={cellInput} />
+              </td>
+              <td className="px-1.5 py-1.5">
+                <input type="text" value={draft.ticker} onChange={e => setDraft(d => ({ ...d, ticker: e.target.value.toUpperCase() }))} onKeyDown={onKeyDown} placeholder="MXRF11" className={cellInput} />
               </td>
               <td className="px-1.5 py-1.5">
                 <input type="number" min="0" step="any" value={draft.quantity} onChange={e => setDraft(d => ({ ...d, quantity: e.target.value }))} onKeyDown={onKeyDown} placeholder="0" className={cn(cellInput, 'text-right')} />
@@ -282,7 +378,7 @@ export function PortfolioModule() {
               <td className="px-1.5 py-1.5">
                 <input type="number" min="0" step="0.01" value={draft.purchase_price} onChange={e => setDraft(d => ({ ...d, purchase_price: e.target.value }))} onKeyDown={onKeyDown} placeholder="0.00" className={cn(cellInput, 'text-right')} />
               </td>
-              <td className="px-3 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
+              <td colSpan={3} className="px-3 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
                 {draft.quantity && draft.purchase_price
                   ? formatBRL(parseFloat(draft.quantity) * parseFloat(draft.purchase_price))
                   : '—'}
@@ -297,11 +393,65 @@ export function PortfolioModule() {
         </table>
       </div>
 
+      {/* Rendimentos section */}
+      {fiiWithDividend.length > 0 && (
+        <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rendimentos</p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Renda mensal estimada:</span>
+              <span className="text-sm font-bold text-green-600 dark:text-green-400 tabular-nums">{formatBRL(monthlyIncome)}</span>
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <Th>Ativo</Th>
+                <Th>Ticker</Th>
+                <Th className="text-right">Cotação Atual</Th>
+                <Th className="text-right">Último Rendimento</Th>
+                <Th className="text-right">Data Pagamento</Th>
+                <Th className="text-right">Yield Mensal</Th>
+                <Th className="text-right">Renda (sua qtd)</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {fiiWithDividend.map(a => {
+                const q = a.quote!
+                const price = parseFloat(q.price)
+                const dividend = parseFloat(q.last_dividend!)
+                const yieldPct = price > 0 ? (dividend / price * 100) : 0
+                const income = parseFloat(a.quantity) * dividend
+                return (
+                  <tr key={a.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <Td className="font-medium">{a.name}</Td>
+                    <Td><span className="font-mono text-xs font-semibold">{a.ticker}</span></Td>
+                    <Td className="text-right tabular-nums">{formatBRL(price)}</Td>
+                    <Td className="text-right tabular-nums text-green-600 dark:text-green-400 font-medium">
+                      {formatBRL(dividend)}
+                    </Td>
+                    <Td className="text-right text-muted-foreground text-xs">
+                      {q.last_dividend_date ? new Date(q.last_dividend_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                    </Td>
+                    <Td className="text-right tabular-nums text-xs font-medium">
+                      {yieldPct.toFixed(2)}%
+                    </Td>
+                    <Td className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
+                      {formatBRL(income)}
+                    </Td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Charts */}
       {assets.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Type</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuição por Tipo</p>
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie data={byType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
@@ -315,7 +465,7 @@ export function PortfolioModule() {
           </div>
 
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribution by Institution</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuição por Instituição</p>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={byInstitution} layout="vertical" margin={{ left: 8, right: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />

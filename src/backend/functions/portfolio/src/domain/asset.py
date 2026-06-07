@@ -27,6 +27,7 @@ class Asset(BaseModel):
     quantity: Decimal
     purchase_price: Decimal
     currency: str = "BRL"
+    ticker: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -56,6 +57,7 @@ class Asset(BaseModel):
         institution: str,
         quantity: Decimal,
         purchase_price: Decimal,
+        ticker: Optional[str] = None,
     ) -> "Asset":
         return cls(
             id=str(uuid.uuid4()),
@@ -64,9 +66,10 @@ class Asset(BaseModel):
             institution=institution,
             quantity=quantity,
             purchase_price=purchase_price,
+            ticker=ticker or None,
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self, quote: dict | None = None) -> dict:
         return {
             "id": self.id,
             "name": self.name,
@@ -76,6 +79,8 @@ class Asset(BaseModel):
             "purchase_price": str(self.purchase_price),
             "total_value": str(self.total_value),
             "currency": self.currency,
+            "ticker": self.ticker,
+            "quote": quote,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
