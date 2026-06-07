@@ -1,4 +1,5 @@
-from shared.auto_trace import src  # noqa: F401
+from shared.auto_trace import install
+install(["src"])
 from fastapi import FastAPI
 from fastapi.requests import Request as FastAPIRequest
 

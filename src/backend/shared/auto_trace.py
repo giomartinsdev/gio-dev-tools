@@ -1,6 +1,4 @@
 import sys
-import importlib
-import importlib.util
 import inspect
 import functools
 from opentelemetry import trace
@@ -116,45 +114,36 @@ def _instrument_module(module):
             continue
         _instrument_class(obj, module_name)
 
-
-class _InstrumentingLoader:
-    def __init__(self, real_loader):
-        self._real = real_loader
-
-    def create_module(self, spec):
-        if hasattr(self._real, "create_module"):
-            return self._real.create_module(spec)
-        return None
-
-    def exec_module(self, module):
-        self._real.exec_module(module)
-        _instrument_module(module)
-
-
 class _AutoTraceImportHook:
     def __init__(self, packages):
         self.packages = tuple(packages)
         self._instrumenting = set()
 
-    def _matches(self, fullname):
-        return any(fullname == p or fullname.startswith(p + ".") for p in self.packages)
-
-    def find_spec(self, fullname, path, target=None):
-        if fullname in self._instrumenting or not self._matches(fullname):
+    def find_module(self, fullname, path=None):
+        if fullname in self._instrumenting:
             return None
+        if any(fullname == p or fullname.startswith(p + ".") for p in self.packages):
+            return self
+        return None
+
+    def load_module(self, fullname):
+        if fullname in sys.modules:
+            module = sys.modules[fullname]
+            if fullname not in self._instrumenting:
+                self._instrumenting.add(fullname)
+                _instrument_module(module)
+                self._instrumenting.discard(fullname)
+            return module
 
         self._instrumenting.add(fullname)
         try:
-            real_spec = importlib.util.find_spec(fullname)
+            __import__(fullname)
         finally:
             self._instrumenting.discard(fullname)
 
-        if real_spec is None or real_spec.loader is None:
-            return None
-
-        real_spec.loader = _InstrumentingLoader(real_spec.loader)
-        return real_spec
-
+        module = sys.modules[fullname]
+        _instrument_module(module)
+        return module
 
 _hook = None
 
@@ -164,7 +153,3 @@ def install(packages: list[str]):
         return
     _hook = _AutoTraceImportHook(packages)
     sys.meta_path.insert(0, _hook)
-
-def __getattr__(name: str):
-    install([name])
-    return name
