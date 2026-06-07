@@ -12,12 +12,6 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
-try:
-    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor as _SQLAlchemyInstrumentor
-    _HAS_SQLA_INSTRUMENTATION = True
-except ImportError:
-    _HAS_SQLA_INSTRUMENTATION = False
-
 logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -116,9 +110,6 @@ class TransactionManager:
                 expire_on_commit=False,
             )
             logger.info("TransactionManager initialized from engine (engine=%s)", self._engine.url)
-
-        if _HAS_SQLA_INSTRUMENTATION:
-            _SQLAlchemyInstrumentor().instrument(engine=self._engine)
         else:
             raise TypeError(
                 f"Expected TransactionConfig or Engine, got {type(config_or_engine).__name__!r}"
