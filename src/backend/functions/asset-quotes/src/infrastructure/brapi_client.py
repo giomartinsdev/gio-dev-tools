@@ -18,43 +18,37 @@ class BrapiClient:
 
     def fetch_quotes(self, tickers: list[str]) -> tuple[list[QuoteEvent], list[str]]:
         headers: dict = {"Authorization": f"Bearer {self._token}"}
-
-        try:
-            with httpx.Client(timeout=15.0) as client:
-                resp = client.get(
-                    f"{_BRAPI_BASE}/quote/{','.join(tickers)}",
-                    headers=headers,
-                )
-                resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            logger.error(f"brapi request failed: {e}")
-            return [], list(tickers)
-
-        results = data.get("results") or []
-        returned = {r.get("symbol") for r in results}
-        failed = [t for t in tickers if t not in returned]
-
         now = datetime.now(tz=timezone.utc)
         events: list[QuoteEvent] = []
+        failed: list[str] = []
 
-        for item in results:
-            ticker = item.get("symbol")
-            if not ticker:
-                continue
-            try:
-                events.append(QuoteEvent.create(
-                    ticker=ticker,
-                    price=_decimal(item.get("regularMarketPrice")),
-                    daily_change=_decimal(item.get("regularMarketChange")),
-                    daily_change_pct=_decimal(item.get("regularMarketChangePercent")),
-                    last_dividend=None,
-                    last_dividend_date=None,
-                    recorded_at=now,
-                ))
-            except Exception as e:
-                logger.error(f"failed to parse quote for {ticker}: {e}")
-                failed.append(ticker)
+        with httpx.Client(timeout=15.0) as client:
+            for ticker in tickers:
+                try:
+                    resp = client.get(
+                        f"{_BRAPI_BASE}/quote/{ticker}",
+                        headers=headers,
+                    )
+                    resp.raise_for_status()
+                    results = resp.json().get("results") or []
+                    if not results:
+                        logger.warning(f"no results for {ticker}")
+                        failed.append(ticker)
+                        continue
+                    item = results[0]
+                    events.append(QuoteEvent.create(
+                        ticker=ticker,
+                        price=_decimal(item.get("regularMarketPrice")),
+                        daily_change=_decimal(item.get("regularMarketChange")),
+                        daily_change_pct=_decimal(item.get("regularMarketChangePercent")),
+                        last_dividend=None,
+                        last_dividend_date=None,
+                        recorded_at=now,
+                    ))
+                    logger.info(f"fetched quote: {ticker} price={item.get('regularMarketPrice')}")
+                except Exception as e:
+                    logger.error(f"failed to fetch quote for {ticker}: {e}")
+                    failed.append(ticker)
 
         return events, failed
 
