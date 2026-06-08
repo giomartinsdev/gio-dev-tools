@@ -8,6 +8,7 @@ export interface Station {
 export interface Line {
   id: string
   name: string
+  shortName?: string
   color?: string
   [key: string]: unknown
 }

@@ -41,21 +41,20 @@ export function buildStationLineMap(stations: Station[], lines: Line[]): Map<str
     if (ids.length > 0) map.set(s.id, ids)
   })
 
-  // Reverse: line → stations via line.stations / line.estacoes
+  // Reverse: line → stations via line.stations (entry.stationId or entry.station.id or entry.id)
   lines.forEach(line => {
-    for (const key of ['stations', 'estacoes', 'stationList']) {
-      const val = line[key]
-      if (!Array.isArray(val)) continue
-      val.forEach((entry: unknown) => {
-        const stId = typeof entry === 'string'
-          ? entry
-          : (entry as Record<string, string>)?.id ?? ''
-        if (!stId) return
-        const existing = map.get(stId) ?? []
-        if (!existing.includes(line.id)) map.set(stId, [...existing, line.id])
-      })
-      break
-    }
+    const val = line['stations']
+    if (!Array.isArray(val)) return
+    val.forEach((entry: unknown) => {
+      const e = entry as Record<string, unknown>
+      const stId = (typeof e?.stationId === 'string' ? e.stationId : null)
+        ?? (typeof (e?.station as Record<string, unknown>)?.id === 'string' ? (e.station as Record<string, string>).id : null)
+        ?? (typeof e?.id === 'string' ? e.id : null)
+        ?? ''
+      if (!stId) return
+      const existing = map.get(stId) ?? []
+      if (!existing.includes(line.id)) map.set(stId, [...existing, line.id])
+    })
   })
 
   return map
@@ -120,8 +119,11 @@ export function StationMap({ stations, lines, stationLineMap, selectedId, onSele
       <svg width={svgWidth} height={svgHeight} className="select-none">
         {groups.map(({ line, stations: lineStations }, lineIdx) => {
           const y = PAD_Y + lineIdx * LINE_HEIGHT
-          const color = (line.color as string | undefined)
-            ?? FALLBACK_COLORS[lineIdx % FALLBACK_COLORS.length]
+          const rawColor = line.color as string | undefined
+          const color = rawColor
+            ? (rawColor.startsWith('#') ? rawColor : `#${rawColor}`)
+            : FALLBACK_COLORS[lineIdx % FALLBACK_COLORS.length]
+          const label = (line.shortName as string | undefined) ?? line.name
 
           return (
             <g key={line.id}>
@@ -145,7 +147,7 @@ export function StationMap({ stations, lines, stationLineMap, selectedId, onSele
                 fill={color}
                 fontWeight={600}
               >
-                {line.name}
+                {label}
               </text>
 
               {lineStations.map((station, stIdx) => {
