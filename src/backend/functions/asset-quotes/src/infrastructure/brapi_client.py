@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -17,14 +17,12 @@ class BrapiClient:
         self._token = token
 
     def fetch_quotes(self, tickers: list[str]) -> tuple[list[QuoteEvent], list[str]]:
-        params: dict = {"dividends": "true", "modules": "summaryProfile"}
         headers: dict = {"Authorization": f"Bearer {self._token}"}
 
         try:
             with httpx.Client(timeout=15.0) as client:
                 resp = client.get(
                     f"{_BRAPI_BASE}/quote/{','.join(tickers)}",
-                    params=params,
                     headers=headers,
                 )
                 resp.raise_for_status()
@@ -50,8 +48,8 @@ class BrapiClient:
                     price=_decimal(item.get("regularMarketPrice")),
                     daily_change=_decimal(item.get("regularMarketChange")),
                     daily_change_pct=_decimal(item.get("regularMarketChangePercent")),
-                    last_dividend=_parse_dividend_value(item),
-                    last_dividend_date=_parse_dividend_date(item),
+                    last_dividend=None,
+                    last_dividend_date=None,
                     recorded_at=now,
                 ))
             except Exception as e:
@@ -63,24 +61,3 @@ class BrapiClient:
 
 def _decimal(val) -> Optional[Decimal]:
     return Decimal(str(val)) if val is not None else None
-
-
-def _parse_dividend_value(item: dict) -> Optional[Decimal]:
-    cash = (item.get("dividendsData") or {}).get("cashDividends") or []
-    if not cash:
-        return None
-    rate = cash[0].get("rate")
-    return Decimal(str(rate)) if rate is not None else None
-
-
-def _parse_dividend_date(item: dict) -> Optional[date]:
-    cash = (item.get("dividendsData") or {}).get("cashDividends") or []
-    if not cash:
-        return None
-    raw = cash[0].get("paymentDate") or cash[0].get("lastDatePrior")
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw[:10])
-    except ValueError:
-        return None
