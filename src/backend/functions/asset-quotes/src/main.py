@@ -43,3 +43,4 @@ def main(request: Request) -> Response:
     except Exception as e:
         logger.error(f"unhandled error: {e}", exc_info=True)
         return Response(body={"error": "internal server error"}, status_code=500)
+
