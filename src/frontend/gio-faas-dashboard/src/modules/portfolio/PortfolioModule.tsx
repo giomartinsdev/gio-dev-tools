@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Landmark, Trash2, Loader2, Plus, Pencil, Check, X, TrendingUp, TrendingDown } from 'lucide-react'
+import { Landmark, Trash2, Loader2, Plus, Pencil, Check, X, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -85,6 +85,8 @@ export function PortfolioModule() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Draft | null>(null)
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ updated: string[]; failed: string[] } | null>(null)
 
   const fetchAssets = useCallback(async () => {
     setLoading(true)
@@ -151,6 +153,21 @@ export function PortfolioModule() {
     } finally { setSaving(false) }
   }
 
+  async function syncQuotes() {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch(`${GATEWAY}/fn/asset-quotes`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setSyncResult(data)
+        await fetchAssets()
+      }
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') { e.preventDefault(); submit() }
   }
@@ -207,8 +224,26 @@ export function PortfolioModule() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Portfolio</p>
           <p className="text-2xl font-bold tabular-nums text-foreground mt-0.5">{formatBRL(total)}</p>
-          {hasQuotes && <p className="text-xs text-muted-foreground mt-0.5">com cotação atualizada</p>}
+          <div className="flex items-center gap-2 mt-0.5">
+            {hasQuotes && <p className="text-xs text-muted-foreground">com cotação atualizada</p>}
+            {syncResult && (
+              <p className="text-xs text-muted-foreground">
+                {syncResult.updated.length > 0 && <span className="text-green-600 dark:text-green-400">{syncResult.updated.length} atualizados</span>}
+                {syncResult.failed.length > 0 && <span className="text-red-500 dark:text-red-400 ml-1">{syncResult.failed.length} falhou</span>}
+              </p>
+            )}
+          </div>
         </div>
+        <div className="flex items-center gap-3">
+        <button
+          onClick={syncQuotes}
+          disabled={syncing}
+          title="Sincronizar cotações agora"
+          className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+        >
+          {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {syncing ? 'Sincronizando…' : 'Sync cotações'}
+        </button>
         <div className="flex gap-2 flex-wrap justify-end">
           {byType.map(({ name, value }) => (
             <div key={name} className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
@@ -217,6 +252,7 @@ export function PortfolioModule() {
               <span className="tabular-nums">{formatBRL(value)}</span>
             </div>
           ))}
+        </div>
         </div>
       </div>
 
