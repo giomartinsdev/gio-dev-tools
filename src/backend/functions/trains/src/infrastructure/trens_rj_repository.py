@@ -24,6 +24,6 @@ class TrensRjTripRepository(TripRepository):
     def __init__(self, client: TrensRjClient):
         self._client = client
 
-    def find_live(self, station_id: str, line_id: str, direction: str) -> LiveTrip:
-        data = self._client.get_live_trip(station_id, line_id, direction)
+    def find_live(self, station_id: str, line_id: str, direction: str, date: str | None = None, time: str | None = None) -> LiveTrip:
+        data = self._client.get_live_trip(station_id, line_id, direction, date=date, time=time)
         return LiveTrip.from_api(data, station_id=station_id, line_id=line_id, direction=direction)

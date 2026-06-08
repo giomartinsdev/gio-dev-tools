@@ -47,7 +47,11 @@ def main(request: Request) -> Response:
     except ValueError as e:
         return Response(body={"error": str(e)}, status_code=400)
     except httpx.HTTPStatusError as e:
-        return Response(body={"error": str(e)}, status_code=e.response.status_code)
+        try:
+            body = e.response.json()
+        except Exception:
+            body = {"error": str(e)}
+        return Response(body=body, status_code=e.response.status_code)
     except Exception as e:
         logger.error(f"unhandled error: {e}", exc_info=True)
         return Response(body={"error": "internal server error"}, status_code=500)
@@ -77,7 +81,13 @@ def _live(request: Request) -> Response:
         )
 
     trip = GetLiveTripHandler(_trip_repo).handle(
-        GetLiveTripQuery(station_id=station_id, line_id=line_id, direction=direction)
+        GetLiveTripQuery(
+            station_id=station_id,
+            line_id=line_id,
+            direction=direction,
+            date=request.query.get("date") or None,
+            time=request.query.get("time") or None,
+        )
     )
     _bus.publish(LiveTripQueried(station_id=station_id, line_id=line_id, direction=direction))
     return Response(body=trip.to_dict(), status_code=200)

@@ -21,12 +21,15 @@ class TrensRjClient:
         response.raise_for_status()
         return response.json()
 
-    def get_live_trip(self, station_id: str, line_id: str, direction: str) -> dict:
-        response = self._client.get(
-            "/trips/live",
-            params={"stationId": station_id, "lineId": line_id, "direction": direction},
-        )
-        response.raise_for_status()
+    def get_live_trip(self, station_id: str, line_id: str, direction: str, date: str | None = None, time: str | None = None) -> dict:
+        params: dict = {"stationId": station_id, "lineId": line_id, "direction": direction}
+        if date:
+            params["date"] = date
+        if time:
+            params["time"] = time
+        response = self._client.get("/trips/live", params=params)
+        if not response.is_success:
+            raise response.raise_for_status()
         return response.json()
 
     def close(self):

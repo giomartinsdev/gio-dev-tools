@@ -191,6 +191,7 @@ export function StationMap({ stations, lines, stationLineMap, selectedId, onSele
                       fill="currentColor"
                       className="fill-foreground"
                       transform={`rotate(-40, ${x}, ${y + STATION_RADIUS + 4})`}
+                      pointerEvents="none"
                     >
                       {station.name}
                     </text>
