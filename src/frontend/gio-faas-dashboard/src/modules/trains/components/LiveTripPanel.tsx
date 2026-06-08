@@ -4,22 +4,11 @@ import type { Line, LiveTrip, Station } from '../types'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 
-function getStationLineIds(station: Station): string[] {
-  if (Array.isArray(station.lines)) {
-    return (station.lines as Array<{ id: string } | string>).map(l =>
-      typeof l === 'string' ? l : l.id
-    )
-  }
-  if (typeof station.lineId === 'string') return [station.lineId]
-  return []
-}
-
 function formatTrip(trip: LiveTrip): string {
   const t = trip as Record<string, unknown>
-  if (typeof t.estimatedTime === 'string') return t.estimatedTime
-  if (typeof t.estimatedArrival === 'string') return t.estimatedArrival
-  if (typeof t.time === 'string') return t.time
-  if (typeof t.nextDeparture === 'string') return t.nextDeparture
+  for (const key of ['estimatedTime', 'estimatedArrival', 'time', 'nextDeparture', 'horario', 'hora']) {
+    if (typeof t[key] === 'string') return t[key] as string
+  }
   return '—'
 }
 
@@ -35,26 +24,23 @@ interface LineTripState {
 
 interface Props {
   station: Station
-  selectedLineId: string
+  lineIds: string[]  // real line IDs for this station (no __unknown__)
   lines: Line[]
   onClose: () => void
 }
 
-export function LiveTripPanel({ station, selectedLineId, lines, onClose }: Props) {
+export function LiveTripPanel({ station, lineIds, lines, onClose }: Props) {
   const [tripStates, setTripStates] = useState<LineTripState[]>([])
 
   useEffect(() => {
-    const stationLineIds = getStationLineIds(station)
-    const lineIds = stationLineIds.length > 0 ? stationLineIds : [selectedLineId]
+    if (lineIds.length === 0) {
+      setTripStates([])
+      return
+    }
 
     const initial: LineTripState[] = lineIds.map(id => {
       const line = lines.find(l => l.id === id)
-      return {
-        lineId: id,
-        lineName: line?.name ?? id,
-        lineColor: line?.color as string | undefined,
-        loading: true,
-      }
+      return { lineId: id, lineName: line?.name ?? id, lineColor: line?.color as string | undefined, loading: true }
     })
     setTripStates(initial)
 
@@ -63,23 +49,15 @@ export function LiveTripPanel({ station, selectedLineId, lines, onClose }: Props
         new URLSearchParams({ stationId: station.id, lineId, direction: dir }).toString()
 
       Promise.all([
-        fetch(`${GATEWAY}/fn/trains/live?${params('inbound')}`).then(r => r.ok ? r.json() : null),
-        fetch(`${GATEWAY}/fn/trains/live?${params('outbound')}`).then(r => r.ok ? r.json() : null),
+        fetch(`${GATEWAY}/fn/trains/live?${params('inbound')}`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${GATEWAY}/fn/trains/live?${params('outbound')}`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]).then(([inbound, outbound]) => {
         setTripStates(prev =>
-          prev.map((s, i) =>
-            i === idx ? { ...s, loading: false, inbound: inbound ?? undefined, outbound: outbound ?? undefined } : s
-          )
-        )
-      }).catch(() => {
-        setTripStates(prev =>
-          prev.map((s, i) =>
-            i === idx ? { ...s, loading: false, error: 'Failed to load' } : s
-          )
+          prev.map((s, i) => i === idx ? { ...s, loading: false, inbound: inbound ?? undefined, outbound: outbound ?? undefined } : s)
         )
       })
     })
-  }, [station.id, selectedLineId, lines])
+  }, [station.id, lineIds.join(','), lines])
 
   return (
     <div className="w-72 shrink-0 rounded-lg border bg-card p-4 flex flex-col gap-4">
@@ -97,36 +75,32 @@ export function LiveTripPanel({ station, selectedLineId, lines, onClose }: Props
         </button>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {tripStates.map(state => (
-          <div key={state.lineId} className="rounded-md border p-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: state.lineColor ?? '#6B7280' }}
-              />
-              <span className="text-sm font-medium">{state.lineName}</span>
-            </div>
-
-            {state.loading ? (
-              <p className="text-xs text-muted-foreground animate-pulse">Loading...</p>
-            ) : state.error ? (
-              <p className="text-xs text-destructive">{state.error}</p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <TripRow
-                  direction="inbound"
-                  trip={state.inbound}
+      {lineIds.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Linha não identificada para esta estação.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {tripStates.map(state => (
+            <div key={state.lineId} className="rounded-md border p-3 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: state.lineColor ?? '#6B7280' }}
                 />
-                <TripRow
-                  direction="outbound"
-                  trip={state.outbound}
-                />
+                <span className="text-sm font-medium">{state.lineName}</span>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+
+              {state.loading ? (
+                <p className="text-xs text-muted-foreground animate-pulse">Carregando...</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <TripRow direction="inbound" trip={state.inbound} />
+                  <TripRow direction="outbound" trip={state.outbound} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

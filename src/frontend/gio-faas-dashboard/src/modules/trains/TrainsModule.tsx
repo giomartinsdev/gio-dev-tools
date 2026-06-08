@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Train } from 'lucide-react'
-import { StationMap } from './components/StationMap'
+import { StationMap, buildStationLineMap } from './components/StationMap'
 import { LiveTripPanel } from './components/LiveTripPanel'
 import type { Line, Station } from './types'
 
@@ -19,18 +19,11 @@ export function TrainsModule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
-  const [selectedLineId, setSelectedLineId] = useState<string>('')
 
   useEffect(() => {
     Promise.all([
-      fetch(`${GATEWAY}/fn/trains/stations`).then(r => {
-        if (!r.ok) throw new Error('Failed to load stations')
-        return r.json()
-      }),
-      fetch(`${GATEWAY}/fn/trains/lines`).then(r => {
-        if (!r.ok) throw new Error('Failed to load lines')
-        return r.json()
-      }),
+      fetch(`${GATEWAY}/fn/trains/stations`).then(r => { if (!r.ok) throw new Error('Falha ao carregar estações'); return r.json() }),
+      fetch(`${GATEWAY}/fn/trains/lines`).then(r => { if (!r.ok) throw new Error('Falha ao carregar linhas'); return r.json() }),
     ])
       .then(([stationsData, linesData]) => {
         setStations(Array.isArray(stationsData) ? stationsData : [])
@@ -38,15 +31,20 @@ export function TrainsModule() {
         setLoading(false)
       })
       .catch(err => {
-        setError(err.message ?? 'Failed to load train data')
+        setError(err.message ?? 'Falha ao carregar dados')
         setLoading(false)
       })
   }, [])
 
-  function handleSelect(station: Station, lineId: string) {
-    setSelectedStation(station)
-    setSelectedLineId(lineId)
-  }
+  const stationLineMap = useMemo(
+    () => buildStationLineMap(stations, lines),
+    [stations, lines]
+  )
+
+  const selectedLineIds = useMemo(() => {
+    if (!selectedStation) return []
+    return (stationLineMap.get(selectedStation.id) ?? []).filter(id => id !== '__unknown__')
+  }, [selectedStation, stationLineMap])
 
   return (
     <div className="flex gap-4 h-full">
@@ -54,7 +52,7 @@ export function TrainsModule() {
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Train className="h-4 w-4 animate-pulse" />
-            Loading station map...
+            Carregando mapa de estações...
           </div>
         ) : error ? (
           <p className="text-sm text-destructive">{error}</p>
@@ -62,8 +60,9 @@ export function TrainsModule() {
           <StationMap
             stations={stations}
             lines={lines}
+            stationLineMap={stationLineMap}
             selectedId={selectedStation?.id}
-            onSelect={handleSelect}
+            onSelect={station => setSelectedStation(station)}
           />
         )}
       </div>
@@ -71,7 +70,7 @@ export function TrainsModule() {
       {selectedStation && (
         <LiveTripPanel
           station={selectedStation}
-          selectedLineId={selectedLineId}
+          lineIds={selectedLineIds}
           lines={lines}
           onClose={() => setSelectedStation(null)}
         />

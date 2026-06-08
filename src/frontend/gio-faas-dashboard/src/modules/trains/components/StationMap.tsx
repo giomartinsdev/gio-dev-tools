@@ -7,33 +7,77 @@ const FALLBACK_COLORS = [
 
 const LINE_HEIGHT = 90
 const STATION_RADIUS = 7
-const PAD_X = 60
+const PAD_X = 120
 const PAD_Y = 50
 const STATION_SPACING = 80
 
-function getStationLineIds(station: Station): string[] {
-  if (Array.isArray(station.lines)) {
-    return (station.lines as Array<{ id: string } | string>).map(l =>
-      typeof l === 'string' ? l : l.id
-    )
+function extractLineIds(station: Station): string[] {
+  // Try common field names for line association
+  for (const key of ['lineId', 'line_id', 'ramalId', 'ramal_id']) {
+    if (typeof station[key] === 'string') return [station[key] as string]
   }
-  if (typeof station.lineId === 'string') return [station.lineId]
+  for (const key of ['lines', 'ramais']) {
+    const val = station[key]
+    if (Array.isArray(val) && val.length > 0) {
+      return val.map((l: unknown) =>
+        typeof l === 'string' ? l : (l as Record<string, string>)?.id ?? ''
+      ).filter(Boolean)
+    }
+  }
+  for (const key of ['line', 'ramal']) {
+    const val = station[key]
+    if (val && typeof val === 'object') return [(val as Record<string, string>).id ?? ''].filter(Boolean)
+    if (typeof val === 'string') return [val]
+  }
   return []
 }
 
-function groupStationsByLine(stations: Station[], lines: Line[]): Array<{ line: Line; stations: Station[] }> {
-  const groups = new Map<string, Station[]>()
-  lines.forEach(l => groups.set(l.id, []))
+export function buildStationLineMap(stations: Station[], lines: Line[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+
+  // Forward: station → lines via station fields
+  stations.forEach(s => {
+    const ids = extractLineIds(s)
+    if (ids.length > 0) map.set(s.id, ids)
+  })
+
+  // Reverse: line → stations via line.stations / line.estacoes
+  lines.forEach(line => {
+    for (const key of ['stations', 'estacoes', 'stationList']) {
+      const val = line[key]
+      if (!Array.isArray(val)) continue
+      val.forEach((entry: unknown) => {
+        const stId = typeof entry === 'string'
+          ? entry
+          : (entry as Record<string, string>)?.id ?? ''
+        if (!stId) return
+        const existing = map.get(stId) ?? []
+        if (!existing.includes(line.id)) map.set(stId, [...existing, line.id])
+      })
+      break
+    }
+  })
+
+  return map
+}
+
+function groupByLine(
+  stations: Station[],
+  lines: Line[],
+  stationLineMap: Map<string, string[]>,
+): Array<{ line: Line; stations: Station[] }> {
+  const groups = new Map<string, Station[]>(lines.map(l => [l.id, []]))
 
   stations.forEach(station => {
-    const lineIds = getStationLineIds(station)
+    const lineIds = stationLineMap.get(station.id) ?? []
     if (lineIds.length === 0) {
       if (!groups.has('__unknown__')) groups.set('__unknown__', [])
       groups.get('__unknown__')!.push(station)
     } else {
       lineIds.forEach(id => {
         if (!groups.has(id)) groups.set(id, [])
-        groups.get(id)!.push(station)
+        const list = groups.get(id)!
+        if (!list.find(s => s.id === station.id)) list.push(station)
       })
     }
   })
@@ -44,8 +88,8 @@ function groupStationsByLine(stations: Station[], lines: Line[]): Array<{ line: 
     if (sts.length > 0) result.push({ line, stations: sts })
   })
 
-  const unknown = groups.get('__unknown__')
-  if (unknown && unknown.length > 0) {
+  const unknown = groups.get('__unknown__') ?? []
+  if (unknown.length > 0) {
     result.push({ line: { id: '__unknown__', name: 'Stations' }, stations: unknown })
   }
 
@@ -55,19 +99,20 @@ function groupStationsByLine(stations: Station[], lines: Line[]): Array<{ line: 
 interface Props {
   stations: Station[]
   lines: Line[]
+  stationLineMap: Map<string, string[]>
   selectedId?: string
   onSelect: (station: Station, lineId: string) => void
 }
 
-export function StationMap({ stations, lines, selectedId, onSelect }: Props) {
-  const groups = groupStationsByLine(stations, lines)
+export function StationMap({ stations, lines, stationLineMap, selectedId, onSelect }: Props) {
+  const groups = groupByLine(stations, lines, stationLineMap)
 
   if (groups.length === 0) {
     return <p className="text-sm text-muted-foreground">No stations found.</p>
   }
 
   const maxStations = Math.max(...groups.map(g => g.stations.length))
-  const svgWidth = PAD_X * 2 + maxStations * STATION_SPACING
+  const svgWidth = PAD_X + maxStations * STATION_SPACING + 40
   const svgHeight = PAD_Y * 2 + groups.length * LINE_HEIGHT
 
   return (
@@ -91,7 +136,7 @@ export function StationMap({ stations, lines, selectedId, onSelect }: Props) {
                 strokeLinecap="round"
               />
 
-              {/* Line label */}
+              {/* Line name label */}
               <text
                 x={PAD_X - 12}
                 y={y + 4}
@@ -103,7 +148,6 @@ export function StationMap({ stations, lines, selectedId, onSelect }: Props) {
                 {line.name}
               </text>
 
-              {/* Station nodes */}
               {lineStations.map((station, stIdx) => {
                 const x = PAD_X + stIdx * STATION_SPACING
                 const isSelected = station.id === selectedId
@@ -114,12 +158,9 @@ export function StationMap({ stations, lines, selectedId, onSelect }: Props) {
                     onClick={() => onSelect(station, line.id)}
                     className="cursor-pointer"
                   >
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={STATION_RADIUS + 4}
-                      fill="transparent"
-                    />
+                    {/* Invisible larger hit target */}
+                    <circle cx={x} cy={y} r={STATION_RADIUS + 6} fill="transparent" />
+
                     <circle
                       cx={x}
                       cy={y}

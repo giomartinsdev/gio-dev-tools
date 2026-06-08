@@ -1,3 +1,5 @@
+import httpx
+
 from shared.logger import get_logger
 from shared.request import Request
 from shared.response import Response
@@ -44,6 +46,8 @@ def main(request: Request) -> Response:
 
     except ValueError as e:
         return Response(body={"error": str(e)}, status_code=400)
+    except httpx.HTTPStatusError as e:
+        return Response(body={"error": str(e)}, status_code=e.response.status_code)
     except Exception as e:
         logger.error(f"unhandled error: {e}", exc_info=True)
         return Response(body={"error": "internal server error"}, status_code=500)
