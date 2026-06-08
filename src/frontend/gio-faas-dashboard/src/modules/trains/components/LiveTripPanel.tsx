@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { X, Train, ArrowRight, ArrowLeft, Clock } from 'lucide-react'
-import { Line, LiveTrip, Station } from '../types'
+import { X, ArrowRight, ArrowLeft, Clock } from 'lucide-react'
+import type { Line, LiveTrip, Station } from '../types'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 

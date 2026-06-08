@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Train } from 'lucide-react'
 import { StationMap } from './components/StationMap'
 import { LiveTripPanel } from './components/LiveTripPanel'
-import { Line, Station } from './types'
+import type { Line, Station } from './types'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 

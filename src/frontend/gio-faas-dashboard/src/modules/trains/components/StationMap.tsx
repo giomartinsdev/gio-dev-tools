@@ -1,4 +1,4 @@
-import { Line, Station } from '../types'
+import type { Line, Station } from '../types'
 
 const FALLBACK_COLORS = [
   '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B',
