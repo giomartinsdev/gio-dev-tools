@@ -20,7 +20,7 @@ Base.metadata.create_all(TransactionManager.get().engine)
 
 _repo = PostgresQuoteEventRepository()
 _bus = get_event_bus()
-_client = BrapiClient(token=os.environ.get("BRAPI_TOKEN", ""))
+_client = BrapiClient(token=os.environ["BRAPI_TOKEN"])
 
 _bus.subscribe(
     QuotesRefreshed,

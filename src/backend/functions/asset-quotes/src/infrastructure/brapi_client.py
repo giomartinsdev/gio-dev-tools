@@ -17,13 +17,16 @@ class BrapiClient:
         self._token = token
 
     def fetch_quotes(self, tickers: list[str]) -> tuple[list[QuoteEvent], list[str]]:
-        params: dict = {"dividends": "true"}
-        if self._token:
-            params["token"] = self._token
+        params: dict = {"dividends": "true", "modules": "summaryProfile"}
+        headers: dict = {"Authorization": f"Bearer {self._token}"}
 
         try:
             with httpx.Client(timeout=15.0) as client:
-                resp = client.get(f"{_BRAPI_BASE}/quote/{','.join(tickers)}", params=params)
+                resp = client.get(
+                    f"{_BRAPI_BASE}/quote/{','.join(tickers)}",
+                    params=params,
+                    headers=headers,
+                )
                 resp.raise_for_status()
             data = resp.json()
         except Exception as e:
