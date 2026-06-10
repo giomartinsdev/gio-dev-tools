@@ -1,19 +1,18 @@
 import { useState } from 'react'
 import { Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
 import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioModule'
 import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
 import { ObsidianModule, obsidianMeta } from '@/modules/obsidian/ObsidianModule'
 import { TrainsModule, trainsMeta } from '@/modules/trains/TrainsModule'
 
-const modules = [whatsappMeta, financeMeta, portfolioMeta, kanbanMeta, obsidianMeta, trainsMeta]
+const modules = [financeMeta, portfolioMeta, kanbanMeta, obsidianMeta, trainsMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
 export default function App() {
-  const [activeId, setActiveId] = useState<ModuleId>('whatsapp')
+  const [activeId, setActiveId] = useState<ModuleId>('finance')
 
   const active = modules.find(m => m.id === activeId)!
 
@@ -66,7 +65,6 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6">
-          {activeId === 'whatsapp' && <WhatsappModule />}
           {activeId === 'finance' && <FinanceModule />}
           {activeId === 'portfolio' && <PortfolioModule />}
           {activeId === 'kanban' && <KanbanModule />}
