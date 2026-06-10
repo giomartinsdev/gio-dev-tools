@@ -188,9 +188,6 @@ jobs:
       - name: Deploy function
         run: |
           EXTRA_ENVS=""
-          if [ "${{ matrix.function }}" = "whatsapp" ]; then
-            EXTRA_ENVS="--env EVOLUTION_URL=${{ secrets.EVOLUTION_URL }} --env EVOLUTION_API_KEY=${{ secrets.EVOLUTION_API_KEY }} --env EVOLUTION_INSTANCE_NAME=${{ secrets.EVOLUTION_INSTANCE_NAME }} --env DATABASE_URL=${{ secrets.DATABASE_URL }}"
-          fi
           if [ "${{ matrix.function }}" = "finance" ]; then
             EXTRA_ENVS="--env DATABASE_URL=${{ secrets.DATABASE_URL }}"
           fi
