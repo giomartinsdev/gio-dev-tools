@@ -23,9 +23,10 @@ class SecretManager:
 
     def get_secret(self, secret_name: str) -> str:
         self._connect()
-        secret = self._client.getSecret(
+        secret = self._client.secrets.get_secret_by_name(
             secret_name=secret_name,
             project_id=self._project_id,
-            environment_slug=self._env
+            environment_slug=self._env,
+            secret_path="/",
         )
         return secret.secretValue
