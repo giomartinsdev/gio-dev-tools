@@ -4,7 +4,8 @@ services:
     container_name: postgres
     restart: unless-stopped
     networks:
-      - persistence
+      persistence:
+        ipv4_address: 172.20.0.10
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,7 +25,8 @@ services:
     container_name: redis
     restart: unless-stopped
     networks:
-      - persistence
+      persistence:
+        ipv4_address: 172.20.0.11
     volumes:
       - redis_data:/data
 
@@ -33,7 +35,8 @@ services:
     container_name: webdav
     restart: unless-stopped
     networks:
-      - persistence
+      persistence:
+        ipv4_address: 172.20.0.12
     environment:
       AUTH_TYPE: Digest
       USERNAME: ${USERNAME}
@@ -51,3 +54,12 @@ volumes:
 networks:
   persistence:
     name: persistence
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: persistence
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+          ip_range: 172.20.0.0/25
