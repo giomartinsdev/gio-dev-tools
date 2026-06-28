@@ -2,3 +2,4 @@ sqlalchemy==2.0.30
 psycopg2-binary==2.9.9
 pydantic==2.7.1
 tzdata==2024.1
+infisical-sdk>=2.0

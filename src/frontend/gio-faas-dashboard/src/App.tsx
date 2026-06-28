@@ -5,9 +5,8 @@ import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioModule'
 import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
 import { ObsidianModule, obsidianMeta } from '@/modules/obsidian/ObsidianModule'
-import { TrainsModule, trainsMeta } from '@/modules/trains/TrainsModule'
 
-const modules = [financeMeta, portfolioMeta, kanbanMeta, obsidianMeta, trainsMeta]
+const modules = [financeMeta, portfolioMeta, kanbanMeta, obsidianMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -69,7 +68,6 @@ export default function App() {
           {activeId === 'portfolio' && <PortfolioModule />}
           {activeId === 'kanban' && <KanbanModule />}
           {activeId === 'obsidian' && <ObsidianModule />}
-          {activeId === 'trains' && <TrainsModule />}
         </main>
       </div>
     </div>

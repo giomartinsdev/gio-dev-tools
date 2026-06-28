@@ -1,12 +1,13 @@
-import os
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
+from shared.secret_manager import SecretManager
 
-WEBDAV_URL = os.environ.get("WEBDAV_URL", "https://obsidian.giomartins.dev").rstrip("/")
-WEBDAV_USER = os.environ.get("WEBDAV_USER", "")
-WEBDAV_PASSWORD = os.environ.get("WEBDAV_PASSWORD", "")
+_sm = SecretManager()
+WEBDAV_URL = _sm.get_secret("WEBDAV_URL").rstrip("/")
+WEBDAV_USER = _sm.get_secret("WEBDAV_USER")
+WEBDAV_PASSWORD = _sm.get_secret("WEBDAV_PASSWORD")
 
 _PROPFIND_BODY = (
     '<?xml version="1.0" encoding="utf-8"?>'

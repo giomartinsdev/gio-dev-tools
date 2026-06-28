@@ -1,4 +1,3 @@
-import os
 import httpx
 from io import BytesIO
 from PIL import Image, ImageEnhance
@@ -6,15 +5,17 @@ import pytesseract
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
 from shared.logger import get_logger
+from shared.secret_manager import SecretManager
 from shared.timezone_handler import TimezoneAware
 from src.parser import classify, description, extract_amount, extract_date
 
 _SP = TimezoneAware("America/Sao_Paulo")
 logger = get_logger(__name__)
 
-_FINANCE_URL = os.environ.get("FINANCE_URL", "https://of.giomartins.dev/function/finance")
-_CF_CLIENT_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
-_CF_CLIENT_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
+_sm = SecretManager()
+_FINANCE_URL = "https://of.giomartins.dev/function/finance"
+_CF_CLIENT_ID = _sm.get_secret("CF_ACCESS_CLIENT_ID")
+_CF_CLIENT_SECRET = _sm.get_secret("CF_ACCESS_CLIENT_SECRET")
 
 
 def _preprocess(img: Image.Image) -> Image.Image:
