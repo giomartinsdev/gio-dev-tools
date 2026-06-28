@@ -1,6 +1,7 @@
 services:
   gateway:
     image: re.giomartins.dev/gateway:latest
+    container_name: gateway
     ports:
       - "3002:3000"
     environment:
@@ -9,63 +10,33 @@ services:
       CF_ACCESS_CLIENT_SECRET: ${CF_ACCESS_CLIENT_SECRET}
       PORT: 3000
     restart: unless-stopped
+    networks:
+      - persistence
 
   gio-dev-tools:
     image: re.giomartins.dev/gio-faas-dashboard:latest
+    container_name: gio-dev-tools
     ports:
       - "8079:80"
     restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  webdav:
-    image: bytemark/webdav
-    environment:
-      AUTH_TYPE: Digest
-      USERNAME: ${USERNAME}
-      PASSWORD: ${PASSWORD}
-    volumes:
-      - obsidian_data:/var/lib/dav
-    ports:
-      - "8585:80"
-    restart: unless-stopped
-
-  infisical-redis:
-    image: redis:7-alpine
-    container_name: infisical-redis
-    restart: unless-stopped
-    volumes:
-      - infisical_redis_data:/data
+    networks:
+      - persistence
 
   infisical-migration:
     image: infisical/infisical:latest-postgres
     container_name: infisical-migration
     command: npm run migration:latest
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     environment:
       NODE_ENV: production
       DB_CONNECTION_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/infisical
-      REDIS_URL: redis://infisical-redis:6379
+      REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       SITE_URL: ${INFISICAL_SITE_URL}
+    networks:
+      - persistence
 
   infisical:
     image: infisical/infisical:latest-postgres
@@ -74,21 +45,17 @@ services:
     ports:
       - "8090:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
-      infisical-redis:
-        condition: service_started
-      infisical-migration:
-        condition: service_completed_successfully
+      - infisical-migration
     environment:
       NODE_ENV: production
       DB_CONNECTION_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/infisical
-      REDIS_URL: redis://infisical-redis:6379
+      REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       SITE_URL: ${INFISICAL_SITE_URL}
+    networks:
+      - persistence
 
-volumes:
-  postgres_data:
-  obsidian_data:
-  infisical_redis_data:
+networks:
+  persistence:
+    external: true
