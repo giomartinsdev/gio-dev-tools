@@ -201,7 +201,9 @@ configs:
           wal:
             path: /var/tempo/wal
 
-      retention: 48h
+      compactor:
+        compaction:
+          block_retention: 48h
 
   grafana_datasources:
     content: |
