@@ -181,8 +181,11 @@ configs:
 
   tempo_config:
     content: |
+      stream_over_http_enabled: true
+
       server:
         http_listen_port: 3200
+        log_level: info
 
       distributor:
         receivers:
@@ -193,18 +196,6 @@ configs:
               http:
                 endpoint: 0.0.0.0:4318
 
-      ingester:
-        trace_idle_period: 10s
-        max_block_bytes: 1_000_000
-        max_block_duration: 5m
-
-      compactor:
-        compaction:
-          compaction_window: 1h
-          max_block_bytes: 100_000_000
-          block_retention: 48h
-          compacted_block_retention: 10m
-
       storage:
         trace:
           backend: local
@@ -212,9 +203,6 @@ configs:
             path: /var/tempo/blocks
           wal:
             path: /var/tempo/wal
-          pool:
-            max_workers: 100
-            queue_depth: 10000
 
   grafana_datasources:
     content: |
