@@ -1,9 +1,11 @@
-import httpx
+import threading
 from io import BytesIO
-from PIL import Image, ImageEnhance
+
+import httpx
 import pytesseract
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
+from PIL import Image, ImageEnhance
 from shared.logger import get_logger
 from shared.secret_manager import SecretManager
 from shared.timezone_handler import TimezoneAware
@@ -15,15 +17,27 @@ logger = get_logger(__name__)
 _FINANCE_URL = "https://of.giomartins.dev/function/finance"
 _CF_CLIENT_ID = None
 _CF_CLIENT_SECRET = None
+_init_done = threading.Event()
+_init_error: Exception | None = None
 
 
 def _init():
-    global _CF_CLIENT_ID, _CF_CLIENT_SECRET
+    global _CF_CLIENT_ID, _CF_CLIENT_SECRET, _init_error
     if _CF_CLIENT_ID is not None:
+        _init_done.set()
         return
-    sm = SecretManager()
-    _CF_CLIENT_ID = sm.get_secret("CF_ACCESS_CLIENT_ID")
-    _CF_CLIENT_SECRET = sm.get_secret("CF_ACCESS_CLIENT_SECRET")
+    try:
+        sm = SecretManager()
+        _CF_CLIENT_ID = sm.get_secret("CF_ACCESS_CLIENT_ID")
+        _CF_CLIENT_SECRET = sm.get_secret("CF_ACCESS_CLIENT_SECRET")
+    except Exception as e:
+        _init_error = e
+        logger.error(f"init failed: {e}", exc_info=True)
+    finally:
+        _init_done.set()
+
+
+threading.Thread(target=_init, daemon=True).start()
 
 
 def _preprocess(img: Image.Image) -> Image.Image:
@@ -38,7 +52,9 @@ def _ocr(image_bytes: bytes) -> str:
 
 
 async def main(file: UploadFile) -> JSONResponse:
-    _init()
+    _init_done.wait()
+    if _init_error is not None:
+        return JSONResponse({"error": "service unavailable"}, status_code=503)
     try:
         image_bytes = await file.read()
         logger.info(f"OCR start: filename={file.filename} size={len(image_bytes)}")

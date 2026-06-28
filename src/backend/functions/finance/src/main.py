@@ -1,3 +1,5 @@
+import threading
+
 from shared.logger import get_logger
 from shared.request import Request
 from shared.response import Response
@@ -18,23 +20,37 @@ logger = get_logger(__name__)
 
 _repo = None
 _bus = None
+_init_done = threading.Event()
+_init_error: Exception | None = None
 
 
 def _init():
-    global _repo, _bus
+    global _repo, _bus, _init_error
     if _repo is not None:
+        _init_done.set()
         return
-    sm = SecretManager()
-    TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
-    Base.metadata.create_all(TransactionManager.get().engine)
-    _repo = PostgresTransactionRepository()
-    _bus = get_event_bus()
-    _bus.subscribe(TransactionRecorded, lambda e: logger.info(f"TransactionRecorded id={e.transaction_id} type={e.type} amount={e.amount}"))
-    _bus.subscribe(TransactionDeleted, lambda e: logger.info(f"TransactionDeleted id={e.transaction_id}"))
+    try:
+        sm = SecretManager()
+        TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
+        Base.metadata.create_all(TransactionManager.get().engine)
+        _repo = PostgresTransactionRepository()
+        _bus = get_event_bus()
+        _bus.subscribe(TransactionRecorded, lambda e: logger.info(f"TransactionRecorded id={e.transaction_id} type={e.type} amount={e.amount}"))
+        _bus.subscribe(TransactionDeleted, lambda e: logger.info(f"TransactionDeleted id={e.transaction_id}"))
+    except Exception as e:
+        _init_error = e
+        logger.error(f"init failed: {e}", exc_info=True)
+    finally:
+        _init_done.set()
+
+
+threading.Thread(target=_init, daemon=True).start()
 
 
 def main(request: Request) -> Response:
-    _init()
+    _init_done.wait()
+    if _init_error is not None:
+        return Response(body={"error": "service unavailable"}, status_code=503)
     try:
         if request.method == "POST":
             return _record(request)

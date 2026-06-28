@@ -1,3 +1,4 @@
+import threading
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, unquote, urlparse
 
@@ -8,6 +9,7 @@ _sm = SecretManager()
 _webdav_url: str | None = None
 _webdav_user: str | None = None
 _webdav_password: str | None = None
+_init_done = threading.Event()
 
 _PROPFIND_BODY = (
     '<?xml version="1.0" encoding="utf-8"?>'
@@ -25,18 +27,33 @@ def _ensure_init() -> None:
         _webdav_password = _sm.get_secret("WEBDAV_PASSWORD")
 
 
+def _prefetch() -> None:
+    try:
+        _ensure_init()
+    except Exception:
+        pass
+    finally:
+        _init_done.set()
+
+
+threading.Thread(target=_prefetch, daemon=True).start()
+
+
 def _auth() -> httpx.DigestAuth:
+    _init_done.wait()
     _ensure_init()
     return httpx.DigestAuth(_webdav_user, _webdav_password)
 
 
 def _url(path: str) -> str:
+    _init_done.wait()
     _ensure_init()
     parts = [quote(p, safe="") for p in path.strip("/").split("/") if p]
     return f"{_webdav_url}/{'/'.join(parts)}"
 
 
 def _parse_href(href: str) -> str:
+    _init_done.wait()
     _ensure_init()
     parsed = urlparse(href)
     raw_path = parsed.path if parsed.scheme else href
