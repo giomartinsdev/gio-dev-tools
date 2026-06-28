@@ -28,7 +28,7 @@ services:
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U faas -d finance"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,6 +45,50 @@ services:
       - "8585:80"
     restart: unless-stopped
 
+  infisical-redis:
+    image: redis:7-alpine
+    container_name: infisical-redis
+    restart: unless-stopped
+    volumes:
+      - infisical_redis_data:/data
+
+  infisical-migration:
+    image: infisical/infisical:latest-postgres
+    container_name: infisical-migration
+    command: npm run migration:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DB_CONNECTION_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/infisical
+      REDIS_URL: redis://infisical-redis:6379
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      SITE_URL: ${INFISICAL_SITE_URL}
+
+  infisical:
+    image: infisical/infisical:latest-postgres
+    container_name: infisical
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      infisical-redis:
+        condition: service_started
+      infisical-migration:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DB_CONNECTION_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/infisical
+      REDIS_URL: redis://infisical-redis:6379
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      SITE_URL: ${INFISICAL_SITE_URL}
+
 volumes:
   postgres_data:
   obsidian_data:
+  infisical_redis_data:
