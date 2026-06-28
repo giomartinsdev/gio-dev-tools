@@ -176,6 +176,8 @@ jobs:
               --env if_secret=${{ secrets.IF_SECRET }} \
               --env if_project_id=${{ secrets.IF_PROJECT_ID }} \
               --env if_env=prod \
+              --env ready_timeout=30s \
+              --env ready_path=/ \
               --env OTEL_EXPORTER_OTLP_ENDPOINT=https://optel.giomartins.dev \
               --env OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
               --env "OTEL_EXPORTER_OTLP_HEADERS=CF-Access-Client-Id=${{ secrets.CF_ACCESS_CLIENT_ID }},CF-Access-Client-Secret=${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
