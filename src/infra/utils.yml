@@ -8,9 +8,16 @@ services:
       FAAS_GATEWAY_URL: https://of.giomartins.dev
       CF_ACCESS_CLIENT_ID: ${CF_ACCESS_CLIENT_ID}
       CF_ACCESS_CLIENT_SECRET: ${CF_ACCESS_CLIENT_SECRET}
+      KANBAN_URL: http://kanban:8000
+      OBSIDIAN_URL: http://obsidian:8000
+      FINANCE_URL: http://finance:8000
+      FINANCE_OCR_URL: http://finance-ocr:8000
+      ASSET_QUOTES_URL: http://asset-quotes:8000
+      PORTFOLIO_URL: http://portfolio:8000
       PORT: 3000
     restart: unless-stopped
     networks:
+      - apis
       - persistence
 
   gio-dev-tools:
@@ -55,5 +62,7 @@ services:
       - persistence
 
 networks:
+  apis:
+    external: true
   persistence:
     external: true

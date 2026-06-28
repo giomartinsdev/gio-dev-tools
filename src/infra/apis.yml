@@ -1,25 +1,7 @@
 services:
-  gateway:
-    image: re.giomartins.dev/gateway:latest
-    ports:
-      - "3002:3000"
-    environment:
-      FAAS_GATEWAY_URL: https://of.giomartins.dev
-      CF_ACCESS_CLIENT_ID: ${CF_ACCESS_CLIENT_ID}
-      CF_ACCESS_CLIENT_SECRET: ${CF_ACCESS_CLIENT_SECRET}
-      KANBAN_URL: http://kanban:8000
-      OBSIDIAN_URL: http://obsidian:8000
-      FINANCE_URL: http://finance:8000
-      FINANCE_OCR_URL: http://finance-ocr:8000
-      ASSET_QUOTES_URL: http://asset-quotes:8000
-      PORTFOLIO_URL: http://portfolio:8000
-      PORT: 3000
-    restart: unless-stopped
-    networks:
-      - apis
-
   kanban:
     image: re.giomartins.dev/kanban:latest
+    container_name: kanban
     environment:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
@@ -32,6 +14,7 @@ services:
 
   obsidian:
     image: re.giomartins.dev/obsidian:latest
+    container_name: obsidian
     environment:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
@@ -44,6 +27,7 @@ services:
 
   finance:
     image: re.giomartins.dev/finance:latest
+    container_name: finance
     environment:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
@@ -56,6 +40,7 @@ services:
 
   finance-ocr:
     image: re.giomartins.dev/finance-ocr:latest
+    container_name: finance-ocr
     environment:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
@@ -68,6 +53,7 @@ services:
 
   asset-quotes:
     image: re.giomartins.dev/asset-quotes:latest
+    container_name: asset-quotes
     environment:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
@@ -80,6 +66,7 @@ services:
 
   portfolio:
     image: re.giomartins.dev/portfolio:latest
+    container_name: portfolio
     environment:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
@@ -92,7 +79,7 @@ services:
 
 networks:
   apis:
+    name: apis
     driver: bridge
   persistence:
     external: true
-    name: persistence
