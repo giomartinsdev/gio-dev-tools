@@ -14,21 +14,29 @@ from .infrastructure.repository import PostgresQuoteEventRepository
 
 logger = get_logger(__name__)
 
-_sm = SecretManager()
-TransactionManager.configure(TransactionConfig(url=_sm.get_secret("DATABASE_URL")))
-Base.metadata.create_all(TransactionManager.get().engine)
+_repo = None
+_bus = None
+_client = None
 
-_repo = PostgresQuoteEventRepository()
-_bus = get_event_bus()
-_client = BrapiClient(token=_sm.get_secret("BRAPI_TOKEN"))
 
-_bus.subscribe(
-    QuotesRefreshed,
-    lambda e: logger.info(f"QuotesRefreshed updated={e.updated} failed={e.failed}"),
-)
+def _init():
+    global _repo, _bus, _client
+    if _repo is not None:
+        return
+    sm = SecretManager()
+    TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
+    Base.metadata.create_all(TransactionManager.get().engine)
+    _repo = PostgresQuoteEventRepository()
+    _bus = get_event_bus()
+    _client = BrapiClient(token=sm.get_secret("BRAPI_TOKEN"))
+    _bus.subscribe(
+        QuotesRefreshed,
+        lambda e: logger.info(f"QuotesRefreshed updated={e.updated} failed={e.failed}"),
+    )
 
 
 def main(request: Request) -> Response:
+    _init()
     try:
         if request.method == "POST":
             result = RefreshQuotesHandler(_repo, _bus, _client).handle(RefreshQuotesCommand())
@@ -43,4 +51,3 @@ def main(request: Request) -> Response:
     except Exception as e:
         logger.error(f"unhandled error: {e}", exc_info=True)
         return Response(body={"error": "internal server error"}, status_code=500)
-

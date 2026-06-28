@@ -16,22 +16,30 @@ from .infrastructure.repository import PostgresBoardRepository, PostgresCardRepo
 
 logger = get_logger(__name__)
 
-_sm = SecretManager()
-TransactionManager.configure(TransactionConfig(url=_sm.get_secret("DATABASE_URL")))
-Base.metadata.create_all(TransactionManager.get().engine)
+_board_repo = None
+_card_repo = None
+_bus = None
 
-_board_repo = PostgresBoardRepository()
-_card_repo = PostgresCardRepository()
-_bus = get_event_bus()
 
-_bus.subscribe(BoardCreated, lambda e: logger.info(f"BoardCreated id={e.board_id} name={e.name}"))
-_bus.subscribe(BoardDeleted, lambda e: logger.info(f"BoardDeleted id={e.board_id}"))
-_bus.subscribe(CardCreated, lambda e: logger.info(f"CardCreated id={e.card_id} board={e.board_id} status={e.status}"))
-_bus.subscribe(CardUpdated, lambda e: logger.info(f"CardUpdated id={e.card_id} board={e.board_id} status={e.status}"))
-_bus.subscribe(CardDeleted, lambda e: logger.info(f"CardDeleted id={e.card_id}"))
+def _init():
+    global _board_repo, _card_repo, _bus
+    if _board_repo is not None:
+        return
+    sm = SecretManager()
+    TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
+    Base.metadata.create_all(TransactionManager.get().engine)
+    _board_repo = PostgresBoardRepository()
+    _card_repo = PostgresCardRepository()
+    _bus = get_event_bus()
+    _bus.subscribe(BoardCreated, lambda e: logger.info(f"BoardCreated id={e.board_id} name={e.name}"))
+    _bus.subscribe(BoardDeleted, lambda e: logger.info(f"BoardDeleted id={e.board_id}"))
+    _bus.subscribe(CardCreated, lambda e: logger.info(f"CardCreated id={e.card_id} board={e.board_id} status={e.status}"))
+    _bus.subscribe(CardUpdated, lambda e: logger.info(f"CardUpdated id={e.card_id} board={e.board_id} status={e.status}"))
+    _bus.subscribe(CardDeleted, lambda e: logger.info(f"CardDeleted id={e.card_id}"))
 
 
 def main(request: Request) -> Response:
+    _init()
     try:
         body = request.body if isinstance(request.body, dict) else {}
         resource = body.get("resource", "card")

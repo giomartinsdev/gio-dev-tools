@@ -17,6 +17,9 @@ from .infrastructure.repository import PostgresAssetRepository
 
 logger = get_logger(__name__)
 
+_repo = None
+_bus = None
+
 
 def _migrate() -> None:
     engine = TransactionManager.get().engine
@@ -35,17 +38,19 @@ def _migrate() -> None:
             conn.execute(text("ALTER TABLE assets ADD COLUMN ticker VARCHAR"))
 
 
-_sm = SecretManager()
-TransactionManager.configure(TransactionConfig(url=_sm.get_secret("DATABASE_URL")))
-Base.metadata.create_all(TransactionManager.get().engine)
-_migrate()
-
-
-_repo = PostgresAssetRepository()
-_bus = get_event_bus()
-_bus.subscribe(AssetCreated, lambda e: logger.info(f"AssetCreated id={e.asset_id} type={e.type} qty={e.quantity} price={e.purchase_price}"))
-_bus.subscribe(AssetUpdated, lambda e: logger.info(f"AssetUpdated old={e.old_asset_id} new={e.new_asset_id} qty={e.quantity} price={e.purchase_price}"))
-_bus.subscribe(AssetDeleted, lambda e: logger.info(f"AssetDeleted id={e.asset_id}"))
+def _init():
+    global _repo, _bus
+    if _repo is not None:
+        return
+    sm = SecretManager()
+    TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
+    Base.metadata.create_all(TransactionManager.get().engine)
+    _migrate()
+    _repo = PostgresAssetRepository()
+    _bus = get_event_bus()
+    _bus.subscribe(AssetCreated, lambda e: logger.info(f"AssetCreated id={e.asset_id} type={e.type} qty={e.quantity} price={e.purchase_price}"))
+    _bus.subscribe(AssetUpdated, lambda e: logger.info(f"AssetUpdated old={e.old_asset_id} new={e.new_asset_id} qty={e.quantity} price={e.purchase_price}"))
+    _bus.subscribe(AssetDeleted, lambda e: logger.info(f"AssetDeleted id={e.asset_id}"))
 
 
 def _fetch_quotes(tickers: list[str]) -> dict[str, dict]:
@@ -93,6 +98,7 @@ def _build_quote(asset, raw: dict) -> dict | None:
 
 
 def main(request: Request) -> Response:
+    _init()
     try:
         if request.method == "GET":
             assets = _repo.find_all()

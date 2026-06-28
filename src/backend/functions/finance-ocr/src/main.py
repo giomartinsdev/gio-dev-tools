@@ -12,10 +12,18 @@ from src.parser import classify, description, extract_amount, extract_date
 _SP = TimezoneAware("America/Sao_Paulo")
 logger = get_logger(__name__)
 
-_sm = SecretManager()
 _FINANCE_URL = "https://of.giomartins.dev/function/finance"
-_CF_CLIENT_ID = _sm.get_secret("CF_ACCESS_CLIENT_ID")
-_CF_CLIENT_SECRET = _sm.get_secret("CF_ACCESS_CLIENT_SECRET")
+_CF_CLIENT_ID = None
+_CF_CLIENT_SECRET = None
+
+
+def _init():
+    global _CF_CLIENT_ID, _CF_CLIENT_SECRET
+    if _CF_CLIENT_ID is not None:
+        return
+    sm = SecretManager()
+    _CF_CLIENT_ID = sm.get_secret("CF_ACCESS_CLIENT_ID")
+    _CF_CLIENT_SECRET = sm.get_secret("CF_ACCESS_CLIENT_SECRET")
 
 
 def _preprocess(img: Image.Image) -> Image.Image:
@@ -30,6 +38,7 @@ def _ocr(image_bytes: bytes) -> str:
 
 
 async def main(file: UploadFile) -> JSONResponse:
+    _init()
     try:
         image_bytes = await file.read()
         logger.info(f"OCR start: filename={file.filename} size={len(image_bytes)}")

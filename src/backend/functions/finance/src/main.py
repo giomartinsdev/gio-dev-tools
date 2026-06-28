@@ -16,17 +16,25 @@ from .infrastructure.postgres_repository import PostgresTransactionRepository
 
 logger = get_logger(__name__)
 
-_sm = SecretManager()
-TransactionManager.configure(TransactionConfig(url=_sm.get_secret("DATABASE_URL")))
-Base.metadata.create_all(TransactionManager.get().engine)
+_repo = None
+_bus = None
 
-_repo = PostgresTransactionRepository()
-_bus = get_event_bus()
-_bus.subscribe(TransactionRecorded, lambda e: logger.info(f"TransactionRecorded id={e.transaction_id} type={e.type} amount={e.amount}"))
-_bus.subscribe(TransactionDeleted, lambda e: logger.info(f"TransactionDeleted id={e.transaction_id}"))
+
+def _init():
+    global _repo, _bus
+    if _repo is not None:
+        return
+    sm = SecretManager()
+    TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
+    Base.metadata.create_all(TransactionManager.get().engine)
+    _repo = PostgresTransactionRepository()
+    _bus = get_event_bus()
+    _bus.subscribe(TransactionRecorded, lambda e: logger.info(f"TransactionRecorded id={e.transaction_id} type={e.type} amount={e.amount}"))
+    _bus.subscribe(TransactionDeleted, lambda e: logger.info(f"TransactionDeleted id={e.transaction_id}"))
 
 
 def main(request: Request) -> Response:
+    _init()
     try:
         if request.method == "POST":
             return _record(request)
