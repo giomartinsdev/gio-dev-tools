@@ -238,7 +238,7 @@ configs:
               filterByTraceID: true
               filterBySpanID: false
               customQuery: true
-              query: '{container="${__span.tags["service.name"]}"} |= "${__trace.traceId}"'
+              query: '{container="$${__span.tags[\"service.name\"]}"} |= "$${__trace.traceId}"'
             nodeGraph:
               enabled: true
             lokiSearch:
