@@ -8,9 +8,13 @@ services:
       - "4318:4318"
       - "8888:8888"
     volumes:
-      - /home/gioserver/server/observability/otel-config.yaml:/etc/otel/config.yaml
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    configs:
+      - source: otel_config
+        target: /etc/otel/config.yaml
     command: ["--config=/etc/otel/config.yaml"]
+    networks:
+      - persistence
 
   loki:
     image: grafana/loki:latest
@@ -20,19 +24,8 @@ services:
       - "3100:3100"
     volumes:
       - loki_data:/loki
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - loki
+    networks:
+      - persistence
 
   promtail:
     image: grafana/promtail:3.5.8
@@ -46,8 +39,12 @@ services:
       - /var/log/journal:/var/log/journal:ro
       - /run/log/journal:/run/log/journal:ro
       - /etc/machine-id:/etc/machine-id:ro
-      - /home/gioserver/server/observability/promtail-config.yaml:/etc/promtail/config.yaml
+    configs:
+      - source: promtail_config
+        target: /etc/promtail/config.yaml
     command: -config.file=/etc/promtail/config.yaml
+    networks:
+      - persistence
 
   tempo:
     image: grafana/tempo:latest
@@ -57,11 +54,210 @@ services:
       - "3200:3200"
       - "4319:4317"
     volumes:
-      - /home/gioserver/server/observability/tempo-config.yaml:/etc/tempo/config.yaml
       - tempo_data:/var/tempo
+    configs:
+      - source: tempo_config
+        target: /etc/tempo/config.yaml
     command: ["-config.file=/etc/tempo/config.yaml"]
+    networks:
+      - persistence
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor correlations
+    volumes:
+      - grafana_data:/var/lib/grafana
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yaml
+      - source: grafana_dashboards_provider
+        target: /etc/grafana/provisioning/dashboards/dashboards.yaml
+    depends_on:
+      - loki
+      - tempo
+    networks:
+      - persistence
 
 volumes:
   loki_data:
   grafana_data:
   tempo_data:
+
+networks:
+  persistence:
+    external: true
+
+configs:
+  otel_config:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+      processors:
+        batch:
+          timeout: 5s
+
+      exporters:
+        otlphttp/tempo:
+          endpoint: http://tempo:4317
+          tls:
+            insecure: true
+
+        otlphttp/loki:
+          endpoint: http://loki:3100/otlp
+          tls:
+            insecure: true
+
+        debug:
+          verbosity: basic
+
+      service:
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [otlphttp/tempo, debug]
+          logs:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [otlphttp/loki, debug]
+
+  promtail_config:
+    content: |
+      server:
+        http_listen_port: 9080
+        grpc_listen_port: 0
+
+      positions:
+        filename: /tmp/positions.yaml
+
+      clients:
+        - url: http://loki:3100/loki/api/v1/push
+
+      scrape_configs:
+        - job_name: containers
+          docker_sd_configs:
+            - host: unix:///var/run/docker.sock
+              refresh_interval: 5s
+          relabel_configs:
+            - source_labels: [__meta_docker_container_name]
+              regex: "/(.*)"
+              target_label: container
+            - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+              target_label: compose_service
+            - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+              target_label: compose_project
+            - source_labels: [compose_project, compose_service]
+              separator: "/"
+              target_label: service_name
+            - source_labels: [container]
+              regex: ".+"
+              action: keep
+
+        - job_name: faasd-functions
+          journal:
+            json: false
+            max_age: 12h
+            labels:
+              job: faasd
+          relabel_configs:
+            - source_labels: [__journal_syslog_identifier]
+              regex: 'openfaas-fn:(.+)'
+              target_label: function_name
+            - source_labels: [__journal_syslog_identifier]
+              regex: 'openfaas.*'
+              action: keep
+
+  tempo_config:
+    content: |
+      server:
+        http_listen_port: 3200
+
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+
+      storage:
+        trace:
+          backend: local
+          local:
+            path: /var/tempo/blocks
+          wal:
+            path: /var/tempo/wal
+
+      compactor:
+        compaction:
+          block_retention: 48h
+
+  grafana_datasources:
+    content: |
+      apiVersion: 1
+
+      datasources:
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://loki:3100
+          access: proxy
+          isDefault: false
+          jsonData:
+            derivedFields:
+              - name: TraceID
+                matcherRegex: '"trace_id"\s*:\s*"(\w+)"'
+                url: '$${__value.raw}'
+                datasourceUid: tempo
+                urlDisplayLabel: "View Trace"
+
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://tempo:3200
+          access: proxy
+          isDefault: false
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: "-1m"
+              spanEndTimeShift: "1m"
+              filterByTraceID: true
+              filterBySpanID: false
+              customQuery: true
+              query: '{container="${__span.tags["service.name"]}"} |= "${__trace.traceId}"'
+            nodeGraph:
+              enabled: true
+            lokiSearch:
+              datasourceUid: loki
+
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          url: http://otel-collector:8888/metrics
+          access: proxy
+          isDefault: true
+
+  grafana_dashboards_provider:
+    content: |
+      apiVersion: 1
+
+      providers:
+        - name: default
+          folder: Homelab
+          type: file
+          options:
+            path: /etc/grafana/provisioning/dashboards
