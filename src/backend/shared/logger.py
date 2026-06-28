@@ -1,6 +1,7 @@
 import logging
 import sys
 
+
 try:
     from opentelemetry import trace as _otel_trace
     def _get_trace_ids() -> tuple[str, str]:
