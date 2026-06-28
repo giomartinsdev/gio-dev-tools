@@ -5,9 +5,9 @@ import httpx
 from shared.secret_manager import SecretManager
 
 _sm = SecretManager()
-WEBDAV_URL = _sm.get_secret("WEBDAV_URL").rstrip("/")
-WEBDAV_USER = _sm.get_secret("WEBDAV_USER")
-WEBDAV_PASSWORD = _sm.get_secret("WEBDAV_PASSWORD")
+_webdav_url: str | None = None
+_webdav_user: str | None = None
+_webdav_password: str | None = None
 
 _PROPFIND_BODY = (
     '<?xml version="1.0" encoding="utf-8"?>'
@@ -17,20 +17,31 @@ _PROPFIND_BODY = (
 )
 
 
+def _ensure_init() -> None:
+    global _webdav_url, _webdav_user, _webdav_password
+    if _webdav_url is None:
+        _webdav_url = _sm.get_secret("WEBDAV_URL").rstrip("/")
+        _webdav_user = _sm.get_secret("WEBDAV_USER")
+        _webdav_password = _sm.get_secret("WEBDAV_PASSWORD")
+
+
 def _auth() -> httpx.DigestAuth:
-    return httpx.DigestAuth(WEBDAV_USER, WEBDAV_PASSWORD)
+    _ensure_init()
+    return httpx.DigestAuth(_webdav_user, _webdav_password)
 
 
 def _url(path: str) -> str:
+    _ensure_init()
     parts = [quote(p, safe="") for p in path.strip("/").split("/") if p]
-    return f"{WEBDAV_URL}/{'/'.join(parts)}"
+    return f"{_webdav_url}/{'/'.join(parts)}"
 
 
 def _parse_href(href: str) -> str:
+    _ensure_init()
     parsed = urlparse(href)
     raw_path = parsed.path if parsed.scheme else href
 
-    base_path = urlparse(WEBDAV_URL).path.rstrip("/")
+    base_path = urlparse(_webdav_url).path.rstrip("/")
     if base_path and raw_path.startswith(base_path + "/"):
         raw_path = raw_path[len(base_path):]
     elif base_path and raw_path == base_path:
