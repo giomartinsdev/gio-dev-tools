@@ -187,34 +187,15 @@ jobs:
 
       - name: Deploy function
         run: |
-          EXTRA_ENVS=""
-          if [ "${{ matrix.function }}" = "finance" ]; then
-            EXTRA_ENVS="--env DATABASE_URL=${{ secrets.DATABASE_URL }}"
-          fi
-          if [ "${{ matrix.function }}" = "portfolio" ]; then
-            EXTRA_ENVS="--env DATABASE_URL=${{ secrets.DATABASE_URL }}"
-          fi
-          if [ "${{ matrix.function }}" = "kanban" ]; then
-            EXTRA_ENVS="--env DATABASE_URL=${{ secrets.DATABASE_URL }}"
-          fi
-          if [ "${{ matrix.function }}" = "asset-quotes" ]; then
-            EXTRA_ENVS="--env DATABASE_URL=${{ secrets.DATABASE_URL }} --env BRAPI_TOKEN=${{ secrets.BRAPI_TOKEN }}"
-          fi
-          if [ "${{ matrix.function }}" = "finance-ocr" ]; then
-            EXTRA_ENVS="--env CF_ACCESS_CLIENT_ID=${{ secrets.CF_ACCESS_CLIENT_ID }} --env CF_ACCESS_CLIENT_SECRET=${{ secrets.CF_ACCESS_CLIENT_SECRET }} --env FINANCE_URL=https://of.giomartins.dev/function/finance"
-          fi
-          if [ "${{ matrix.function }}" = "obsidian" ]; then
-            EXTRA_ENVS="--env WEBDAV_URL=${{ secrets.WEBDAV_URL }} --env WEBDAV_USER=${{ secrets.WEBDAV_USER }} --env WEBDAV_PASSWORD=${{ secrets.WEBDAV_PASSWORD }}"
-          fi
-          if [ "${{ matrix.function }}" = "trains" ]; then
-            EXTRA_ENVS="--env TRENS_RJ_API_URL=${{ secrets.TRENS_RJ_API_URL }}"
-          fi
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             faas-cli deploy \
               --image re.giomartins.dev/${{ matrix.function }}:latest \
               --name ${{ matrix.function }} \
               --gateway http://127.0.0.1:8080 \
-              $EXTRA_ENVS \
+              --env if_id=${{ secrets.IF_ID }} \
+              --env if_secret=${{ secrets.IF_SECRET }} \
+              --env if_project_id=${{ secrets.IF_PROJECT_ID }} \
+              --env if_env=prod \
               --env OTEL_EXPORTER_OTLP_ENDPOINT=https://optel.giomartins.dev \
               --env OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
               --env "OTEL_EXPORTER_OTLP_HEADERS=CF-Access-Client-Id=${{ secrets.CF_ACCESS_CLIENT_ID }},CF-Access-Client-Secret=${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
