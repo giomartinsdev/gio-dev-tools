@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, unquote, urlparse

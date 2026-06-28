@@ -7,5 +7,40 @@ services:
       FAAS_GATEWAY_URL: https://of.giomartins.dev
       CF_ACCESS_CLIENT_ID: ${CF_ACCESS_CLIENT_ID}
       CF_ACCESS_CLIENT_SECRET: ${CF_ACCESS_CLIENT_SECRET}
+      KANBAN_URL: http://kanban:8000
+      OBSIDIAN_URL: http://obsidian:8000
       PORT: 3000
     restart: unless-stopped
+    networks:
+      - apis
+
+  kanban:
+    image: re.giomartins.dev/kanban:latest
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    networks:
+      - apis
+      - persistence
+
+  obsidian:
+    image: re.giomartins.dev/obsidian:latest
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    networks:
+      - apis
+      - persistence
+
+networks:
+  apis:
+    driver: bridge
+  persistence:
+    external: true
+    name: persistence
