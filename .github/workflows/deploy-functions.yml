@@ -38,16 +38,16 @@ jobs:
           fi
           echo "functions=$CHANGED" >> $GITHUB_OUTPUT
 
-  test:
+  deploy:
     needs: detect-changes
     if: needs.detect-changes.outputs.functions != '[]'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
 
-    name: BDD (${{ matrix.function }})
+    name: Deploy (${{ matrix.function }})
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -80,17 +80,6 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/src/backend/functions/${{ matrix.function }}:${{ github.workspace }}/src/backend
         working-directory: src/backend/functions/${{ matrix.function }}
         run: python -m behave --no-capture --format progress2
-
-  build:
-    needs: [detect-changes, test]
-    runs-on: self-hosted
-    if: needs.detect-changes.outputs.functions != '[]'
-    strategy:
-      matrix:
-        function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
-
-    steps:
-      - uses: actions/checkout@v4.2.2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -126,15 +115,6 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.function }}
           cache-to: type=gha,mode=max,scope=${{ matrix.function }}
 
-  deploy:
-    needs: [detect-changes, build]
-    runs-on: self-hosted
-    if: needs.detect-changes.outputs.functions != '[]'
-    strategy:
-      matrix:
-        function: ${{ fromJson(needs.detect-changes.outputs.functions) }}
-
-    steps:
       - name: Install cloudflared
         run: |
           curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
