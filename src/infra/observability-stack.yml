@@ -78,6 +78,8 @@ services:
         target: /etc/grafana/provisioning/datasources/datasources.yaml
       - source: grafana_dashboards_provider
         target: /etc/grafana/provisioning/dashboards/dashboards.yaml
+      - source: grafana_dashboard_json
+        target: /etc/grafana/provisioning/dashboards/homelab.json
     depends_on:
       - loki
       - tempo
@@ -260,3 +262,127 @@ configs:
           type: file
           options:
             path: /etc/grafana/provisioning/dashboards
+
+  grafana_dashboard_json:
+    content: |
+      {
+        "title": "faasd — observability",
+        "uid": "faasd-observability",
+        "tags": ["faasd", "observability"],
+        "editable": true,
+        "schemaVersion": 39,
+        "refresh": "30s",
+        "time": { "from": "now-1h", "to": "now" },
+        "timezone": "browser",
+        "templating": {
+          "list": [
+            {
+              "name": "function",
+              "label": "Função",
+              "type": "query",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "query": "label_values({job=\"faasd\"}, function_name)",
+              "includeAll": true,
+              "allValue": ".*",
+              "refresh": 2,
+              "sort": 1,
+              "hide": 0
+            },
+            {
+              "name": "compose_project",
+              "label": "Projeto Docker",
+              "type": "query",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "query": "label_values({job=\"containers\"}, compose_project)",
+              "includeAll": true,
+              "allValue": ".*",
+              "refresh": 2,
+              "sort": 1,
+              "hide": 0
+            }
+          ]
+        },
+        "panels": [
+          {
+            "id": 1, "type": "row", "title": "🔭 Traces — Tempo",
+            "collapsed": false, "description": "",
+            "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+          },
+          {
+            "id": 2, "type": "timeseries", "title": "Rate de spans por serviço",
+            "description": "",
+            "datasource": { "type": "tempo", "uid": "tempo" },
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+            "targets": [{ "queryType": "traceql", "query": "{ } | rate()", "legendFormat": "{{.resource.service.name}}" }]
+          },
+          {
+            "id": 3, "type": "timeseries", "title": "Erros de trace por serviço",
+            "description": "",
+            "datasource": { "type": "tempo", "uid": "tempo" },
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+            "targets": [{ "queryType": "traceql", "query": "{ status = error } | rate()", "legendFormat": "{{.resource.service.name}}" }]
+          },
+          {
+            "id": 4, "type": "row", "title": "📋 Logs — Funções faasd",
+            "collapsed": false, "description": "",
+            "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+          },
+          {
+            "id": 5, "type": "timeseries", "title": "Volume de logs por função",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 6, "w": 12, "x": 0, "y": 10 },
+            "targets": [{ "expr": "sum(count_over_time({job=\"faasd\"}[1m])) by (function_name)", "legendFormat": "{{function_name}}" }]
+          },
+          {
+            "id": 6, "type": "timeseries", "title": "Erros por função",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 6, "w": 12, "x": 12, "y": 10 },
+            "targets": [{ "expr": "sum(count_over_time({job=\"faasd\"} |= \"error\" [1m])) by (function_name)", "legendFormat": "{{function_name}}" }]
+          },
+          {
+            "id": 7, "type": "logs", "title": "Logs — $function",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+            "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+            "targets": [{ "expr": "{job=\"faasd\", function_name=~\"$function\"}" }]
+          },
+          {
+            "id": 10, "type": "row", "title": "🐳 Logs — Containers Docker",
+            "collapsed": false, "description": "",
+            "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+          },
+          {
+            "id": 11, "type": "timeseries", "title": "Volume por projeto",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 6, "w": 12, "x": 0, "y": 27 },
+            "targets": [{ "expr": "sum(count_over_time({job=\"containers\"}[1m])) by (compose_project)", "legendFormat": "{{compose_project}}" }]
+          },
+          {
+            "id": 12, "type": "timeseries", "title": "Erros por serviço",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 6, "w": 12, "x": 12, "y": 27 },
+            "targets": [{ "expr": "sum(count_over_time({job=\"containers\"} |= \"error\" [1m])) by (compose_service)", "legendFormat": "{{compose_service}}" }]
+          },
+          {
+            "id": 13, "type": "logs", "title": "Logs — $compose_project",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 10, "w": 24, "x": 0, "y": 33 },
+            "options": { "dedupStrategy": "none", "enableLogDetails": true, "showLabels": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+            "targets": [{ "expr": "{job=\"containers\", compose_project=~\"$compose_project\"}" }]
+          },
+          {
+            "id": 14, "type": "logs", "title": "Erros — todos os containers",
+            "description": "",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "gridPos": { "h": 10, "w": 24, "x": 0, "y": 43 },
+            "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+            "targets": [{ "expr": "{job=\"containers\"} |= \"error\"" }]
+          }
+        ]
+      }
