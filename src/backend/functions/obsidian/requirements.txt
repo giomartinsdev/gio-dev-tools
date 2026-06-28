@@ -1,2 +1,2 @@
 httpx>=0.27.0
-infisical-sdk>=2.0
+infisicalsdk>=1.0

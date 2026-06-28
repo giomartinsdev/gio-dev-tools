@@ -3,4 +3,4 @@ Pillow>=10.0.0
 httpx>=0.27.0
 python-multipart>=0.0.9
 tzdata
-infisical-sdk>=2.0
+infisicalsdk>=1.0
