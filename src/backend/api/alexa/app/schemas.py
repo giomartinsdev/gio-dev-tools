@@ -21,8 +21,13 @@ class DeviceInfo(BaseModel):
 
 class AuthStatusResponse(BaseModel):
     authenticated: bool
+    start_url: str | None = None
     status: dict
 
 
 class AuthVerifyRequest(BaseModel):
     code: str
+
+
+class AuthFinalizeRequest(BaseModel):
+    url: str

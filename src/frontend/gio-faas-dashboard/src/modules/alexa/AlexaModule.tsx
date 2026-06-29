@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Mic, Send, AlertCircle, KeyRound } from 'lucide-react'
+import { Mic, Send, AlertCircle, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const GW = import.meta.env.VITE_GATEWAY_URL
@@ -21,10 +21,10 @@ interface CommandEntry {
 
 export function AlexaModule() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null)
-  const [authStatus, setAuthStatus] = useState<Record<string, unknown>>({})
-  const [otpCode, setOtpCode] = useState('')
-  const [otpError, setOtpError] = useState<string | null>(null)
-  const [verifying, setVerifying] = useState(false)
+  const [startUrl, setStartUrl] = useState<string | null>(null)
+  const [callbackUrl, setCallbackUrl] = useState('')
+  const [finalizing, setFinalizing] = useState(false)
+  const [finalizeError, setFinalizeError] = useState<string | null>(null)
 
   const [devices, setDevices] = useState<Device[]>([])
   const [selectedDevice, setSelectedDevice] = useState<string>('')
@@ -39,7 +39,7 @@ export function AlexaModule() {
       const r = await fetch(`${GW}/alexa/auth/status`)
       const data = await r.json()
       setAuthenticated(data.authenticated)
-      setAuthStatus(data.status ?? {})
+      setStartUrl(data.start_url ?? null)
       if (data.authenticated) loadDevices()
     } catch {
       setAuthenticated(false)
@@ -64,27 +64,27 @@ export function AlexaModule() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
 
-  async function submitOtp() {
-    if (!otpCode.trim() || verifying) return
-    setVerifying(true)
-    setOtpError(null)
+  async function finalize() {
+    if (!callbackUrl.trim() || finalizing) return
+    setFinalizing(true)
+    setFinalizeError(null)
     try {
-      const r = await fetch(`${GW}/alexa/auth/verify`, {
+      const r = await fetch(`${GW}/alexa/auth/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: otpCode.trim() }),
+        body: JSON.stringify({ url: callbackUrl.trim() }),
       })
       const data = await r.json()
       if (!r.ok) {
-        setOtpError(data.detail ?? 'verification failed')
+        setFinalizeError(data.detail ?? 'failed')
         return
       }
-      setOtpCode('')
+      setCallbackUrl('')
       checkAuth()
     } catch {
-      setOtpError('network error')
+      setFinalizeError('network error')
     } finally {
-      setVerifying(false)
+      setFinalizing(false)
     }
   }
 
@@ -138,63 +138,65 @@ export function AlexaModule() {
   }
 
   if (!authenticated) {
-    const needsOtp = !!(authStatus['verification_code_required'] || authStatus['claimspicker_required'] || authStatus['authselect_required'])
-    const needsCaptcha = !!authStatus['captcha_required']
-    const statusEmpty = Object.keys(authStatus).length === 0
-
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-6">
+      <div className="flex h-full flex-col items-center justify-center gap-6 px-4">
         <div className="flex flex-col items-center gap-2 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <KeyRound className="h-6 w-6 text-primary" />
+            <Mic className="h-6 w-6 text-primary" />
           </div>
-          <h2 className="text-base font-semibold">Amazon Login Required</h2>
-          {needsCaptcha && (
-            <p className="text-sm text-destructive max-w-xs">
-              Amazon requested a CAPTCHA — headless login blocked. Check server logs.
-            </p>
-          )}
-          {statusEmpty && (
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Login did not complete. Check the alexa container logs for <code className="text-xs bg-muted px-1 rounded">alexa login status:</code>.
-            </p>
-          )}
-          {needsOtp && (
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Enter the verification code sent to your phone or email by Amazon.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground font-mono bg-muted rounded px-2 py-1 max-w-sm break-all">
-            status: {JSON.stringify(authStatus)}
+          <h2 className="text-base font-semibold">Connect Amazon Account</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Log in with your Amazon account, then paste the redirect URL to complete setup.
           </p>
         </div>
 
-        {needsOtp && (
-          <div className="flex w-full max-w-xs flex-col gap-3">
-            <input
-              type="text"
-              inputMode="numeric"
-              className="h-10 w-full rounded-md border bg-background px-3 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder="123456"
-              value={otpCode}
-              onChange={e => setOtpCode(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submitOtp()}
+        <div className="flex w-full max-w-md flex-col gap-4">
+          <div className="rounded-lg border bg-muted/30 p-4 flex flex-col gap-3">
+            <p className="text-sm font-medium">Step 1 — Open Amazon login</p>
+            <a
+              href={startUrl ?? '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors',
+                startUrl
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed pointer-events-none'
+              )}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Login with Amazon
+            </a>
+          </div>
+
+          <div className="rounded-lg border bg-muted/30 p-4 flex flex-col gap-3">
+            <p className="text-sm font-medium">Step 2 — Paste the redirect URL</p>
+            <p className="text-xs text-muted-foreground">
+              After logging in, the browser will redirect to a page at <code className="bg-muted px-1 rounded">amazon.com/ap/maplanding</code>.
+              Copy the full URL from the address bar and paste it below.
+            </p>
+            <textarea
+              rows={3}
+              className="w-full resize-none rounded-md border bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+              placeholder="https://www.amazon.com/ap/maplanding?openid.oa2.authorization_code=..."
+              value={callbackUrl}
+              onChange={e => setCallbackUrl(e.target.value)}
             />
-            {otpError && (
+            {finalizeError && (
               <div className="flex items-center gap-2 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                {otpError}
+                {finalizeError}
               </div>
             )}
             <button
-              onClick={submitOtp}
-              disabled={!otpCode.trim() || verifying}
+              onClick={finalize}
+              disabled={!callbackUrl.trim() || finalizing}
               className="rounded-md bg-primary py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
             >
-              {verifying ? 'Verifying…' : 'Verify'}
+              {finalizing ? 'Connecting…' : 'Complete Setup'}
             </button>
           </div>
-        )}
+        </div>
       </div>
     )
   }

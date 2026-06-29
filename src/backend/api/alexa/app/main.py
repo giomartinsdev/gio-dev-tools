@@ -48,12 +48,8 @@ async def _async_init(app: FastAPI) -> None:
         app.state.login = login
 
         login_status = login.status or {}
-        login_successful = getattr(login, "login_successful", None)
         logger.info(f"alexa login status: {login_status}")
-        logger.info(f"alexa login_successful attr: {login_successful}")
-        logger.info(f"alexa start_url: {getattr(login, 'start_url', 'N/A')}")
-        logger.info(f"alexa access_token: {bool(getattr(login, 'access_token', None))}")
-        logger.info(f"alexa authorization_code: {bool(getattr(login, 'authorization_code', None))}")
+        logger.info(f"alexa start_url ready: {bool(getattr(login, 'start_url', None))}")
 
         if login_status.get("login_successful") or login_successful:
             await _load_devices(app)
