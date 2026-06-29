@@ -33,7 +33,7 @@ const COLUMNS: { id: CardStatus; label: string }[] = [
 const COLUMN_INDEX = Object.fromEntries(COLUMNS.map((c, i) => [c.id, i])) as Record<CardStatus, number>
 
 async function apiFetch(path: string, opts?: RequestInit) {
-  const res = await fetch(`${GW}/fn/kanban${path}`, {
+  const res = await fetch(`${GW}/kanban${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   })
@@ -60,7 +60,7 @@ export function KanbanModule() {
   const [dragOverColumn, setDragOverColumn] = useState<CardStatus | null>(null)
 
   const fetchBoards = useCallback(async () => {
-    const data = await apiFetch('')
+    const data = await apiFetch('/boards')
     setBoards(data)
     if (data.length > 0 && !activeBoardId) {
       setActiveBoardId(data[0].id)
@@ -68,7 +68,7 @@ export function KanbanModule() {
   }, [activeBoardId])
 
   const fetchCards = useCallback(async (boardId: string) => {
-    const data = await apiFetch(`?board_id=${boardId}`)
+    const data = await apiFetch(`/boards/${boardId}/cards`)
     setCards(data)
   }, [])
 
@@ -83,9 +83,9 @@ export function KanbanModule() {
 
   async function createBoard() {
     if (!newBoardName.trim()) return
-    const board = await apiFetch('', {
+    const board = await apiFetch('/boards', {
       method: 'POST',
-      body: JSON.stringify({ resource: 'board', name: newBoardName }),
+      body: JSON.stringify({ name: newBoardName }),
     })
     setBoards(prev => [...prev, board])
     setActiveBoardId(board.id)
@@ -95,10 +95,7 @@ export function KanbanModule() {
   async function deleteBoard() {
     if (!activeBoardId) return
     if (!confirm('Delete this board and all its cards?')) return
-    await apiFetch('', {
-      method: 'DELETE',
-      body: JSON.stringify({ resource: 'board', id: activeBoardId }),
-    })
+    await apiFetch(`/boards/${activeBoardId}`, { method: 'DELETE' })
     const remaining = boards.filter(b => b.id !== activeBoardId)
     setBoards(remaining)
     setActiveBoardId(remaining[0]?.id ?? null)
@@ -107,9 +104,9 @@ export function KanbanModule() {
 
   async function createCard(status: CardStatus) {
     if (!newCardTitle.trim() || !activeBoardId) return
-    const card = await apiFetch('', {
+    const card = await apiFetch(`/boards/${activeBoardId}/cards`, {
       method: 'POST',
-      body: JSON.stringify({ resource: 'card', board_id: activeBoardId, title: newCardTitle, status }),
+      body: JSON.stringify({ title: newCardTitle, content: '', status }),
     })
     setCards(prev => [...prev, card])
     setNewCardTitle('')
@@ -122,9 +119,9 @@ export function KanbanModule() {
     setCards(prev => prev.map(c => c.id === card.id ? { ...c, status: newStatus } : c))
     if (openCard?.id === card.id) setOpenCard(prev => prev ? { ...prev, status: newStatus } : null)
     try {
-      const updated = await apiFetch('', {
+      const updated = await apiFetch(`/cards/${card.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ id: card.id, title: card.title, content: card.content, status: newStatus, board_id: card.board_id }),
+        body: JSON.stringify({ title: card.title, content: card.content, status: newStatus, board_id: card.board_id }),
       })
       setCards(prev => prev.map(c => c.id === card.id ? updated : c))
       if (openCard?.id === card.id) setOpenCard(updated)
@@ -142,19 +139,16 @@ export function KanbanModule() {
   }
 
   async function saveCard(card: Card) {
-    const updated = await apiFetch('', {
+    const updated = await apiFetch(`/cards/${card.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ id: card.id, title: card.title, content: card.content, status: card.status, board_id: card.board_id }),
+      body: JSON.stringify({ title: card.title, content: card.content, status: card.status, board_id: card.board_id }),
     })
     setCards(prev => prev.map(c => c.id === card.id ? updated : c))
     setOpenCard(null)
   }
 
   async function deleteCard(cardId: string) {
-    await apiFetch('', {
-      method: 'DELETE',
-      body: JSON.stringify({ resource: 'card', id: cardId }),
-    })
+    await apiFetch(`/cards/${cardId}`, { method: 'DELETE' })
     setCards(prev => prev.filter(c => c.id !== cardId))
     setOpenCard(null)
   }

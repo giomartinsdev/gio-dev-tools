@@ -38,7 +38,7 @@ type Modal =
   | null
 
 async function apiFetch(path: string, opts?: RequestInit) {
-  const res = await fetch(`${GW}/fn/obsidian${path}`, {
+  const res = await fetch(`${GW}/obsidian${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   })
@@ -71,7 +71,7 @@ export function ObsidianModule() {
   const loadDir = useCallback(async (path: string) => {
     setLoadingDirs(prev => new Set([...prev, path]))
     try {
-      const entries: FileEntry[] = await apiFetch(`/?path=${encodeURIComponent(path)}&type=dir`)
+      const entries: FileEntry[] = await apiFetch(`/files?path=${encodeURIComponent(path)}&type=dir`)
       setDirCache(prev => ({ ...prev, [path]: entries }))
     } catch (e) {
       console.error('loadDir error', e)
@@ -122,7 +122,7 @@ export function ObsidianModule() {
       setEditorTab('write')
       setLoadingFile(true)
       try {
-        const data = await apiFetch(`/?path=${encodeURIComponent(path)}&type=file`)
+        const data = await apiFetch(`/files?path=${encodeURIComponent(path)}&type=file`)
         setDraftContent(data.content)
         setSavedContent(data.content)
       } catch (e) {
@@ -138,7 +138,7 @@ export function ObsidianModule() {
     if (!selectedPath || !isDirty) return
     setSaving(true)
     try {
-      await apiFetch('', {
+      await apiFetch('/files', {
         method: 'PUT',
         body: JSON.stringify({ path: selectedPath, content: draftContent }),
       })
@@ -156,7 +156,7 @@ export function ObsidianModule() {
       if (!confirm(`Delete "${name}"${isDir ? ' and all its contents' : ''}?`)) return
       const parentPath = path.split('/').slice(0, -1).join('/') || ROOT_PATH
       try {
-        await apiFetch('', {
+        await apiFetch('/files', {
           method: 'DELETE',
           body: JSON.stringify({ path }),
         })
@@ -185,7 +185,7 @@ export function ObsidianModule() {
       if (modal.type === 'new-file') {
         const name = modalInput.trim().endsWith('.md') ? modalInput.trim() : `${modalInput.trim()}.md`
         const path = `${modal.parentPath}/${name}`
-        await apiFetch('', {
+        await apiFetch('/files', {
           method: 'POST',
           body: JSON.stringify({ action: 'create', path, content: '' }),
         })
@@ -195,7 +195,7 @@ export function ObsidianModule() {
         await openFile(path, modal.parentPath)
       } else if (modal.type === 'new-folder') {
         const path = `${modal.parentPath}/${modalInput.trim()}`
-        await apiFetch('', {
+        await apiFetch('/files', {
           method: 'POST',
           body: JSON.stringify({ action: 'mkdir', path }),
         })
@@ -208,7 +208,7 @@ export function ObsidianModule() {
       } else if (modal.type === 'rename') {
         const parentPath = modal.path.split('/').slice(0, -1).join('/') || ROOT_PATH
         const newPath = `${parentPath}/${modalInput.trim()}`
-        await apiFetch('', {
+        await apiFetch('/files', {
           method: 'PATCH',
           body: JSON.stringify({ from: modal.path, to: newPath }),
         })

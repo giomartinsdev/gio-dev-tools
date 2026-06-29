@@ -137,7 +137,7 @@ export function FinanceModule() {
 
   const fetchTransactions = useCallback(async (y: number, m: number) => {
     setLoading(true)
-    const res = await fetch(`${GATEWAY}/fn/finance?month=${m}&year=${y}`)
+    const res = await fetch(`${GATEWAY}/finance/transactions?month=${m}&year=${y}`)
     if (res.ok) setTransactions(await res.json())
     setLoading(false)
   }, [])
@@ -149,7 +149,7 @@ export function FinanceModule() {
       const m = d.getMonth() + 1
       const y = d.getFullYear()
       const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-      return fetch(`${GATEWAY}/fn/finance?month=${m}&year=${y}`)
+      return fetch(`${GATEWAY}/finance/transactions?month=${m}&year=${y}`)
         .then(r => r.ok ? r.json() : [])
         .then((txs: Transaction[]): MonthData => {
           const agg = aggregateMonth(txs)
@@ -187,7 +187,7 @@ export function FinanceModule() {
     if (!draft.amount || !draft.description || !draft.category) return
     setSubmitting(true)
     try {
-      const res = await fetch(`${GATEWAY}/fn/finance`, {
+      const res = await fetch(`${GATEWAY}/finance/transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),
@@ -203,10 +203,8 @@ export function FinanceModule() {
   async function remove(id: string) {
     setDeletingId(id)
     try {
-      const res = await fetch(`${GATEWAY}/fn/finance`, {
+      const res = await fetch(`${GATEWAY}/finance/transactions/${id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
       })
       if (res.ok) await fetchTransactions(year, month)
     } finally { setDeletingId(null) }
@@ -243,10 +241,10 @@ export function FinanceModule() {
     if (!editDraft || !editingId) return
     setSaving(true)
     try {
-      const res = await fetch(`${GATEWAY}/fn/finance`, {
+      const res = await fetch(`${GATEWAY}/finance/transactions/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, ...editDraft }),
+        body: JSON.stringify(editDraft),
       })
       if (res.ok) { await fetchTransactions(year, month); cancelEdit() }
     } finally { setSaving(false) }
@@ -263,7 +261,7 @@ export function FinanceModule() {
       const formData = new FormData()
       formData.append('file', file)
       setOcrState('processing')
-      const res = await fetch(`${GATEWAY}/fn/finance-ocr`, { method: 'POST', body: formData })
+      const res = await fetch(`${GATEWAY}/finance-ocr/ocr`, { method: 'POST', body: formData })
       if (!res.ok) throw new Error(`OCR failed: ${res.status}`)
       await fetchTransactions(year, month)
     } catch {

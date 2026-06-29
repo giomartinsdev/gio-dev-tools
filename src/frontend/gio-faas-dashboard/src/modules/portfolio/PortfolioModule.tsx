@@ -90,7 +90,7 @@ export function PortfolioModule() {
 
   const fetchAssets = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`${GATEWAY}/fn/portfolio`)
+    const res = await fetch(`${GATEWAY}/portfolio/assets`)
     if (res.ok) setAssets(await res.json())
     setLoading(false)
   }, [])
@@ -101,7 +101,7 @@ export function PortfolioModule() {
     if (!draft.name || !draft.institution || !draft.quantity || !draft.purchase_price) return
     setSubmitting(true)
     try {
-      const res = await fetch(`${GATEWAY}/fn/portfolio`, {
+      const res = await fetch(`${GATEWAY}/portfolio/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),
@@ -113,10 +113,8 @@ export function PortfolioModule() {
   async function remove(id: string) {
     setDeletingId(id)
     try {
-      const res = await fetch(`${GATEWAY}/fn/portfolio`, {
+      const res = await fetch(`${GATEWAY}/portfolio/assets/${id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
       })
       if (res.ok) await fetchAssets()
     } finally { setDeletingId(null) }
@@ -144,10 +142,10 @@ export function PortfolioModule() {
     if (!editDraft || !editingId) return
     setSaving(true)
     try {
-      const res = await fetch(`${GATEWAY}/fn/portfolio`, {
+      const res = await fetch(`${GATEWAY}/portfolio/assets/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, ...editDraft }),
+        body: JSON.stringify(editDraft),
       })
       if (res.ok) { await fetchAssets(); cancelEdit() }
     } finally { setSaving(false) }
@@ -157,7 +155,7 @@ export function PortfolioModule() {
     setSyncing(true)
     setSyncResult(null)
     try {
-      const res = await fetch(`${GATEWAY}/fn/asset-quotes`, { method: 'POST' })
+      const res = await fetch(`${GATEWAY}/asset-quotes/quotes/refresh`, { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
         setSyncResult(data)
