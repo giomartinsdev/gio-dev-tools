@@ -26,10 +26,17 @@ async def _wait(request: Request) -> None:
         raise HTTPException(status_code=503, detail="alexa service unavailable")
 
 
+def _is_authenticated(login) -> bool:
+    if login is None:
+        return False
+    if (login.status or {}).get("login_successful"):
+        return True
+    return bool(getattr(login, "access_token", None))
+
+
 async def _require_auth(request: Request) -> None:
     await _wait(request)
-    login = request.app.state.login
-    if login is None or not (login.status or {}).get("login_successful"):
+    if not _is_authenticated(request.app.state.login):
         raise HTTPException(status_code=401, detail="not authenticated")
 
 
@@ -39,12 +46,12 @@ async def auth_status(request: Request):
     login = request.app.state.login
     if login is None:
         return AuthStatusResponse(authenticated=False, status={})
-    status = login.status or {}
+    authenticated = _is_authenticated(login)
     start_url = str(getattr(login, "start_url", None) or "") or None
     return AuthStatusResponse(
-        authenticated=bool(status.get("login_successful")),
-        start_url=start_url if not status.get("login_successful") else None,
-        status=status,
+        authenticated=authenticated,
+        start_url=start_url if not authenticated else None,
+        status=login.status or {},
     )
 
 
@@ -55,7 +62,7 @@ async def auth_finalize(body: AuthFinalizeRequest, request: Request):
     login = request.app.state.login
     if login is None:
         raise HTTPException(status_code=503, detail="service not initialised")
-    if (login.status or {}).get("login_successful"):
+    if _is_authenticated(login):
         return {"message": "already authenticated"}
 
     # Extract auth code from the redirect URL
@@ -72,15 +79,19 @@ async def auth_finalize(body: AuthFinalizeRequest, request: Request):
     login.authorization_code = code
     try:
         await login.exchange_token_for_cookies()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"token exchange failed: {e}")
+
+    # Validate session and populate login.status
+    try:
+        await login.test_loggedin()
     except Exception:
-        # Some alexapy versions use finalize_login instead
-        try:
-            await login.finalize_login(code=code)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"token exchange failed: {e}")
+        pass
 
     status = login.status or {}
-    if not status.get("login_successful"):
+    access_token = getattr(login, "access_token", None)
+    # Consider authenticated if status says so OR if we have a valid access token
+    if not status.get("login_successful") and not access_token:
         raise HTTPException(status_code=400, detail=f"login failed after exchange: {status}")
 
     from .main import _load_devices
@@ -95,13 +106,12 @@ async def auth_verify(body: AuthVerifyRequest, request: Request):
     login = request.app.state.login
     if login is None:
         raise HTTPException(status_code=503, detail="service not initialised")
-    if (login.status or {}).get("login_successful"):
+    if _is_authenticated(login):
         return {"message": "already authenticated"}
 
     await login.login(data={"verificationCode": body.code, "otpCode": body.code})
-    status = login.status or {}
-    if not status.get("login_successful"):
-        raise HTTPException(status_code=400, detail=f"verification failed: {status}")
+    if not _is_authenticated(login):
+        raise HTTPException(status_code=400, detail=f"verification failed: {login.status}")
 
     from .main import _load_devices
     await _load_devices(request.app)
