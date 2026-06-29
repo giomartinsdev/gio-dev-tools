@@ -34,7 +34,6 @@ services:
     image: bytemark/webdav
     container_name: webdav
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "-c", "mkdir -p /var/lib/dav/data/gio && /entrypoint.sh"]
     networks:
       persistence:
         ipv4_address: 10.20.0.12
@@ -44,12 +43,14 @@ services:
       PASSWORD: ${PASSWORD}
     volumes:
       - obsidian_data:/var/lib/dav
+      - gio_data:/var/lib/dav/data/gio
     ports:
       - "8585:80"
 
 volumes:
   postgres_data:
   obsidian_data:
+  gio_data:
   redis_data:
 
 networks:
