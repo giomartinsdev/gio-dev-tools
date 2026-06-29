@@ -150,9 +150,25 @@ async def send_command(body: CommandRequest, request: Request):
             raise HTTPException(status_code=503, detail="no device available")
 
     alexa_api = AlexaAPI(device, login)
-    await alexa_api.send_sequence_command(
-        "Alexa.TextCommand",
-        {"text": body.text.strip(), "textType": "text"},
-    )
+    text = body.text.strip()
+
+    # Discover available methods and try in order
+    api_methods = [m for m in dir(AlexaAPI) if not m.startswith("_")]
+    instance_methods = [m for m in dir(alexa_api) if not m.startswith("_")]
+    from shared.logger import get_logger
+    _log = get_logger(__name__)
+    _log.info(f"AlexaAPI class methods: {api_methods}")
+    _log.info(f"alexa_api instance methods: {instance_methods}")
+
+    if hasattr(AlexaAPI, "send_sequence_command"):
+        # Static/class method form: AlexaAPI.send_sequence_command(login, device, cmd, value)
+        await AlexaAPI.send_sequence_command(
+            login, device, "Alexa.TextCommand",
+            value={"text": text, "textType": "text"},
+        )
+    elif hasattr(alexa_api, "send_tts"):
+        await alexa_api.send_tts(text)
+    else:
+        raise HTTPException(status_code=501, detail=f"no send method found. methods={instance_methods}")
 
     return CommandResponse(sent=True, text=body.text.strip(), device=device.get("accountName", ""))
