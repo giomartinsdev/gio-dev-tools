@@ -138,6 +138,10 @@ export function AlexaModule() {
   }
 
   if (!authenticated) {
+    const needsOtp = authStatus['verification_code_required'] || authStatus['claimspicker_required'] || authStatus['authselect_required']
+    const needsCaptcha = !!authStatus['captcha_required']
+    const statusEmpty = Object.keys(authStatus).length === 0
+
     return (
       <div className="flex h-full flex-col items-center justify-center gap-6">
         <div className="flex flex-col items-center gap-2 text-center">
@@ -145,40 +149,52 @@ export function AlexaModule() {
             <KeyRound className="h-6 w-6 text-primary" />
           </div>
           <h2 className="text-base font-semibold">Amazon Login Required</h2>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            Enter the verification code sent to your phone or email by Amazon.
-          </p>
-          {Object.keys(authStatus).length > 0 && (
-            <p className="text-xs text-muted-foreground font-mono bg-muted rounded px-2 py-1">
-              status: {JSON.stringify(authStatus)}
+          {needsCaptcha && (
+            <p className="text-sm text-destructive max-w-xs">
+              Amazon requested a CAPTCHA — headless login blocked. Check server logs.
             </p>
           )}
+          {statusEmpty && (
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Login did not complete. Check the alexa container logs for <code className="text-xs bg-muted px-1 rounded">alexa login status:</code>.
+            </p>
+          )}
+          {needsOtp && (
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Enter the verification code sent to your phone or email by Amazon.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground font-mono bg-muted rounded px-2 py-1 max-w-sm break-all">
+            status: {JSON.stringify(authStatus)}
+          </p>
         </div>
 
-        <div className="flex w-full max-w-xs flex-col gap-3">
-          <input
-            type="text"
-            inputMode="numeric"
-            className="h-10 w-full rounded-md border bg-background px-3 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="123456"
-            value={otpCode}
-            onChange={e => setOtpCode(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submitOtp()}
-          />
-          {otpError && (
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {otpError}
-            </div>
-          )}
-          <button
-            onClick={submitOtp}
-            disabled={!otpCode.trim() || verifying}
-            className="rounded-md bg-primary py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
-          >
-            {verifying ? 'Verifying…' : 'Verify'}
-          </button>
-        </div>
+        {needsOtp && (
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            <input
+              type="text"
+              inputMode="numeric"
+              className="h-10 w-full rounded-md border bg-background px-3 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-ring"
+              placeholder="123456"
+              value={otpCode}
+              onChange={e => setOtpCode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submitOtp()}
+            />
+            {otpError && (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {otpError}
+              </div>
+            )}
+            <button
+              onClick={submitOtp}
+              disabled={!otpCode.trim() || verifying}
+              className="rounded-md bg-primary py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+            >
+              {verifying ? 'Verifying…' : 'Verify'}
+            </button>
+          </div>
+        )}
       </div>
     )
   }
