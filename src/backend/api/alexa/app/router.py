@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Request
 from alexapy import AlexaAPI
@@ -14,22 +15,25 @@ from .schemas import (
 router = APIRouter()
 
 
-def _wait(request: Request):
-    request.app.state._init_done.wait(timeout=30)
+async def _wait(request: Request) -> None:
+    try:
+        await asyncio.wait_for(request.app.state._init_done.wait(), timeout=30)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=503, detail="init timeout")
     if request.app.state._init_error:
         raise HTTPException(status_code=503, detail="alexa service unavailable")
 
 
-def _require_auth(request: Request):
-    _wait(request)
+async def _require_auth(request: Request) -> None:
+    await _wait(request)
     login = request.app.state.login
     if login is None or not (login.status or {}).get("login_successful"):
-        raise HTTPException(status_code=401, detail="not authenticated — complete login via /auth/verify")
+        raise HTTPException(status_code=401, detail="not authenticated")
 
 
 @router.get("/auth/status", response_model=AuthStatusResponse)
-def auth_status(request: Request):
-    _wait(request)
+async def auth_status(request: Request):
+    await _wait(request)
     login = request.app.state.login
     if login is None:
         return AuthStatusResponse(authenticated=False, status={})
@@ -39,29 +43,27 @@ def auth_status(request: Request):
 
 @router.post("/auth/verify")
 async def auth_verify(body: AuthVerifyRequest, request: Request):
-    _wait(request)
+    await _wait(request)
     login = request.app.state.login
     if login is None:
         raise HTTPException(status_code=503, detail="service not initialised")
     if (login.status or {}).get("login_successful"):
         return {"message": "already authenticated"}
 
-    # alexapy accepts OTP/2FA codes via login() with the verificationCode kwarg
     await login.login(data={"verificationCode": body.code, "otpCode": body.code})
 
     status = login.status or {}
     if not status.get("login_successful"):
         raise HTTPException(status_code=400, detail=f"verification failed: {status}")
 
-    # Load devices now that login succeeded
     from .main import _load_devices
     await _load_devices(request.app)
     return {"message": "authenticated", "status": status}
 
 
 @router.get("/devices", response_model=list[DeviceInfo])
-def list_devices(request: Request):
-    _require_auth(request)
+async def list_devices(request: Request):
+    await _require_auth(request)
     return [
         DeviceInfo(
             name=d.get("accountName", ""),
@@ -74,7 +76,7 @@ def list_devices(request: Request):
 
 @router.post("/command", response_model=CommandResponse)
 async def send_command(body: CommandRequest, request: Request):
-    _require_auth(request)
+    await _require_auth(request)
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="command cannot be empty")
 
