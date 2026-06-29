@@ -6,7 +6,7 @@ services:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
+      if_env: Production
     restart: unless-stopped
     networks:
       - apis
@@ -19,7 +19,7 @@ services:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
+      if_env: Production
     restart: unless-stopped
     networks:
       - apis
@@ -32,7 +32,7 @@ services:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
+      if_env: Production
     restart: unless-stopped
     networks:
       - apis
@@ -45,7 +45,7 @@ services:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
+      if_env: Production
       FINANCE_URL: http://finance:8000/transactions
     restart: unless-stopped
     networks:
@@ -58,7 +58,7 @@ services:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
+      if_env: Production
     restart: unless-stopped
     networks:
       - apis
@@ -71,7 +71,7 @@ services:
       if_id: ${IF_ID}
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
+      if_env: Production
     restart: unless-stopped
     networks:
       - apis
