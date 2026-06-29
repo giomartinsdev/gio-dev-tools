@@ -1,9 +1,22 @@
 from __future__ import annotations
 import asyncio
+import re
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, HTTPException, Request
 from alexapy import AlexaAPI
+
+
+def _wrap_device(d: dict):
+    """Wrap a device dict so AlexaAPI can access _snake_case attributes."""
+    obj = type("Device", (), {})()
+    for k, v in d.items():
+        setattr(obj, k, v)
+        snake = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2",
+                       re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", k)).lower()
+        setattr(obj, f"_{snake}", v)
+    obj.get = lambda key, default=None: d.get(key, default)
+    return obj
 
 from .schemas import (
     AuthFinalizeRequest,
@@ -149,26 +162,28 @@ async def send_command(body: CommandRequest, request: Request):
         if device is None:
             raise HTTPException(status_code=503, detail="no device available")
 
-    alexa_api = AlexaAPI(device, login)
     text = body.text.strip()
+    dev_obj = _wrap_device(device)
+    alexa_api = AlexaAPI(dev_obj, login)
 
-    # Discover available methods and try in order
-    api_methods = [m for m in dir(AlexaAPI) if not m.startswith("_")]
-    instance_methods = [m for m in dir(alexa_api) if not m.startswith("_")]
     from shared.logger import get_logger
     _log = get_logger(__name__)
-    _log.info(f"AlexaAPI class methods: {api_methods}")
-    _log.info(f"alexa_api instance methods: {instance_methods}")
+    _log.info(f"AlexaAPI methods: {[m for m in dir(alexa_api) if not m.startswith('_')]}")
 
-    if hasattr(AlexaAPI, "send_sequence_command"):
-        # Static/class method form: AlexaAPI.send_sequence_command(login, device, cmd, value)
-        await AlexaAPI.send_sequence_command(
-            login, device, "Alexa.TextCommand",
-            value={"text": text, "textType": "text"},
-        )
-    elif hasattr(alexa_api, "send_tts"):
-        await alexa_api.send_tts(text)
-    else:
-        raise HTTPException(status_code=501, detail=f"no send method found. methods={instance_methods}")
+    # Try TextCommand (processes as voice command); fall back to TTS
+    sent = False
+    for method_name, args, kwargs in [
+        ("send_sequence_command", ("Alexa.TextCommand",), {"value": {"text": text, "textType": "text"}}),
+        ("run_behavior",          ("Alexa.TextCommand", {"text": text, "textType": "text"}), {}),
+        ("send_text_command",     (text,), {}),
+        ("send_tts",              (text,), {}),
+    ]:
+        if hasattr(alexa_api, method_name):
+            await getattr(alexa_api, method_name)(*args, **kwargs)
+            _log.info(f"sent via {method_name}")
+            sent = True
+            break
+    if not sent:
+        raise HTTPException(status_code=501, detail="no supported send method found in this alexapy version")
 
     return CommandResponse(sent=True, text=body.text.strip(), device=device.get("accountName", ""))
