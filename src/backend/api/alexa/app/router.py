@@ -40,7 +40,7 @@ async def auth_status(request: Request):
     if login is None:
         return AuthStatusResponse(authenticated=False, status={})
     status = login.status or {}
-    start_url = getattr(login, "start_url", None)
+    start_url = str(getattr(login, "start_url", None) or "") or None
     return AuthStatusResponse(
         authenticated=bool(status.get("login_successful")),
         start_url=start_url if not status.get("login_successful") else None,
