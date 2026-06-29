@@ -138,7 +138,7 @@ export function AlexaModule() {
   }
 
   if (!authenticated) {
-    const needsOtp = authStatus['verification_code_required'] || authStatus['claimspicker_required'] || authStatus['authselect_required']
+    const needsOtp = !!(authStatus['verification_code_required'] || authStatus['claimspicker_required'] || authStatus['authselect_required'])
     const needsCaptcha = !!authStatus['captcha_required']
     const statusEmpty = Object.keys(authStatus).length === 0
 
