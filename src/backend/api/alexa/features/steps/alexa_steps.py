@@ -33,7 +33,7 @@ def step_given_client(context, device):
 
 @when('I send the command "([^"]*)"')
 def step_send_command(context, text):
-    context.last_result = asyncio.get_event_loop().run_until_complete(
+    context.last_result = asyncio.run(
         context.handler.handle(text, context.client.device_name)
     )
 
@@ -41,9 +41,7 @@ def step_send_command(context, text):
 @when('I try to send the command "([^"]*)"')
 def step_try_send_command(context, text):
     try:
-        asyncio.get_event_loop().run_until_complete(
-            context.handler.handle(text, context.client.device_name)
-        )
+        asyncio.run(context.handler.handle(text, context.client.device_name))
     except ValueError as e:
         context.last_error = e
 
