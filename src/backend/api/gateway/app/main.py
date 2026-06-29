@@ -16,6 +16,7 @@ FINANCE_URL = os.environ.get("FINANCE_URL", "http://finance:8000")
 FINANCE_OCR_URL = os.environ.get("FINANCE_OCR_URL", "http://finance-ocr:8000")
 ASSET_QUOTES_URL = os.environ.get("ASSET_QUOTES_URL", "http://asset-quotes:8000")
 PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "http://portfolio:8000")
+ALEXA_URL = os.environ.get("ALEXA_URL", "http://alexa:8000")
 
 _HOP_BY_HOP = {
     "connection", "keep-alive", "transfer-encoding",
@@ -124,6 +125,13 @@ async def proxy_portfolio(request: Request, path: str = ""):
     return await _forward_internal(request, target)
 
 
+@app.api_route("/alexa", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@app.api_route("/alexa/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_alexa(request: Request, path: str = ""):
+    target = f"{ALEXA_URL}/{path}" if path else ALEXA_URL
+    return await _forward_internal(request, target)
+
+
 @app.api_route("/fn/{function_name}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @app.api_route("/fn/{function_name}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy(function_name: str, request: Request, path: str = ""):
@@ -153,4 +161,5 @@ def health():
         "finance_ocr_url": FINANCE_OCR_URL,
         "asset_quotes_url": ASSET_QUOTES_URL,
         "portfolio_url": PORTFOLIO_URL,
+        "alexa_url": ALEXA_URL,
     }

@@ -77,9 +77,26 @@ services:
       - apis
       - persistence
 
+  alexa:
+    image: re.giomartins.dev/alexa:latest
+    container_name: alexa
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    volumes:
+      - alexa_data:/data/alexa
+    networks:
+      - apis
+
 networks:
   apis:
     name: apis
     driver: bridge
   persistence:
     external: true
+
+volumes:
+  alexa_data:
