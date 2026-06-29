@@ -1,6 +1,8 @@
 from __future__ import annotations
 import asyncio
+import os
 from contextlib import asynccontextmanager
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,9 +49,20 @@ async def _async_init(app: FastAPI) -> None:
         await login.login()
         app.state.login = login
 
+        # Rewrite return_to so Amazon redirects to our callback instead of maplanding
+        callback_url = os.environ.get("ALEXA_CALLBACK_URL", "")
+        raw_start = getattr(login, "start_url", None)
+        if raw_start and callback_url:
+            parsed = urlparse(str(raw_start))
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            params["openid.return_to"] = [callback_url]
+            app.state.start_url = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
+        else:
+            app.state.start_url = str(raw_start) if raw_start else None
+
         login_status = login.status or {}
         logger.info(f"alexa login status: {login_status}")
-        logger.info(f"alexa start_url ready: {bool(getattr(login, 'start_url', None))}")
+        logger.info(f"alexa start_url ready: {bool(app.state.start_url)}")
 
         if login_status.get("login_successful"):
             await _load_devices(app)
@@ -67,6 +80,7 @@ async def lifespan(app: FastAPI):
     app.state._init_done = asyncio.Event()
     app.state._init_error = None
     app.state.login = None
+    app.state.start_url = None
     app.state.device_name = None
     app.state.devices = []
     app.state.default_device = None

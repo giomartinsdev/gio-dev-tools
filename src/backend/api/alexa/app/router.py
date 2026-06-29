@@ -1,9 +1,10 @@
 from __future__ import annotations
 import asyncio
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from alexapy import AlexaAPI
 
 
@@ -66,12 +67,55 @@ async def auth_status(request: Request):
     if login is None:
         return AuthStatusResponse(authenticated=False, status={})
     authenticated = _is_authenticated(login)
-    start_url = str(getattr(login, "start_url", None) or "") or None
+    start_url = request.app.state.start_url if not authenticated else None
     return AuthStatusResponse(
         authenticated=authenticated,
-        start_url=start_url if not authenticated else None,
+        start_url=start_url,
         status=login.status or {},
     )
+
+
+@router.get("/auth/callback", response_class=HTMLResponse)
+async def auth_callback(request: Request):
+    """Amazon redirects here after OAuth login. Extracts code and finalises automatically."""
+    await _wait(request)
+    code = (
+        request.query_params.get("openid.oa2.authorization_code")
+        or request.query_params.get("code")
+    )
+    if not code:
+        return HTMLResponse("<h2>No auth code in redirect URL.</h2>", status_code=400)
+
+    login = request.app.state.login
+    if login is None:
+        return HTMLResponse("<h2>Service not initialised.</h2>", status_code=503)
+
+    login.authorization_code = code
+    try:
+        await login.exchange_token_for_cookies()
+    except Exception as e:
+        return HTMLResponse(f"<h2>Token exchange failed: {e}</h2>", status_code=500)
+
+    try:
+        await login.test_loggedin()
+    except Exception:
+        pass
+
+    if not _is_authenticated(login):
+        return HTMLResponse("<h2>Authentication failed after exchange.</h2>", status_code=400)
+
+    from .main import _load_devices
+    await _load_devices(request.app)
+
+    return HTMLResponse("""
+<!doctype html><html><head><title>Alexa connected</title></head><body>
+<h2>✓ Amazon connected! You can close this tab.</h2>
+<script>
+  try { window.close(); } catch(e) {}
+  setTimeout(() => { document.body.innerHTML = '<h2>✓ Connected — close this tab and go back to your dashboard.</h2>'; }, 200);
+</script>
+</body></html>
+""")
 
 
 @router.post("/auth/finalize")

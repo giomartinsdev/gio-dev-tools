@@ -1,48 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
-import { Mic, Send, AlertCircle, ExternalLink } from 'lucide-react'
+import { Mic, Send, AlertCircle, ExternalLink, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const GW = import.meta.env.VITE_GATEWAY_URL
 
-interface Device {
-  name: string
-  type: string
-  serial: string
-}
-
+interface Device { name: string; type: string; serial: string }
 interface CommandEntry {
-  id: string
-  text: string
-  device: string
-  timestamp: Date
-  status: 'sent' | 'error'
-  error?: string
+  id: string; text: string; device: string
+  timestamp: Date; status: 'pending' | 'sent' | 'error'; error?: string
 }
 
 export function AlexaModule() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null)
   const [startUrl, setStartUrl] = useState<string | null>(null)
-  const [callbackUrl, setCallbackUrl] = useState('')
-  const [finalizing, setFinalizing] = useState(false)
-  const [finalizeError, setFinalizeError] = useState<string | null>(null)
+  const [waitingAuth, setWaitingAuth] = useState(false)
 
   const [devices, setDevices] = useState<Device[]>([])
-  const [selectedDevice, setSelectedDevice] = useState<string>('')
+  const [selectedDevice, setSelectedDevice] = useState('')
   const [devicesError, setDevicesError] = useState<string | null>(null)
   const [history, setHistory] = useState<CommandEntry[]>([])
   const [inputText, setInputText] = useState('')
+  const [lastSent, setLastSent] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  async function checkAuth() {
+  async function fetchStatus() {
     try {
       const r = await fetch(`${GW}/alexa/auth/status`)
       const data = await r.json()
       setAuthenticated(data.authenticated)
       setStartUrl(data.start_url ?? null)
-      if (data.authenticated) loadDevices()
+      return data.authenticated as boolean
     } catch {
       setAuthenticated(false)
+      return false
     }
   }
 
@@ -54,52 +46,53 @@ export function AlexaModule() {
       setDevices(data)
       if (data.length > 0) setSelectedDevice(data[0].name)
     } catch (e: unknown) {
-      setDevicesError(e instanceof Error ? e.message : 'failed to load devices')
+      setDevicesError(e instanceof Error ? e.message : 'failed')
     }
   }
 
-  useEffect(() => { checkAuth() }, [])
+  function startPolling() {
+    setWaitingAuth(true)
+    pollRef.current = setInterval(async () => {
+      const ok = await fetchStatus()
+      if (ok) {
+        clearInterval(pollRef.current!)
+        pollRef.current = null
+        setWaitingAuth(false)
+        loadDevices()
+      }
+    }, 2000)
+  }
+
+  function openLogin() {
+    if (!startUrl) return
+    window.open(startUrl, '_blank', 'noopener,noreferrer')
+    startPolling()
+  }
+
+  useEffect(() => {
+    fetchStatus().then(ok => { if (ok) loadDevices() })
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
 
-  async function finalize() {
-    if (!callbackUrl.trim() || finalizing) return
-    setFinalizing(true)
-    setFinalizeError(null)
-    try {
-      const r = await fetch(`${GW}/alexa/auth/finalize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: callbackUrl.trim() }),
-      })
-      const data = await r.json()
-      if (!r.ok) {
-        setFinalizeError(data.detail ?? 'failed')
-        return
-      }
-      setCallbackUrl('')
-      checkAuth()
-    } catch {
-      setFinalizeError('network error')
-    } finally {
-      setFinalizing(false)
-    }
-  }
+  // Clear "last sent" banner after 3s
+  useEffect(() => {
+    if (!lastSent) return
+    const t = setTimeout(() => setLastSent(null), 3000)
+    return () => clearTimeout(t)
+  }, [lastSent])
 
   async function sendCommand() {
     const text = inputText.trim()
     if (!text || sending) return
 
     const entry: CommandEntry = {
-      id: crypto.randomUUID(),
-      text,
-      device: selectedDevice,
-      timestamp: new Date(),
-      status: 'sent',
+      id: crypto.randomUUID(), text, device: selectedDevice,
+      timestamp: new Date(), status: 'pending',
     }
-
     setHistory(prev => [...prev, entry])
     setInputText('')
     setSending(true)
@@ -110,27 +103,24 @@ export function AlexaModule() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, device_name: selectedDevice }),
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'request failed' }))
-        setHistory(prev =>
-          prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: err.detail ?? 'request failed' } : e)
-        )
+      if (res.ok) {
+        setHistory(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'sent' } : e))
+        setLastSent(text)
+      } else {
+        const err = await res.json().catch(() => ({ detail: 'error' }))
+        setHistory(prev => prev.map(e => e.id === entry.id
+          ? { ...e, status: 'error', error: err.detail ?? 'error' } : e))
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'network error'
-      setHistory(prev =>
-        prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: msg } : e)
-      )
+      setHistory(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: msg } : e))
     } finally {
       setSending(false)
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendCommand()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCommand() }
   }
 
   if (authenticated === null) {
@@ -145,64 +135,32 @@ export function AlexaModule() {
             <Mic className="h-6 w-6 text-primary" />
           </div>
           <h2 className="text-base font-semibold">Connect Amazon Account</h2>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Log in with your Amazon account, then paste the redirect URL to complete setup.
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Click the button below, log in with your Amazon account, then come back — setup completes automatically.
           </p>
         </div>
 
-        <div className="flex w-full max-w-md flex-col gap-4">
-          <div className="rounded-lg border bg-muted/30 p-4 flex flex-col gap-3">
-            <p className="text-sm font-medium">Step 1 — Open Amazon login</p>
-            <a
-              href={startUrl ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                'flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors',
-                startUrl
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed pointer-events-none'
-              )}
-            >
-              <ExternalLink className="h-4 w-4" />
-              Login with Amazon
-            </a>
-          </div>
+        <button
+          onClick={openLogin}
+          disabled={!startUrl || waitingAuth}
+          className="flex items-center gap-2 rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          <ExternalLink className="h-4 w-4" />
+          {waitingAuth ? 'Waiting for login…' : 'Login with Amazon'}
+        </button>
 
-          <div className="rounded-lg border bg-muted/30 p-4 flex flex-col gap-3">
-            <p className="text-sm font-medium">Step 2 — Paste the redirect URL</p>
-            <p className="text-xs text-muted-foreground">
-              After logging in, the browser will redirect to a page at <code className="bg-muted px-1 rounded">amazon.com/ap/maplanding</code>.
-              Copy the full URL from the address bar and paste it below.
-            </p>
-            <textarea
-              rows={3}
-              className="w-full resize-none rounded-md border bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-              placeholder="https://www.amazon.com/ap/maplanding?openid.oa2.authorization_code=..."
-              value={callbackUrl}
-              onChange={e => setCallbackUrl(e.target.value)}
-            />
-            {finalizeError && (
-              <div className="flex items-center gap-2 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {finalizeError}
-              </div>
-            )}
-            <button
-              onClick={finalize}
-              disabled={!callbackUrl.trim() || finalizing}
-              className="rounded-md bg-primary py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
-            >
-              {finalizing ? 'Connecting…' : 'Complete Setup'}
-            </button>
-          </div>
-        </div>
+        {waitingAuth && (
+          <p className="text-xs text-muted-foreground animate-pulse">
+            Checking every 2 seconds…
+          </p>
+        )}
       </div>
     )
   }
 
   return (
     <div className="flex h-full flex-col gap-4">
+      {/* Device selector */}
       <div className="flex items-center gap-3">
         <select
           value={selectedDevice}
@@ -212,20 +170,26 @@ export function AlexaModule() {
         >
           {devices.length === 0 && <option value="">No devices</option>}
           {devices.map(d => (
-            <option key={d.serial} value={d.name}>
-              {d.name} ({d.type})
-            </option>
+            <option key={d.serial} value={d.name}>{d.name} ({d.type})</option>
           ))}
         </select>
       </div>
 
       {devicesError && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>Could not load devices: {devicesError}</span>
+          <AlertCircle className="h-4 w-4 shrink-0" />{devicesError}
         </div>
       )}
 
+      {/* Command sent banner */}
+      {lastSent && (
+        <div className="flex items-center gap-2 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>Command sent: <span className="font-medium">"{lastSent}"</span></span>
+        </div>
+      )}
+
+      {/* Chat area */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border bg-muted/20">
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {history.length === 0 ? (
@@ -237,30 +201,26 @@ export function AlexaModule() {
             <div className="flex flex-col gap-3">
               {history.map(entry => (
                 <div key={entry.id} className="flex flex-col items-end gap-1">
-                  <div
-                    className={cn(
-                      'max-w-[75%] rounded-xl px-4 py-2.5 text-sm shadow-sm',
-                      entry.status === 'error'
-                        ? 'bg-destructive/10 text-destructive border border-destructive/30'
-                        : 'bg-primary text-primary-foreground'
-                    )}
-                  >
+                  <div className={cn(
+                    'max-w-[75%] rounded-xl px-4 py-2.5 text-sm shadow-sm',
+                    entry.status === 'error'
+                      ? 'bg-destructive/10 text-destructive border border-destructive/30'
+                      : entry.status === 'pending'
+                      ? 'bg-primary/60 text-primary-foreground'
+                      : 'bg-primary text-primary-foreground'
+                  )}>
                     {entry.text}
-                    {entry.status === 'error' && entry.error && (
-                      <p className="mt-1 text-xs opacity-80">{entry.error}</p>
-                    )}
+                    {entry.error && <p className="mt-1 text-xs opacity-80">{entry.error}</p>}
                   </div>
                   <div className="flex items-center gap-2 px-1">
                     <span className="text-xs text-muted-foreground">{entry.device}</span>
-                    <span
-                      className={cn(
-                        'rounded-full px-1.5 py-0.5 text-xs font-medium',
-                        entry.status === 'error'
-                          ? 'bg-destructive/10 text-destructive'
-                          : 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      )}
-                    >
-                      {entry.status === 'error' ? 'error' : 'sent'}
+                    <span className={cn(
+                      'rounded-full px-1.5 py-0.5 text-xs font-medium',
+                      entry.status === 'error' ? 'bg-destructive/10 text-destructive'
+                      : entry.status === 'pending' ? 'bg-muted text-muted-foreground'
+                      : 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    )}>
+                      {entry.status === 'error' ? 'error' : entry.status === 'pending' ? 'sending…' : 'sent ✓'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
