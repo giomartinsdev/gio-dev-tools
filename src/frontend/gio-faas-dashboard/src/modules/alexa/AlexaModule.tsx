@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Mic, Send, AlertCircle } from 'lucide-react'
+import { Mic, Send, AlertCircle, KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const GW = import.meta.env.VITE_GATEWAY_URL
@@ -20,6 +20,12 @@ interface CommandEntry {
 }
 
 export function AlexaModule() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null)
+  const [authStatus, setAuthStatus] = useState<Record<string, unknown>>({})
+  const [otpCode, setOtpCode] = useState('')
+  const [otpError, setOtpError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
+
   const [devices, setDevices] = useState<Device[]>([])
   const [selectedDevice, setSelectedDevice] = useState<string>('')
   const [devicesError, setDevicesError] = useState<string | null>(null)
@@ -28,22 +34,59 @@ export function AlexaModule() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    fetch(`${GW}/alexa/devices`)
-      .then(r => {
-        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
-        return r.json()
-      })
-      .then((data: Device[]) => {
-        setDevices(data)
-        if (data.length > 0) setSelectedDevice(data[0].name)
-      })
-      .catch(e => setDevicesError(e.message ?? 'Failed to load devices'))
-  }, [])
+  async function checkAuth() {
+    try {
+      const r = await fetch(`${GW}/alexa/auth/status`)
+      const data = await r.json()
+      setAuthenticated(data.authenticated)
+      setAuthStatus(data.status ?? {})
+      if (data.authenticated) loadDevices()
+    } catch {
+      setAuthenticated(false)
+    }
+  }
+
+  async function loadDevices() {
+    try {
+      const r = await fetch(`${GW}/alexa/devices`)
+      if (!r.ok) throw new Error(`${r.status}`)
+      const data: Device[] = await r.json()
+      setDevices(data)
+      if (data.length > 0) setSelectedDevice(data[0].name)
+    } catch (e: unknown) {
+      setDevicesError(e instanceof Error ? e.message : 'failed to load devices')
+    }
+  }
+
+  useEffect(() => { checkAuth() }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
+
+  async function submitOtp() {
+    if (!otpCode.trim() || verifying) return
+    setVerifying(true)
+    setOtpError(null)
+    try {
+      const r = await fetch(`${GW}/alexa/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: otpCode.trim() }),
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        setOtpError(data.detail ?? 'verification failed')
+        return
+      }
+      setOtpCode('')
+      checkAuth()
+    } catch {
+      setOtpError('network error')
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   async function sendCommand() {
     const text = inputText.trim()
@@ -68,9 +111,9 @@ export function AlexaModule() {
         body: JSON.stringify({ text, device_name: selectedDevice }),
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'request failed' }))
+        const err = await res.json().catch(() => ({ detail: 'request failed' }))
         setHistory(prev =>
-          prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: err.error ?? 'request failed' } : e)
+          prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: err.detail ?? 'request failed' } : e)
         )
       }
     } catch (e: unknown) {
@@ -88,6 +131,56 @@ export function AlexaModule() {
       e.preventDefault()
       sendCommand()
     }
+  }
+
+  if (authenticated === null) {
+    return <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Connecting…</div>
+  }
+
+  if (!authenticated) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <KeyRound className="h-6 w-6 text-primary" />
+          </div>
+          <h2 className="text-base font-semibold">Amazon Login Required</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Enter the verification code sent to your phone or email by Amazon.
+          </p>
+          {Object.keys(authStatus).length > 0 && (
+            <p className="text-xs text-muted-foreground font-mono bg-muted rounded px-2 py-1">
+              status: {JSON.stringify(authStatus)}
+            </p>
+          )}
+        </div>
+
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <input
+            type="text"
+            inputMode="numeric"
+            className="h-10 w-full rounded-md border bg-background px-3 text-center text-lg tracking-widest focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="123456"
+            value={otpCode}
+            onChange={e => setOtpCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submitOtp()}
+          />
+          {otpError && (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {otpError}
+            </div>
+          )}
+          <button
+            onClick={submitOtp}
+            disabled={!otpCode.trim() || verifying}
+            className="rounded-md bg-primary py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+          >
+            {verifying ? 'Verifying…' : 'Verify'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -111,7 +204,7 @@ export function AlexaModule() {
       {devicesError && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>Could not load devices: {devicesError}. You can still send commands manually.</span>
+          <span>Could not load devices: {devicesError}</span>
         </div>
       )}
 
@@ -174,7 +267,7 @@ export function AlexaModule() {
             />
             <button
               onClick={sendCommand}
-              disabled={!inputText.trim() || sending || (!selectedDevice && !devicesError)}
+              disabled={!inputText.trim() || sending}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
             >
               <Send className="h-4 w-4" />

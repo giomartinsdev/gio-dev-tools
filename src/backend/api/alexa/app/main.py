@@ -28,15 +28,29 @@ async def _async_init(app: FastAPI) -> None:
     )
     await login.login()
 
+    app.state.login = login
+    app.state.device_name = device_name
+    login_status = login.status or {}
+    logger.info(f"alexa login status: {login_status}")
+
+    if not login_status.get("login_successful"):
+        logger.warning("login incomplete — waiting for auth step (OTP/2FA?)")
+        return
+
+    await _load_devices(app)
+
+
+async def _load_devices(app: FastAPI) -> None:
+    login = app.state.login
+    device_name = app.state.device_name
     devices = await AlexaAPI.get_devices(login)
     default_device = next(
         (d for d in devices if d.get("accountName") == device_name),
         devices[0] if devices else None,
     )
-    app.state.login = login
     app.state.devices = devices
     app.state.default_device = default_device
-    logger.info(f"alexa init ok, {len(devices)} devices, default={default_device and default_device.get('accountName')}")
+    logger.info(f"alexa ready: {len(devices)} devices, default={default_device and default_device.get('accountName')}")
 
 
 def _init(app: FastAPI) -> None:
@@ -54,6 +68,7 @@ async def lifespan(app: FastAPI):
     app.state._init_done = threading.Event()
     app.state._init_error = None
     app.state.login = None
+    app.state.device_name = None
     app.state.devices = []
     app.state.default_device = None
     threading.Thread(target=_init, args=(app,), daemon=True).start()
