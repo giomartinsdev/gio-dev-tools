@@ -51,7 +51,7 @@ async def _async_init(app: FastAPI) -> None:
         logger.info(f"alexa login status: {login_status}")
         logger.info(f"alexa start_url ready: {bool(getattr(login, 'start_url', None))}")
 
-        if login_status.get("login_successful") or login_successful:
+        if login_status.get("login_successful"):
             await _load_devices(app)
         else:
             logger.warning(f"login incomplete: {login_status}")
