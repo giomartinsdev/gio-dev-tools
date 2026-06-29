@@ -85,7 +85,6 @@ services:
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
       if_env: prod
-      ALEXA_CALLBACK_URL: https://gateway.giomartins.dev/alexa/auth/callback
     restart: unless-stopped
     volumes:
       - alexa_data:/data/alexa
