@@ -8,13 +8,19 @@ from alexapy import AlexaAPI
 
 
 def _wrap_device(d: dict):
-    """Wrap a device dict so AlexaAPI can access _snake_case attributes."""
+    """Wrap a device dict so AlexaAPI can access _snake_case and plain attributes."""
     obj = type("Device", (), {})()
     for k, v in d.items():
         setattr(obj, k, v)
         snake = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2",
                        re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", k)).lower()
         setattr(obj, f"_{snake}", v)
+        setattr(obj, snake, v)      # also set without leading underscore
+    # aliases expected by alexapy internals
+    obj.device_serial_number = d.get("serialNumber", "")
+    obj._device_type = d.get("deviceType", "")
+    obj._device_family = d.get("deviceFamily", "")
+    obj._locale = d.get("locale", "en-US")
     obj.get = lambda key, default=None: d.get(key, default)
     return obj
 
@@ -166,24 +172,7 @@ async def send_command(body: CommandRequest, request: Request):
     dev_obj = _wrap_device(device)
     alexa_api = AlexaAPI(dev_obj, login)
 
-    from shared.logger import get_logger
-    _log = get_logger(__name__)
-    _log.info(f"AlexaAPI methods: {[m for m in dir(alexa_api) if not m.startswith('_')]}")
-
-    # Try TextCommand (processes as voice command); fall back to TTS
-    sent = False
-    for method_name, args, kwargs in [
-        ("send_sequence_command", ("Alexa.TextCommand",), {"value": {"text": text, "textType": "text"}}),
-        ("run_behavior",          ("Alexa.TextCommand", {"text": text, "textType": "text"}), {}),
-        ("send_text_command",     (text,), {}),
-        ("send_tts",              (text,), {}),
-    ]:
-        if hasattr(alexa_api, method_name):
-            await getattr(alexa_api, method_name)(*args, **kwargs)
-            _log.info(f"sent via {method_name}")
-            sent = True
-            break
-    if not sent:
-        raise HTTPException(status_code=501, detail="no supported send method found in this alexapy version")
+    # run_custom sends text as a voice command (Alexa.TextCommand via send_sequence)
+    await alexa_api.run_custom(text)
 
     return CommandResponse(sent=True, text=body.text.strip(), device=device.get("accountName", ""))
