@@ -42,14 +42,18 @@ async def _async_init(app: FastAPI) -> None:
             email=email,
             password=password,
             outputpath=lambda path: f"/data/alexa/{path}",
+            debug=True,
         )
         await login.login()
         app.state.login = login
 
         login_status = login.status or {}
+        login_successful = getattr(login, "login_successful", None)
         logger.info(f"alexa login status: {login_status}")
+        logger.info(f"alexa login_successful attr: {login_successful}")
+        logger.info(f"alexa login attrs: {[a for a in dir(login) if not a.startswith('_')]}")
 
-        if login_status.get("login_successful"):
+        if login_status.get("login_successful") or login_successful:
             await _load_devices(app)
         else:
             logger.warning(f"login incomplete: {login_status}")
