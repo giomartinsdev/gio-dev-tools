@@ -24,7 +24,7 @@ async def _async_init(app: FastAPI) -> None:
         url="amazon.com",
         email=email,
         password=password,
-        outputpath="/data/alexa",
+        outputpath=lambda path: f"/data/alexa/{path}",
     )
     await login.login()
 
