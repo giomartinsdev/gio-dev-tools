@@ -52,8 +52,7 @@ services:
     container_name: rabbitmq
     restart: unless-stopped
     networks:
-      persistence:
-        ipv4_address: 10.20.0.13
+      - persistence
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -69,8 +68,7 @@ services:
     container_name: evolution-api
     restart: unless-stopped
     networks:
-      persistence:
-        ipv4_address: 10.20.0.14
+      - persistence
     environment:
       SERVER_URL: https://evo.giomartins.dev
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
@@ -119,8 +117,7 @@ services:
     container_name: whatsapp-worker
     restart: unless-stopped
     networks:
-      persistence:
-        ipv4_address: 10.20.0.15
+      - persistence
     environment:
       RABBITMQ_URI: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}
       RABBITMQ_EXCHANGE_NAME: ${RABBITMQ_EXCHANGE_NAME}
