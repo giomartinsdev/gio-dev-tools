@@ -63,10 +63,15 @@ async def _broadcast_loop(rabbitmq_uri: str, rabbitmq_exchange: str) -> None:
             await asyncio.sleep(5)
 
 
+async def _init_conn(conn: asyncpg.Connection) -> None:
+    await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+    await conn.set_type_codec("json", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg = _load_config()
-    app.state.pg = await asyncpg.create_pool(cfg["postgres_uri"], min_size=2, max_size=10)
+    app.state.pg = await asyncpg.create_pool(cfg["postgres_uri"], min_size=2, max_size=10, init=_init_conn)
     app.state.mq_uri = cfg["rabbitmq_uri"]
     app.state.evolution_api_key = cfg["evolution_api_key"]
     app.state.evolution_instance = cfg["evolution_instance"]
