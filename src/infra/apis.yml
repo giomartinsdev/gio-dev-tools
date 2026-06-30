@@ -91,6 +91,19 @@ services:
     networks:
       - apis
 
+  whatsapp:
+    image: re.giomartins.dev/whatsapp:latest
+    container_name: whatsapp
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    networks:
+      - apis
+      - persistence
+
 networks:
   apis:
     name: apis

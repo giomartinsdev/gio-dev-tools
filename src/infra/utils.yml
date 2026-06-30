@@ -15,6 +15,7 @@ services:
       ASSET_QUOTES_URL: http://asset-quotes:8000
       PORTFOLIO_URL: http://portfolio:8000
       ALEXA_URL: http://alexa:8000
+      WHATSAPP_URL: http://whatsapp:8000
       PORT: 3000
     restart: unless-stopped
     networks:

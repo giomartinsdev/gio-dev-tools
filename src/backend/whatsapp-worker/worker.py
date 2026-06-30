@@ -5,15 +5,20 @@ import os
 
 import aio_pika
 import asyncpg
+import httpx
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 RABBITMQ_URI = os.environ["RABBITMQ_URI"]
-RABBITMQ_EXCHANGE = os.environ["RABBITMQ_EXCHANGE_NAME"]
+RABBITMQ_EXCHANGE = os.environ.get("RABBITMQ_EXCHANGE_NAME", "evolution")
 POSTGRES_URI = os.environ["POSTGRES_URI"]
+EVOLUTION_URL = os.environ.get("EVOLUTION_URL", "http://evolution-api:8080")
+EVOLUTION_API_KEY = os.environ.get("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE", "admin")
 
-QUEUE_NAME = "whatsapp-worker"
+INBOUND_QUEUE = "whatsapp-worker"
+SEND_QUEUE = "whatsapp-send"
 ROUTING_KEY = "#"
 RECONNECT_DELAY = 5
 
@@ -35,7 +40,6 @@ CREATE INDEX IF NOT EXISTS idx_wm_received ON whatsapp_messages (received_at DES
 
 
 def _admin_uri(uri: str) -> str:
-    """Replace the database in the connection URI with 'postgres' for admin ops."""
     return uri.rsplit("/", 1)[0] + "/postgres"
 
 
@@ -67,8 +71,6 @@ async def ensure_db(uri: str) -> None:
 async def persist(pool: asyncpg.Pool, routing_key: str, payload: dict) -> None:
     event = payload.get("event") or routing_key.replace(".", "_").upper()
     instance = payload.get("instance")
-
-    # Dig into common evolution event shapes for key fields
     data = payload.get("data") or {}
     key = data.get("key") or {}
     remote_jid = key.get("remoteJid") or data.get("remoteJid")
@@ -87,50 +89,77 @@ async def persist(pool: asyncpg.Pool, routing_key: str, payload: dict) -> None:
     logger.info(f"persisted {event} | jid={remote_jid} | instance={instance}")
 
 
-async def consume(pool: asyncpg.Pool) -> None:
+async def send_via_evolution(payload: dict) -> None:
+    number = payload.get("number", "")
+    text = payload.get("text", "")
+    instance = payload.get("instance") or EVOLUTION_INSTANCE
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{EVOLUTION_URL}/message/sendText/{instance}",
+            json={"number": number, "text": text},
+            headers={"apikey": EVOLUTION_API_KEY},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+    logger.info(f"sent message | number={number} | instance={instance}")
+
+
+async def consume_inbound(pool: asyncpg.Pool) -> None:
     while True:
         try:
-            logger.info("connecting to RabbitMQ")
+            logger.info("inbound: connecting to RabbitMQ")
             conn = await aio_pika.connect_robust(RABBITMQ_URI)
             async with conn:
                 channel = await conn.channel()
                 await channel.set_qos(prefetch_count=20)
-
                 exchange = await channel.declare_exchange(
-                    RABBITMQ_EXCHANGE,
-                    aio_pika.ExchangeType.TOPIC,
-                    durable=True,
+                    RABBITMQ_EXCHANGE, aio_pika.ExchangeType.TOPIC, durable=True
                 )
-
-                queue = await channel.declare_queue(QUEUE_NAME, durable=True)
+                queue = await channel.declare_queue(INBOUND_QUEUE, durable=True)
                 await queue.bind(exchange, routing_key=ROUTING_KEY)
-
-                logger.info(f"consuming queue '{QUEUE_NAME}'")
-
+                logger.info(f"inbound: consuming queue '{INBOUND_QUEUE}'")
                 async with queue.iterator() as it:
                     async for message in it:
                         async with message.process(requeue=True):
                             try:
                                 body = json.loads(message.body)
                             except json.JSONDecodeError:
-                                logger.warning(
-                                    f"non-JSON on {message.routing_key}, discarding"
-                                )
+                                logger.warning(f"non-JSON on {message.routing_key}, discarding")
                                 return
-
                             await persist(pool, message.routing_key or "", body)
-
         except Exception as exc:
-            logger.error(f"error: {exc} — reconnecting in {RECONNECT_DELAY}s")
+            logger.error(f"inbound error: {exc} — reconnecting in {RECONNECT_DELAY}s")
+            await asyncio.sleep(RECONNECT_DELAY)
+
+
+async def consume_outbound() -> None:
+    while True:
+        try:
+            logger.info("outbound: connecting to RabbitMQ")
+            conn = await aio_pika.connect_robust(RABBITMQ_URI)
+            async with conn:
+                channel = await conn.channel()
+                await channel.set_qos(prefetch_count=5)
+                queue = await channel.declare_queue(SEND_QUEUE, durable=True)
+                logger.info(f"outbound: consuming queue '{SEND_QUEUE}'")
+                async with queue.iterator() as it:
+                    async for message in it:
+                        async with message.process(requeue=True):
+                            try:
+                                body = json.loads(message.body)
+                                await send_via_evolution(body)
+                            except Exception as exc:
+                                logger.error(f"send failed: {exc}")
+        except Exception as exc:
+            logger.error(f"outbound error: {exc} — reconnecting in {RECONNECT_DELAY}s")
             await asyncio.sleep(RECONNECT_DELAY)
 
 
 async def main() -> None:
     await ensure_db(POSTGRES_URI)
-
     pool = await asyncpg.create_pool(POSTGRES_URI, min_size=2, max_size=10)
     try:
-        await consume(pool)
+        await asyncio.gather(consume_inbound(pool), consume_outbound())
     finally:
         await pool.close()
 

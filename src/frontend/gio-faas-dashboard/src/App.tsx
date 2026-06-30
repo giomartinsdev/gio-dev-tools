@@ -6,8 +6,9 @@ import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioMod
 import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
 import { ObsidianModule, obsidianMeta } from '@/modules/obsidian/ObsidianModule'
 import { AlexaModule, alexaMeta } from '@/modules/alexa/AlexaModule'
+import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
 
-const modules = [financeMeta, portfolioMeta, kanbanMeta, obsidianMeta, alexaMeta]
+const modules = [financeMeta, portfolioMeta, kanbanMeta, obsidianMeta, alexaMeta, whatsappMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -70,6 +71,7 @@ export default function App() {
           {activeId === 'kanban' && <KanbanModule />}
           {activeId === 'obsidian' && <ObsidianModule />}
           {activeId === 'alexa' && <AlexaModule />}
+          {activeId === 'whatsapp' && <WhatsappModule />}
         </main>
       </div>
     </div>
