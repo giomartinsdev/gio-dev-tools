@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/backend/whatsapp-worker/**'
+      - 'src/backend/shared/**'
 
 jobs:
   build:
@@ -27,7 +28,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: src/backend/whatsapp-worker
+          context: src/backend
           file: src/backend/whatsapp-worker/Dockerfile
           push: true
           tags: |
@@ -65,22 +66,16 @@ jobs:
           docker pull re.giomartins.dev/whatsapp-worker:latest
           docker stop whatsapp-worker 2>/dev/null || true
           docker rm whatsapp-worker 2>/dev/null || true
-          POSTGRES_USER=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='POSTGRES_USER';")
-          POSTGRES_PASSWORD=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='POSTGRES_PASSWORD';")
-          RABBITMQ_USER=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_USER';")
-          RABBITMQ_PASSWORD=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_PASSWORD';")
-          RABBITMQ_VHOST=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_VHOST';")
-          RABBITMQ_EXCHANGE=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_EXCHANGE_NAME';")
-          EVOLUTION_API_KEY=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='EVOLUTION_API_KEY';")
+          IF_ID=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_ID';")
+          IF_SECRET=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_SECRET';")
+          IF_PROJECT_ID=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_PROJECT_ID';")
           docker run -d \
             --name whatsapp-worker \
             --restart unless-stopped \
             --network persistence \
-            -e RABBITMQ_URI="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}" \
-            -e RABBITMQ_EXCHANGE_NAME="${RABBITMQ_EXCHANGE}" \
-            -e POSTGRES_URI="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp" \
-            -e EVOLUTION_URL="http://evolution-api:8080" \
-            -e EVOLUTION_API_KEY="${EVOLUTION_API_KEY}" \
-            -e EVOLUTION_INSTANCE="admin" \
+            -e if_id="${IF_ID}" \
+            -e if_secret="${IF_SECRET}" \
+            -e if_project_id="${IF_PROJECT_ID}" \
+            -e if_env="prod" \
             re.giomartins.dev/whatsapp-worker:latest
           ENDSSH

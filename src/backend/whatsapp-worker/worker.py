@@ -6,9 +6,24 @@ import os
 import aio_pika
 import asyncpg
 import httpx
+from shared.secret_manager import SecretManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+
+_SECRET_KEYS = ["POSTGRES_URI", "RABBITMQ_URI", "RABBITMQ_EXCHANGE_NAME",
+                "EVOLUTION_API_KEY", "EVOLUTION_INSTANCE", "EVOLUTION_URL"]
+
+
+def _load_config() -> None:
+    missing = [k for k in _SECRET_KEYS if not os.environ.get(k)]
+    if missing:
+        sm = SecretManager()
+        for k in missing:
+            os.environ[k] = sm.get_secret(k)
+
+
+_load_config()
 
 RABBITMQ_URI = os.environ["RABBITMQ_URI"]
 RABBITMQ_EXCHANGE = os.environ.get("RABBITMQ_EXCHANGE_NAME", "evolution")
