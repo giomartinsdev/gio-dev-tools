@@ -39,17 +39,20 @@ def _admin_uri(uri: str) -> str:
     return uri.rsplit("/", 1)[0] + "/postgres"
 
 
+def _db_name(uri: str) -> str:
+    return uri.rsplit("/", 1)[-1]
+
+
 async def ensure_db(uri: str) -> None:
+    db = _db_name(uri)
     admin = await asyncpg.connect(_admin_uri(uri))
     try:
         exists = await admin.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = 'evolution'"
+            "SELECT 1 FROM pg_database WHERE datname = $1", db
         )
         if not exists:
-            await admin.execute("CREATE DATABASE evolution")
-            logger.info("created database 'evolution'")
-    finally:
-        await admin.close()
+            await admin.execute(f"CREATE DATABASE {db}")
+            logger.info(f"created database '{db}'")
 
     conn = await asyncpg.connect(uri)
     try:
@@ -95,7 +98,6 @@ async def consume(pool: asyncpg.Pool) -> None:
                     RABBITMQ_EXCHANGE,
                     aio_pika.ExchangeType.TOPIC,
                     durable=True,
-                    passive=True,
                 )
 
                 queue = await channel.declare_queue(QUEUE_NAME, durable=True)
