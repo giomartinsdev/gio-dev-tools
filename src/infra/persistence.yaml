@@ -101,7 +101,7 @@ services:
       RABBITMQ_ENABLED: "true"
       RABBITMQ_URI: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}
       RABBITMQ_EXCHANGE_NAME: ${RABBITMQ_EXCHANGE_NAME}
-      RABBITMQ_GLOBAL_EVENTS: "true"
+      RABBITMQ_GLOBAL_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
