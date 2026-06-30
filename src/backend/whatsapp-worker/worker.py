@@ -120,12 +120,15 @@ async def consume_inbound(pool: asyncpg.Pool) -> None:
                 logger.info(f"inbound: consuming queue '{INBOUND_QUEUE}'")
                 async with queue.iterator() as it:
                     async for message in it:
-                        async with message.process(requeue=True):
+                        async with message.process(requeue=False):
                             try:
                                 body = json.loads(message.body)
-                            except json.JSONDecodeError:
-                                logger.warning(f"non-JSON on {message.routing_key}, discarding")
-                                return
+                            except (json.JSONDecodeError, Exception):
+                                logger.warning(f"unparseable message on {message.routing_key}, discarding")
+                                continue
+                            if not isinstance(body, dict):
+                                logger.warning(f"unexpected payload type {type(body)} on {message.routing_key}, discarding")
+                                continue
                             await persist(pool, message.routing_key or "", body)
         except Exception as exc:
             logger.error(f"inbound error: {exc} — reconnecting in {RECONNECT_DELAY}s")
