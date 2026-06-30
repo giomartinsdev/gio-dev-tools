@@ -3,6 +3,7 @@ install(["app"])
 
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 
 import aio_pika
@@ -19,15 +20,23 @@ logger = get_logger(__name__)
 _sse_subs: set[asyncio.Queue] = set()
 
 
+_SECRET_KEYS = ["POSTGRES_URI", "RABBITMQ_URI", "RABBITMQ_EXCHANGE_NAME",
+                "EVOLUTION_API_KEY", "EVOLUTION_INSTANCE", "EVOLUTION_URL"]
+
+
 def _load_config() -> dict:
-    sm = SecretManager()
+    missing = [k for k in _SECRET_KEYS if not os.environ.get(k)]
+    if missing:
+        sm = SecretManager()
+        for k in missing:
+            os.environ[k] = sm.get_secret(k)
     return {
-        "postgres_uri": sm.get_secret("POSTGRES_URI"),
-        "rabbitmq_uri": sm.get_secret("RABBITMQ_URI"),
-        "rabbitmq_exchange": sm.get_secret("RABBITMQ_EXCHANGE_NAME"),
-        "evolution_api_key": sm.get_secret("EVOLUTION_API_KEY"),
-        "evolution_instance": sm.get_secret("EVOLUTION_INSTANCE"),
-        "evolution_url": sm.get_secret("EVOLUTION_URL"),
+        "postgres_uri": os.environ["POSTGRES_URI"],
+        "rabbitmq_uri": os.environ["RABBITMQ_URI"],
+        "rabbitmq_exchange": os.environ["RABBITMQ_EXCHANGE_NAME"],
+        "evolution_api_key": os.environ["EVOLUTION_API_KEY"],
+        "evolution_instance": os.environ["EVOLUTION_INSTANCE"],
+        "evolution_url": os.environ["EVOLUTION_URL"],
     }
 
 
