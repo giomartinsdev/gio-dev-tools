@@ -130,12 +130,10 @@ services:
     networks:
       - persistence
     environment:
-      RABBITMQ_URI: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}
-      RABBITMQ_EXCHANGE_NAME: ${RABBITMQ_EXCHANGE_NAME}
-      POSTGRES_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp
-      EVOLUTION_URL: http://evolution-api:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
-      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE}
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
     depends_on:
       postgres:
         condition: service_healthy

@@ -12,7 +12,8 @@ class SecretManager:
     def _connect(self):
         if self._client is not None:
             return
-        client = InfisicalSDKClient(host="http://if.giomartins.dev")
+        host = os.environ.get("INFISICAL_HOST", "http://infisical:8080")
+        client = InfisicalSDKClient(host=host)
         client.auth.universal_auth.login(
             client_id=os.environ["if_id"],
             client_secret=os.environ["if_secret"]
