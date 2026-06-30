@@ -61,6 +61,26 @@ jobs:
 
       - name: Pull and restart on server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "docker pull re.giomartins.dev/whatsapp-worker:latest && \
-             docker compose -f ~/stacks/persistence/docker-compose.yml up -d --no-deps whatsapp-worker"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+          docker pull re.giomartins.dev/whatsapp-worker:latest
+          docker stop whatsapp-worker 2>/dev/null || true
+          docker rm whatsapp-worker 2>/dev/null || true
+          POSTGRES_USER=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='POSTGRES_USER';")
+          POSTGRES_PASSWORD=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='POSTGRES_PASSWORD';")
+          RABBITMQ_USER=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_USER';")
+          RABBITMQ_PASSWORD=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_PASSWORD';")
+          RABBITMQ_VHOST=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_VHOST';")
+          RABBITMQ_EXCHANGE=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='RABBITMQ_EXCHANGE_NAME';")
+          EVOLUTION_API_KEY=$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='persistence' AND key='EVOLUTION_API_KEY';")
+          docker run -d \
+            --name whatsapp-worker \
+            --restart unless-stopped \
+            --network persistence \
+            -e RABBITMQ_URI="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}" \
+            -e RABBITMQ_EXCHANGE_NAME="${RABBITMQ_EXCHANGE}" \
+            -e POSTGRES_URI="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp" \
+            -e EVOLUTION_URL="http://evolution-api:8080" \
+            -e EVOLUTION_API_KEY="${EVOLUTION_API_KEY}" \
+            -e EVOLUTION_INSTANCE="admin" \
+            re.giomartins.dev/whatsapp-worker:latest
+          ENDSSH
