@@ -65,7 +65,7 @@ services:
       - "15672:15672"
 
   evolution-api:
-    image: atendai/evolution-api:latest
+    image: evoapicloud/evolution-api:latest
     container_name: evolution-api
     restart: unless-stopped
     networks:
