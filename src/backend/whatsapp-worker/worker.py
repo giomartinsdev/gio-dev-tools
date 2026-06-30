@@ -53,6 +53,8 @@ async def ensure_db(uri: str) -> None:
         if not exists:
             await admin.execute(f"CREATE DATABASE {db}")
             logger.info(f"created database '{db}'")
+    finally:
+        await admin.close()
 
     conn = await asyncpg.connect(uri)
     try:
