@@ -167,19 +167,6 @@ configs:
               regex: ".+"
               action: keep
 
-        - job_name: faasd-functions
-          journal:
-            json: false
-            max_age: 12h
-            labels:
-              job: faasd
-          relabel_configs:
-            - source_labels: [__journal_syslog_identifier]
-              regex: 'openfaas-fn:(.+)'
-              target_label: function_name
-            - source_labels: [__journal_syslog_identifier]
-              regex: 'openfaas.*'
-              action: keep
 
   tempo_config:
     content: |
