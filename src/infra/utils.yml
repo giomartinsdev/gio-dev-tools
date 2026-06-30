@@ -62,6 +62,7 @@ services:
       SITE_URL: ${INFISICAL_SITE_URL}
     networks:
       - persistence
+      - apis
 
 networks:
   apis:
