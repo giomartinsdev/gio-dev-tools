@@ -140,6 +140,40 @@ services:
       rabbitmq:
         condition: service_started
 
+  bzzoiro-acl:
+    image: re.giomartins.dev/bzzoiro-acl:latest
+    container_name: bzzoiro-acl
+    restart: unless-stopped
+    networks:
+      - persistence
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+  domain-persister:
+    image: re.giomartins.dev/domain-persister:latest
+    container_name: domain-persister
+    restart: unless-stopped
+    networks:
+      - persistence
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
 volumes:
   postgres_data:
   obsidian_data:
