@@ -1,0 +1,177 @@
+name: Deploy workers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/backend/worker/**'
+      - 'src/backend/shared/**'
+
+jobs:
+  detect-changes:
+    runs-on: self-hosted
+    outputs:
+      workers: ${{ steps.changes.outputs.workers }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed workers
+        id: changes
+        run: |
+          SHARED_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -c '^src/backend/shared/' || true)
+          if [ "$SHARED_CHANGED" -gt 0 ]; then
+            CHANGED=$(find src/backend/worker -maxdepth 1 -mindepth 1 -type d \
+              | sed 's|src/backend/worker/||' \
+              | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD \
+              | grep '^src/backend/worker/' \
+              | cut -d'/' -f4 \
+              | sort -u \
+              | while read worker; do [ -d "src/backend/worker/$worker" ] && echo "$worker"; done \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+          echo "workers=$CHANGED" >> $GITHUB_OUTPUT
+
+  build:
+    needs: detect-changes
+    runs-on: self-hosted
+    if: needs.detect-changes.outputs.workers != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: ${{ fromJson(needs.detect-changes.outputs.workers) }}
+
+    name: Build (${{ matrix.worker }})
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Resolve image name
+        id: image
+        run: |
+          # whatsapp's worker dir predates this pipeline and its image/container
+          # is already deployed as "whatsapp-worker" - keep that name stable.
+          # Every other worker dir name is used as-is.
+          case "${{ matrix.worker }}" in
+            whatsapp) echo "name=whatsapp-worker" >> "$GITHUB_OUTPUT" ;;
+            *) echo "name=${{ matrix.worker }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Check for BDD tests
+        id: has-tests
+        run: |
+          if [ -d "src/backend/worker/${{ matrix.worker }}/features" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        if: steps.has-tests.outputs.exists == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.has-tests.outputs.exists == 'true'
+        run: |
+          pip install \
+            -r src/backend/worker/${{ matrix.worker }}/requirements.txt \
+            -r src/backend/worker/${{ matrix.worker }}/requirements-dev.txt
+
+      - name: Run BDD tests with coverage (fail under 90%)
+        if: steps.has-tests.outputs.exists == 'true'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src/backend/worker/${{ matrix.worker }}:${{ github.workspace }}/src/backend
+        working-directory: src/backend/worker/${{ matrix.worker }}
+        run: |
+          coverage run -m behave --no-capture --format progress2
+          coverage report
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Log in to registry
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: re.giomartins.dev
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: src/backend
+          file: src/backend/worker/${{ matrix.worker }}/Dockerfile
+          push: true
+          tags: |
+            re.giomartins.dev/${{ steps.image.outputs.name }}:latest
+            re.giomartins.dev/${{ steps.image.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ steps.image.outputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ steps.image.outputs.name }}
+
+  deploy:
+    needs: [detect-changes, build]
+    runs-on: self-hosted
+    if: needs.detect-changes.outputs.workers != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: ${{ fromJson(needs.detect-changes.outputs.workers) }}
+
+    name: Deploy (${{ matrix.worker }})
+    steps:
+      - name: Resolve image name
+        id: image
+        run: |
+          case "${{ matrix.worker }}" in
+            whatsapp) echo "name=whatsapp-worker" >> "$GITHUB_OUTPUT" ;;
+            *) echo "name=${{ matrix.worker }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >> ~/.ssh/config << EOF
+          Host ${{ secrets.SSH_HOST }}
+            ProxyCommand cloudflared access ssh --hostname %h
+            StrictHostKeyChecking no
+            IdentityFile ~/.ssh/id_ed25519
+          EOF
+
+      - name: Pull and restart on server
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << ENDSSH
+          docker pull re.giomartins.dev/${IMAGE}:latest
+          docker stop ${IMAGE} 2>/dev/null || true
+          docker rm ${IMAGE} 2>/dev/null || true
+          IF_ID=\$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_ID';")
+          IF_SECRET=\$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_SECRET';")
+          IF_PROJECT_ID=\$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_PROJECT_ID';")
+          docker run -d \
+            --name ${IMAGE} \
+            --restart unless-stopped \
+            --network persistence \
+            -e if_id="\${IF_ID}" \
+            -e if_secret="\${IF_SECRET}" \
+            -e if_project_id="\${IF_PROJECT_ID}" \
+            -e if_env="prod" \
+            re.giomartins.dev/${IMAGE}:latest
+          ENDSSH
