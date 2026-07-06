@@ -8,7 +8,7 @@ from uuid import uuid4
 from behave import given, then, use_step_matcher, when
 
 import src.infrastructure.rabbitmq_consumer as consumer_module
-from shared.events import EventMeta, MatchStatus, MatchStatusChanged, RawFeedReceived
+from shared.events import EventMeta, InsightGenerated, MatchStatus, MatchStatusChanged, RawFeedReceived
 
 use_step_matcher("re")
 
@@ -81,6 +81,18 @@ def _domain_event_json(good: bool) -> bytes:
     return event.model_dump_json().encode()
 
 
+def _insight_json(good: bool) -> bytes:
+    if not good:
+        return b"not-json-at-all"
+    event = InsightGenerated(
+        meta=EventMeta(occurred_at=datetime.now(timezone.utc), producer="acl.bzzoiro", correlation_id=uuid4()),
+        insight_id=uuid4(), match_id=uuid4(), market="match_result", recommendation="favorite:H",
+        confidence="0.82", rationale="test", model="v4", feature_snapshot={},
+        generated_at=datetime.now(timezone.utc),
+    )
+    return event.model_dump_json().encode()
+
+
 def _run_one_cycle(coro_factory, connect_side_effect):
     async def scenario():
         with patch.object(consumer_module.aio_pika, "connect_robust", AsyncMock(side_effect=connect_side_effect)), \
@@ -127,6 +139,26 @@ def step_broker_domain_messages(context):
     context.poison_message = poison
 
 
+@given('a fake broker with one good insight message and one poison insight message')
+def step_broker_insight_messages(context):
+    context.insight_handler = Mock()
+
+    def _handle(body):
+        if body == b"not-json-at-all":
+            raise ValueError("poison message")
+
+    context.insight_handler.handle.side_effect = _handle
+    channel = Mock()
+    channel.set_qos = AsyncMock()
+    good = _FakeMessage(_insight_json(True))
+    poison = _FakeMessage(_insight_json(False))
+    queue = _FakeQueue([good, poison])
+    channel.get_queue = AsyncMock(return_value=queue)
+    context.connection = _FakeConnection(channel)
+    context.good_message = good
+    context.poison_message = poison
+
+
 @given('a fake broker that fails to connect once')
 def step_broker_fails_once(context):
     context.event_store = Mock()
@@ -156,6 +188,14 @@ def step_run_persister(context):
     )
 
 
+@when('the insight consumer runs one connection cycle')
+def step_run_insight_consumer(context):
+    _run_one_cycle(
+        lambda: consumer_module._consume_insights("amqp://fake", context.insight_handler),
+        [context.connection, asyncio.CancelledError],
+    )
+
+
 @then('the good message was appended and acked')
 def step_assert_appended_acked(context):
     context.event_store.append.assert_called_once()
@@ -174,6 +214,12 @@ def step_assert_projected(context):
     context.good_message.ack.assert_awaited_once()
 
 
+@then('the good insight message was projected and acked')
+def step_assert_insight_projected(context):
+    context.insight_handler.handle.assert_any_call(context.good_message.body)
+    context.good_message.ack.assert_awaited_once()
+
+
 @then('the connection was retried after the reconnect delay')
 def step_assert_retried(context):
     context.fake_sleep.assert_awaited_with(consumer_module.RECONNECT_DELAY)
@@ -183,8 +229,10 @@ def step_assert_retried(context):
 def step_broker_both(context):
     context.event_store = Mock()
     context.projector = Mock()
+    context.insight_handler = Mock()
     context.raw_calls = []
     context.persister_calls = []
+    context.insight_calls = []
 
 
 @when('run_consumers executes one cycle of both loops')
@@ -195,10 +243,16 @@ def step_run_both(context):
     async def fake_persister(uri, projector):
         context.persister_calls.append((uri, projector))
 
+    async def fake_insights(uri, insight_handler):
+        context.insight_calls.append((uri, insight_handler))
+
     async def scenario():
         with patch.object(consumer_module, "_consume_archive_raw", fake_archive_raw), \
-             patch.object(consumer_module, "_consume_persister", fake_persister):
-            await consumer_module.run_consumers("amqp://fake", context.event_store, context.projector)
+             patch.object(consumer_module, "_consume_persister", fake_persister), \
+             patch.object(consumer_module, "_consume_insights", fake_insights):
+            await consumer_module.run_consumers(
+                "amqp://fake", context.event_store, context.projector, context.insight_handler,
+            )
 
     asyncio.run(scenario())
 
@@ -207,3 +261,4 @@ def step_run_both(context):
 def step_assert_both_consumed(context):
     assert context.raw_calls == [("amqp://fake", context.event_store)]
     assert context.persister_calls == [("amqp://fake", context.projector)]
+    assert context.insight_calls == [("amqp://fake", context.insight_handler)]

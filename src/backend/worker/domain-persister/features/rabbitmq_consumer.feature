@@ -21,7 +21,13 @@ Feature: RabbitMQ consumers
     Then the good message was projected and acked
     And the poison message was nacked without requeue
 
-  Scenario: run_consumers drives both loops concurrently
+  Scenario: run_consumers drives all three loops concurrently
     Given a fake broker with one good raw message and one good domain message
     When run_consumers executes one cycle of both loops
     Then both queues were consumed
+
+  Scenario: The insight consumer projects a good message and nacks a poison one
+    Given a fake broker with one good insight message and one poison insight message
+    When the insight consumer runs one connection cycle
+    Then the good insight message was projected and acked
+    And the poison message was nacked without requeue

@@ -9,6 +9,7 @@ from shared.logger import get_logger
 from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.project_domain_event import ProjectDomainEventHandler
+from src.application.project_insight import ProjectInsightHandler
 from src.infrastructure.event_store_repository import EventStoreRepository
 from src.infrastructure.models import create_all
 from src.infrastructure.rabbitmq_consumer import run_consumers
@@ -44,7 +45,8 @@ async def _run_background(app: FastAPI) -> None:
     if app.state._init_error is not None:
         return
     projector = ProjectDomainEventHandler(app.state.read_models)
-    await run_consumers(app.state.rabbitmq_uri, app.state.event_store, projector)
+    insight_handler = ProjectInsightHandler(app.state.read_models)
+    await run_consumers(app.state.rabbitmq_uri, app.state.event_store, projector, insight_handler)
 
 
 @asynccontextmanager

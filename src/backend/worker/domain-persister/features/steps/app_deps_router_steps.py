@@ -9,7 +9,7 @@ from behave import given, then, use_step_matcher, when
 from fastapi import HTTPException
 
 from app.deps import _ready, get_read_models
-from app.router import get_match, list_matches
+from app.router import get_match, list_insights, list_matches
 
 use_step_matcher("re")
 
@@ -86,6 +86,12 @@ def step_fake_repo_empty(context):
     context.repo.find_match.return_value = None
 
 
+@given('a fake read model repository returning 1 insight')
+def step_fake_repo_insights(context):
+    context.repo = Mock()
+    context.repo.find_insights.return_value = [{"id": "1"}]
+
+
 @when('I call the list_matches endpoint')
 def step_call_list_matches(context):
     context.result = list_matches(repo=context.repo)
@@ -104,8 +110,18 @@ def step_call_get_match_error(context, match_id):
         context.error = e
 
 
+@when('I call the list_insights endpoint')
+def step_call_list_insights(context):
+    context.result = list_insights(repo=context.repo)
+
+
 @then(r'(\d+) match(?:es)? (?:is|are) returned')
 def step_assert_n_matches(context, count):
+    assert len(context.result) == int(count)
+
+
+@then(r'(\d+) insights? (?:is|are) returned')
+def step_assert_n_insights_endpoint(context, count):
     assert len(context.result) == int(count)
 
 

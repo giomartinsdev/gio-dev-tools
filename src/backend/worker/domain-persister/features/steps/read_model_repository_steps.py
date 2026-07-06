@@ -70,6 +70,15 @@ def step_insert_odds(context):
     )
 
 
+@when('I insert an insight')
+def step_insert_insight(context):
+    context.repo.insert_insight(
+        insight_id=uuid4(), match_id=uuid4(), market="match_result", recommendation="favorite:H",
+        confidence="0.82", rationale="test", model="v4", feature_snapshot={},
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
 @then(r'the session executed a statement against "([^"]+)"')
 def step_assert_table(context, table_name):
     context.session.execute.assert_called_once()
@@ -99,6 +108,31 @@ def step_get_returns_row(context):
 @given('the session get returns no row')
 def step_get_returns_none(context):
     context.session.get.return_value = None
+
+
+def _fake_insight_row():
+    return SimpleNamespace(
+        id=str(uuid4()), match_id=str(uuid4()), market="match_result", recommendation="favorite:H",
+        confidence="0.82", rationale="test", model="v4", feature_snapshot={},
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session query returns 1 insight row')
+def step_query_returns_insight_row(context):
+    row = _fake_insight_row()
+    chain = context.session.query.return_value.filter.return_value
+    chain.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [row]
+
+
+@when(r'I list insights for match "([^"]+)"')
+def step_list_insights_for_match(context, match_id):
+    context.result = context.repo.find_insights(match_id=match_id)
+
+
+@then(r'(\d+) insight dicts? (?:is|are) returned')
+def step_assert_n_insights(context, count):
+    assert len(context.result) == int(count)
 
 
 @when('I list all matches')

@@ -6,9 +6,10 @@ import aio_pika
 
 from shared.events import RawFeedReceived
 from shared.logger import get_logger
-from shared.rabbitmq_topology import Q_ARCHIVE_RAW, Q_PERSISTER, declare_topology
+from shared.rabbitmq_topology import Q_ARCHIVE_RAW, Q_INSIGHT_PROJECTOR, Q_PERSISTER, declare_topology
 
 from ..application.project_domain_event import ProjectDomainEventHandler
+from ..application.project_insight import ProjectInsightHandler
 from .event_store_repository import EventStoreRepository
 
 logger = get_logger(__name__)
@@ -68,10 +69,37 @@ async def _consume_persister(uri: str, projector: ProjectDomainEventHandler) -> 
             await asyncio.sleep(RECONNECT_DELAY)
 
 
+async def _consume_insights(uri: str, insight_handler: ProjectInsightHandler) -> None:
+    while True:
+        try:
+            conn = await aio_pika.connect_robust(uri)
+            async with conn:
+                channel = await conn.channel()
+                await channel.set_qos(prefetch_count=20)
+                await declare_topology(channel)
+                queue = await channel.get_queue(Q_INSIGHT_PROJECTOR)
+                logger.info(f"consuming {Q_INSIGHT_PROJECTOR}")
+                async with queue.iterator() as it:
+                    async for message in it:
+                        try:
+                            insight_handler.handle(message.body)
+                            await message.ack()
+                        except Exception as exc:
+                            logger.error(f"poison message on {Q_INSIGHT_PROJECTOR}: {exc}", exc_info=True)
+                            await message.nack(requeue=False)
+        except Exception as exc:
+            logger.error(f"{Q_INSIGHT_PROJECTOR} consumer error: {exc} — reconnecting in {RECONNECT_DELAY}s")
+            await asyncio.sleep(RECONNECT_DELAY)
+
+
 async def run_consumers(
-    uri: str, event_store: EventStoreRepository, projector: ProjectDomainEventHandler,
+    uri: str,
+    event_store: EventStoreRepository,
+    projector: ProjectDomainEventHandler,
+    insight_handler: ProjectInsightHandler,
 ) -> None:
     await asyncio.gather(
         _consume_archive_raw(uri, event_store),
         _consume_persister(uri, projector),
+        _consume_insights(uri, insight_handler),
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -8,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from shared.transaction_manager import TransactionManager
 
-from .models import MatchModel, OddsSnapshotModel
+from .models import InsightModel, MatchModel, OddsSnapshotModel
 
 
 class ReadModelRepository:
@@ -107,6 +108,40 @@ class ReadModelRepository:
         with TransactionManager.get().session() as s:
             s.execute(stmt)
 
+    def insert_insight(
+        self,
+        insight_id: UUID,
+        match_id: UUID,
+        market: str,
+        recommendation: str,
+        confidence: Decimal,
+        rationale: str,
+        model: str,
+        feature_snapshot: dict,
+        generated_at: datetime,
+    ) -> None:
+        stmt = pg_insert(InsightModel).values(
+            id=str(insight_id),
+            match_id=str(match_id),
+            market=market,
+            recommendation=recommendation,
+            confidence=confidence,
+            rationale=rationale,
+            model=model,
+            feature_snapshot=feature_snapshot,
+            generated_at=generated_at,
+        ).on_conflict_do_nothing(index_elements=["id"])
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_insights(self, match_id: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict]:
+        with TransactionManager.get().read_only() as s:
+            q = s.query(InsightModel)
+            if match_id is not None:
+                q = q.filter(InsightModel.match_id == match_id)
+            rows = q.order_by(InsightModel.generated_at.desc()).limit(limit).offset(offset).all()
+            return [_insight_to_dict(r) for r in rows]
+
     def find_all_matches(self, limit: int = 50, offset: int = 0) -> list[dict]:
         with TransactionManager.get().read_only() as s:
             rows = (
@@ -137,4 +172,18 @@ def _match_to_dict(row: MatchModel) -> dict:
         "kickoff_at": row.kickoff_at.isoformat() if row.kickoff_at else None,
         "venue": row.venue,
         "statistics": row.statistics,
+    }
+
+
+def _insight_to_dict(row: InsightModel) -> dict:
+    return {
+        "id": row.id,
+        "match_id": row.match_id,
+        "market": row.market,
+        "recommendation": row.recommendation,
+        "confidence": str(row.confidence),
+        "rationale": row.rationale,
+        "model": row.model,
+        "feature_snapshot": row.feature_snapshot,
+        "generated_at": row.generated_at.isoformat() if row.generated_at else None,
     }

@@ -57,10 +57,9 @@ accumulates as a new row per snapshot in `domain-persister`'s
 
 `/api/v2/predictions/` is translated into `InsightGenerated` — routed to the
 `analysis.events` exchange (not `domain.events`), per the topology in
-`shared/rabbitmq_topology.py`. There is currently no consumer for
-`q.insight.projector` (out of scope per the original plan), so these are
-published but not yet persisted anywhere; wire up a consumer in
-`domain-persister` if/when that's needed.
+`shared/rabbitmq_topology.py`. `domain-persister` consumes `q.insight.projector`
+and persists these into its `insights` table (`GET /insights` on that
+service).
 
 ## Scaling
 

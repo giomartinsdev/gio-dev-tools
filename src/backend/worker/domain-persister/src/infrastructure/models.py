@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import DateTime, Engine, Integer, MetaData, String, text
+from sqlalchemy import DateTime, Engine, Integer, MetaData, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -58,6 +59,24 @@ class OddsSnapshotModel(Base):
     market: Mapped[str] = mapped_column(String, nullable=False)
     selections: Mapped[dict] = mapped_column(JSONB, nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class InsightModel(Base):
+    """Read model materialized from analysis.events (q.insight.projector).
+    Each row is a point-in-time ML prediction — never overwritten, only
+    inserted once per insight_id (redelivery is a no-op)."""
+
+    __tablename__ = "insights"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # insight_id, keeps redelivery idempotent
+    match_id: Mapped[str] = mapped_column(String, nullable=False)
+    market: Mapped[str] = mapped_column(String, nullable=False)
+    recommendation: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    rationale: Mapped[str] = mapped_column(String, nullable=False)
+    model: Mapped[str] = mapped_column(String, nullable=False)
+    feature_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def create_all(engine: Engine) -> None:
