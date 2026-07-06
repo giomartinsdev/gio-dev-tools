@@ -63,18 +63,26 @@ class ReadOnlyRepository:
         return [dict(r) for r in rows]
 
     def find_value_bets(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Every row here already cleared VALUE_BET_EDGE_THRESHOLD — there's
+        no "does this make sense" filtering left to do, `value_bets` itself
+        is exactly that list. Ordered by kickoff first (soonest match's
+        bets first, since those are the most time-sensitive to act on),
+        then by edge within the same match, so a frontend grouping rows by
+        match_id gets each match's best opportunity first without having to
+        re-sort client-side."""
         with TransactionManager.get().read_only() as s:
             rows = s.execute(text("""
                 SELECT
                     vb.match_id, vb.market, vb.outcome, vb.model_probability,
                     vb.bookmaker, vb.best_odds, vb.implied_probability, vb.edge,
                     vb.detected_at,
+                    m.kickoff_at, m.status,
                     ht.name AS home_team_name, at.name AS away_team_name
                 FROM bzzoiro_data.value_bets vb
                 LEFT JOIN bzzoiro_data.matches m ON m.match_id = vb.match_id
                 LEFT JOIN bzzoiro_data.teams ht ON ht.team_id = m.home_team_id
                 LEFT JOIN bzzoiro_data.teams at ON at.team_id = m.away_team_id
-                ORDER BY vb.edge DESC
+                ORDER BY m.kickoff_at ASC NULLS LAST, vb.edge DESC
                 LIMIT :limit OFFSET :offset
             """), {"limit": limit, "offset": offset}).mappings().all()
         return [dict(r) for r in rows]

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Trophy, Loader2, RefreshCw, Database, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -32,8 +32,41 @@ interface ValueBet {
   implied_probability: string
   edge: string
   detected_at: string
+  kickoff_at: string | null
+  status: string | null
   home_team_name: string | null
   away_team_name: string | null
+}
+
+interface MatchValueBets {
+  match_id: string
+  home_team_name: string | null
+  away_team_name: string | null
+  kickoff_at: string | null
+  status: string | null
+  bets: ValueBet[]
+}
+
+function groupValueBetsByMatch(valueBets: ValueBet[]): MatchValueBets[] {
+  const groups = new Map<string, MatchValueBets>()
+  for (const vb of valueBets) {
+    let group = groups.get(vb.match_id)
+    if (!group) {
+      group = {
+        match_id: vb.match_id,
+        home_team_name: vb.home_team_name,
+        away_team_name: vb.away_team_name,
+        kickoff_at: vb.kickoff_at,
+        status: vb.status,
+        bets: [],
+      }
+      groups.set(vb.match_id, group)
+    }
+    group.bets.push(vb)
+  }
+  // Backend already orders by kickoff_at asc then edge desc, insertion
+  // order into the Map preserves that — no re-sort needed here.
+  return [...groups.values()]
 }
 
 interface OutcomeSummary {
@@ -156,7 +189,7 @@ export function DomainInsightsModule() {
     const [ov, m, vb, s, ins] = await Promise.all([
       fetch(`${GATEWAY}/domain-data-insights/overview`).then(r => r.ok ? r.json() : []),
       fetch(`${GATEWAY}/domain-data-insights/matches?limit=20`).then(r => r.ok ? r.json() : []),
-      fetch(`${GATEWAY}/domain-data-insights/value-bets?limit=20`).then(r => r.ok ? r.json() : []),
+      fetch(`${GATEWAY}/domain-data-insights/value-bets?limit=200`).then(r => r.ok ? r.json() : []),
       fetch(`${GATEWAY}/domain-data-insights/value-bets/outcomes/summary`).then(r => r.ok ? r.json() : null),
       fetch(`${GATEWAY}/domain-data-insights/insights?limit=20`).then(r => r.ok ? r.json() : []),
     ])
@@ -178,6 +211,7 @@ export function DomainInsightsModule() {
   }
 
   const winRate = summary?.win_rate ?? null
+  const valueBetsByMatch = useMemo(() => groupValueBetsByMatch(valueBets), [valueBets])
 
   return (
     <div className="flex flex-col gap-6">
@@ -223,43 +257,64 @@ export function DomainInsightsModule() {
         )}
       </div>
 
-      {/* Value bets table */}
-      <div className="rounded-lg border bg-card overflow-auto">
-        <div className="px-4 py-2.5 border-b bg-muted/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value bets em aberto</p>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <Th>Partida</Th>
-              <Th className="w-24">Mercado</Th>
-              <Th className="w-20">Resultado</Th>
-              <Th className="w-24 text-right">Edge</Th>
-              <Th className="w-28">Casa</Th>
-              <Th className="w-20 text-right">Odds</Th>
-              <Th className="w-24">Detectado</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} className="py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
-            ) : valueBets.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">Nenhum value bet em aberto no momento.</td></tr>
-            ) : valueBets.map((vb, i) => (
-              <tr key={`${vb.match_id}-${vb.market}-${vb.outcome}-${i}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                <Td className="font-medium">{teamNames(vb.home_team_name, vb.away_team_name)}</Td>
-                <Td className="text-xs" title={vb.market}>{translateMarket(vb.market)}</Td>
-                <Td className="text-xs" title={vb.outcome}>{translateOutcome(vb.outcome)}</Td>
-                <Td className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
-                  <span className="inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" />{formatEdge(vb.edge)}</span>
-                </Td>
-                <Td className="text-muted-foreground">{vb.bookmaker}</Td>
-                <Td className="text-right tabular-nums">{vb.best_odds}</Td>
-                <Td className="text-xs text-muted-foreground">{timeAgo(vb.detected_at)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Value bets grouped by match — every row already cleared the edge
+          threshold, so this is exactly "every match that makes sense to
+          bet on right now", grouped so all of a match's markets show
+          together instead of scattered across one long flat table. */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Value bets por partida{valueBetsByMatch.length > 0 && ` (${valueBetsByMatch.length})`}
+        </p>
+        {loading ? (
+          <div className="rounded-lg border bg-card py-10">
+            <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+          </div>
+        ) : valueBetsByMatch.length === 0 ? (
+          <div className="rounded-lg border bg-card py-8 text-center text-sm text-muted-foreground">
+            Nenhum value bet em aberto no momento.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {valueBetsByMatch.map(group => {
+              const badge = statusBadge(group.status)
+              return (
+                <div key={group.match_id} className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{teamNames(group.home_team_name, group.away_team_name)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(group.kickoff_at)}</p>
+                    </div>
+                    <span className={cn('text-xs font-medium shrink-0', badge.className)}>{badge.label}</span>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/20">
+                        <Th className="text-xs">Mercado</Th>
+                        <Th className="text-xs">Resultado</Th>
+                        <Th className="text-xs text-right">Edge</Th>
+                        <Th className="text-xs">Casa</Th>
+                        <Th className="text-xs text-right">Odds</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.bets.map((vb, i) => (
+                        <tr key={`${vb.market}-${vb.outcome}-${i}`} className="border-b last:border-0">
+                          <Td className="text-xs" title={vb.market}>{translateMarket(vb.market)}</Td>
+                          <Td className="text-xs" title={vb.outcome}>{translateOutcome(vb.outcome)}</Td>
+                          <Td className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
+                            <span className="inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" />{formatEdge(vb.edge)}</span>
+                          </Td>
+                          <Td className="text-muted-foreground text-xs">{vb.bookmaker}</Td>
+                          <Td className="text-right tabular-nums">{vb.best_odds}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Matches + Insights side by side */}

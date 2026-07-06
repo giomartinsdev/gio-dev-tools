@@ -31,8 +31,13 @@ PYTHONPATH=$(pwd):$(pwd)/.. uvicorn app.main:app --reload
   table, the at-a-glance "is data actually arriving" view.
 - `GET /matches`, `GET /matches?limit=&offset=` — recent matches, joined
   with home/away team names, newest kickoff first.
-- `GET /value-bets` — currently open value bets, highest edge first,
-  joined with team names.
+- `GET /value-bets` — currently open value bets, joined with team names,
+  kickoff time, and match status. Ordered by kickoff first (soonest match
+  first) then edge within the same match — every row already cleared
+  `VALUE_BET_EDGE_THRESHOLD`, so this is "every match that currently makes
+  sense to bet on", not a filtered-further subset. The dashboard groups
+  these by `match_id` client-side to show one card per match with all of
+  its value-bet markets together.
 - `GET /value-bets/outcomes/summary` — `{total, won, lost, win_rate}`
   across every resolved value bet.
 - `GET /insights` — recent ML predictions, joined with team names.

@@ -76,6 +76,7 @@ def step_one_value_bet_row(context):
         "match_id": "m1", "market": "1x2", "outcome": "HOME", "model_probability": "0.60",
         "bookmaker": "bet365", "best_odds": "2.20", "implied_probability": "0.4545",
         "edge": "0.1455", "detected_at": datetime.now(timezone.utc),
+        "kickoff_at": datetime.now(timezone.utc), "status": "notstarted",
         "home_team_name": "Team A", "away_team_name": "Team B",
     }
     results = [_mock_result_for_mappings([row])]
