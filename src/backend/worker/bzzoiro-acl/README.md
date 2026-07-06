@@ -205,18 +205,21 @@ service.
   the squad item's own `id` (confirmed live: it *is* the player's provider
   ref, not a distinct `player_id` field that never existed on this
   endpoint).
-- **Not fixed, flagged for follow-up**: `translate_event` (fixtures
-  ingestion) reads `payload.get("home")`/`payload.get("away")`/
-  `payload.get("date")`/`payload.get("league", {}).get("id")` — none of
-  which exist on the real `EventDetailV2Schema` payload confirmed live via
-  `GET /api/v2/events/`. The actual fields are flat: `home_team_id`,
-  `home_team` (a name string, no nested dict), `away_team_id`, `away_team`,
-  `event_date`, `league_id`. This means `MatchScheduled.home_team_id`,
-  `away_team_id`, `kickoff_at`, `venue`, and `competition_id` have likely
-  been `None`/wrong for every match ingested through this path. Found while
-  building `PollStandingsHandler` (which uses the confirmed-correct flat
-  `league_id` field instead). Not fixed here — it's a correctness bug in
-  the core fixtures path, not one of the three features asked for this
-  pass, and deserves its own careful pass (re-verify every field against
-  live payloads, check downstream impact on already-persisted `matches`
-  rows) rather than a quick patch alongside unrelated work.
+- **Fixed**: `translate_event` (fixtures ingestion) used to read
+  `payload.get("home")`/`payload.get("away")`/`payload.get("date")`/
+  `payload.get("league", {}).get("id")` — none of which exist on the real
+  `EventDetailV2Schema` payload confirmed live via `GET /api/v2/events/`.
+  The actual fields are flat: `home_team_id`, `away_team_id`, `event_date`,
+  `league_id`, `home_score`/`away_score` (also flat, not nested under
+  `score`), `current_minute` (not `minute`). Confirmed in production: the
+  `matches` table sat at a fraction of the real fixture count and stopped
+  advancing entirely, while every other feed kept updating. Also fixed in
+  the same pass: `_STATUS_MAP` only recognized `"upcoming"`/`"live"`, not
+  the real value `"notstarted"` (confirmed the most common status,
+  7161/11608+ events sampled) or any of the `1st_half`/`inprogress`/etc.
+  in-play values — so `MatchStatusChanged`/`MatchFinished` almost never
+  fired either. There's no venue-name string on this payload (only
+  `venue_id`, an int) — `MatchScheduled.venue` stays `None` until a venue
+  lookup exists. The embedded per-event `odds` dict this code used to parse
+  never exists on the real payload either (removed — the free-standing
+  `/api/v2/odds/` poll already covers odds correctly).

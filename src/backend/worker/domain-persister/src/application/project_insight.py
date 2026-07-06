@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from shared.logger import get_logger
 from shared.events import InsightGenerated
 
 from ..infrastructure.read_model_repository import ReadModelRepository
 from .value_bet_detector import ValueBetDetector
+
+logger = get_logger(__name__)
 
 
 class ProjectInsightHandler:
@@ -28,4 +31,11 @@ class ProjectInsightHandler:
             feature_snapshot=event.feature_snapshot,
             generated_at=event.generated_at,
         )
-        self._value_bet_detector.evaluate(event.match_id)
+        try:
+            self._value_bet_detector.evaluate(event.match_id)
+        except Exception as exc:
+            # A bug in value-bet detection must never poison an otherwise
+            # valid insight — insert_insight above already committed in its
+            # own transaction (see ProjectDomainEventHandler._evaluate_value_bet
+            # for the same guard on the odds/lineup side).
+            logger.error(f"value bet evaluation failed for match {event.match_id}: {exc}", exc_info=True)

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 from behave import given, then, use_step_matcher, when
 
-from shared.events import MatchFinished, MatchStatusChanged, OddsSnapshotCaptured
+from shared.events import MatchFinished, MatchScheduled, MatchStatusChanged
 from src.domain.repository import IdentityRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
@@ -37,16 +36,19 @@ def step_fresh_translator(context):
 
 @given(r'a bzzoiro event payload with id "([^"]+)" status "([^"]+)"')
 def step_payload_with_status(context, provider_id, status):
-    # bzzoiro's real /api/events/ response has `status` as a plain string,
-    # not the {"name": ...} shape the WebSocket docs example uses.
+    # bzzoiro's real /api/v2/events/ response (EventDetailV2Schema,
+    # confirmed live) is flat: home_team_id/away_team_id (no nested
+    # home/away dict), league_id (no nested league dict), event_date (not
+    # date/kickoff_at), and status is a plain string.
     context.payload = {
         "id": provider_id,
         "status": status,
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "date": "2026-08-01T20:00:00+00:00",
-        "score": {"home": 0, "away": 0},
+        "home_team_id": "10",
+        "away_team_id": "20",
+        "league_id": "1",
+        "event_date": "2026-08-01T20:00:00+00:00",
+        "home_score": None,
+        "away_score": None,
     }
 
 
@@ -55,10 +57,11 @@ def step_payload_with_status_and_score(context, provider_id, status, home_score,
     context.payload = {
         "id": provider_id,
         "status": status,
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "score": {"home": int(home_score), "away": int(away_score)},
+        "home_team_id": "10",
+        "away_team_id": "20",
+        "league_id": "1",
+        "home_score": int(home_score),
+        "away_score": int(away_score),
     }
 
 
@@ -68,10 +71,11 @@ def step_payload_with_dict_status(context, provider_id, status):
     context.payload = {
         "id": provider_id,
         "status": {"name": status},
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "score": {"home": 0, "away": 0},
+        "home_team_id": "10",
+        "away_team_id": "20",
+        "league_id": "1",
+        "home_score": None,
+        "away_score": None,
     }
 
 
@@ -79,23 +83,11 @@ def step_payload_with_dict_status(context, provider_id, status):
 def step_payload_without_status(context, provider_id):
     context.payload = {
         "id": provider_id,
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "score": {"home": 0, "away": 0},
-    }
-
-
-@given(r'a bzzoiro event payload with odds market "([^"]+)" price "([^"]+)" for selection "([^"]+)"')
-def step_payload_with_odds(context, market, price, selection):
-    context.payload = {
-        "id": "999",
-        "status": {"name": "live"},
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "score": {"home": 1, "away": 0},
-        "odds": {market: {selection: price}},
+        "home_team_id": "10",
+        "away_team_id": "20",
+        "league_id": "1",
+        "home_score": None,
+        "away_score": None,
     }
 
 
@@ -112,21 +104,22 @@ def step_status_event(context, expected_status):
         f"expected {expected_status}, got {matches[0].status.value}"
 
 
+@then('a MatchScheduled event with a kickoff time is produced')
+def step_scheduled_event(context):
+    matches = [e for e in context.events if isinstance(e, MatchScheduled)]
+    assert matches, f"no MatchScheduled produced; events: {context.events}"
+    assert matches[0].kickoff_at is not None
+    assert matches[0].home_team_id is not None
+    assert matches[0].away_team_id is not None
+    assert matches[0].competition_id is not None
+
+
 @then(r'no provider id leaks into the event')
 def step_no_provider_leak(context):
     for event in context.events:
         dumped = event.model_dump(mode="json")
         assert context.payload["id"] not in str(dumped.get("match_id", "")), \
             "provider_ref leaked into canonical id"
-
-
-@then(r'an OddsSnapshotCaptured event with a Decimal price of "([^"]+)" is produced')
-def step_odds_event(context, expected_price):
-    odds_events = [e for e in context.events if isinstance(e, OddsSnapshotCaptured)]
-    assert odds_events, f"no odds event produced; events: {context.events}"
-    prices = [sel.price for sel in odds_events[0].selections]
-    assert Decimal(expected_price) in prices, f"expected price {expected_price} in {prices}"
-    assert all(isinstance(p, Decimal) for p in prices), "odds prices must be Decimal"
 
 
 @then(r'the same provider ref resolves to the same canonical match id')
@@ -143,38 +136,6 @@ def step_match_finished(context, home_score, away_score):
     assert finished, f"no MatchFinished produced; events: {context.events}"
     assert finished[0].home_score == int(home_score)
     assert finished[0].away_score == int(away_score)
-
-
-@given(r'a bzzoiro event payload with a malformed odds market "([^"]+)"')
-def step_payload_malformed_odds(context, market):
-    context.payload = {
-        "id": "111",
-        "status": {"name": "live"},
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "score": {"home": 0, "away": 0},
-        "odds": {market: "not-a-dict"},
-    }
-
-
-@given(r'a bzzoiro event payload with odds market "([^"]+)" where every price is null')
-def step_payload_all_null_odds(context, market):
-    context.payload = {
-        "id": "112",
-        "status": {"name": "live"},
-        "home": {"id": "10"},
-        "away": {"id": "20"},
-        "league": {"id": "1"},
-        "score": {"home": 0, "away": 0},
-        "odds": {market: {"home": None, "away": None}},
-    }
-
-
-@then('no OddsSnapshotCaptured event is produced')
-def step_no_odds_event(context):
-    odds_events = [e for e in context.events if isinstance(e, OddsSnapshotCaptured)]
-    assert not odds_events, f"expected no odds event, got: {odds_events}"
 
 
 @then('no MatchStatusChanged event is produced')

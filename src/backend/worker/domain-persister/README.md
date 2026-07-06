@@ -61,6 +61,27 @@ odds markets:
 | `over_under.prob_over_15` / `prob_over_25` / `prob_over_35` | `over_under_15` / `over_under_25` / `over_under_35`, `over` |
 | `btts.prob_yes` | `btts` / `yes` |
 
+**Fixed**: every `prob_*` field in bzzoiro's `markets` block is on a 0-100
+percentage scale (confirmed live: `match_result.prob_home: 55.5`, summing
+to ~100 across the three outcomes) — not the 0-1 fraction this used to
+assume. Feeding a raw `55.5` into `edge = model_probability -
+implied_probability` produced edges over 30 (3000+ percentage points),
+which overflowed `value_bets.model_probability`'s `Numeric(6,5)` column and
+turned every message for a match with both an insight and an odds
+comparison into a poison message — confirmed live. `_extract_probability`
+now divides by 100 before use. `InsightModel.confidence` (bzzoiro's
+`model.confidence`) is a separate field and was already a genuine 0-1
+fraction — not affected.
+
+A bug in `ValueBetDetector.evaluate()` must never fail the message that
+triggered it: the odds/lineup/insight write it runs after already
+committed in its own transaction, so `ProjectDomainEventHandler`/
+`ProjectInsightHandler` catch and log any exception from `evaluate()`
+rather than letting it propagate and nack an otherwise-valid message
+(this is exactly how the percentage-scale bug above was surfacing —
+perfectly good `OddsComparisonCaptured` messages were dying downstream of
+a bug in an unrelated calculation).
+
 For each pair present on both sides: `implied_probability = 1 / best_odds`,
 `edge = model_probability - implied_probability`. Above
 `VALUE_BET_EDGE_THRESHOLD` **and** with lineup confidence at or above
@@ -132,7 +153,21 @@ comparison poll already captured for the same match.
 
 ## Known gaps / assumptions
 
-- No `teams`/`competitions` read-model tables: the canonical domain events
-  only ever carry team/competition **ids**, never names or other
-  attributes, so a table with nothing but an id column wasn't worth adding.
-  If the ACL starts emitting entity metadata, add tables then.
+- No `competitions` read-model table: `MatchModel.competition_id` is the
+  only place a competition/league id is stored — there's no separate table
+  for competition names/attributes yet. `teams` and `squad_members` do
+  exist (`TeamModel`/`SquadMemberModel`), populated from `TeamUpdated`/
+  `SquadUpdated`.
+- **`Base.metadata.create_all()` only creates missing tables — it never
+  ALTERs an existing one when a model gains/renames a column.** Confirmed
+  live: `TeamModel` gained `short_name`/`country`/`venue_id`/`updated_at`
+  after the `teams` table was first created, and every `upsert_team` since
+  then failed with `psycopg2.errors.UndefinedColumn` and silently went to
+  the DLX — `teams` sat at 0 rows while `squad_members` (a table created
+  fresh, matching its model exactly) filled up normally. There's no
+  Alembic/migration tool in this repo (matches the finance/asset-quotes
+  "create_all on boot" convention), so any future column added to an
+  existing model needs a manual `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+  run against the live DB — `create_all()` alone will not apply it. See
+  `docs/fix-teams-schema-drift.sql` in the repo root for the one-off fix
+  and a general drift-check query across every table in `bzzoiro_data`.

@@ -132,11 +132,22 @@ class ValueBetDetector:
 
     @staticmethod
     def _extract_probability(feature_snapshot: dict, group_key: str, prob_key: str) -> Optional[Decimal]:
+        """bzzoiro's `markets` block reports every `prob_*` field on a
+        0-100 percentage scale (confirmed live: `match_result.prob_home:
+        55.5`, `over_under.prob_over_25: 65.2`, summing to ~100 across
+        match_result's three outcomes) — not the 0-1 fraction this used to
+        assume. Feeding a raw 55.5 into `edge = model_probability -
+        implied_probability` produced nonsense edges over 30 (3000+
+        percentage points) that overflowed `value_bets.model_probability`'s
+        `Numeric(6,5)` column and poisoned the message. Dividing by 100
+        here keeps every other calculation (edge, implied_probability, the
+        threshold comparison) working in the same 0-1 fraction space as
+        `implied_probability = 1 / best_odds`."""
         value = (feature_snapshot.get(group_key) or {}).get(prob_key)
         if value is None:
             return None
         try:
-            return Decimal(str(value))
+            return Decimal(str(value)) / Decimal("100")
         except Exception:
             return None
 

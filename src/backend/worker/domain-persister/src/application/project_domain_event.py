@@ -92,7 +92,7 @@ class ProjectDomainEventHandler:
                 markets=event.markets,
                 captured_at=event.captured_at,
             )
-            self._value_bet_detector.evaluate(event.match_id)
+            self._evaluate_value_bet(event.match_id)
         elif isinstance(event, PolymarketSnapshotCaptured):
             self._read_models.upsert_polymarket_snapshot(
                 match_id=event.match_id,
@@ -105,7 +105,7 @@ class ProjectDomainEventHandler:
                 markets_patch=event.markets,
                 captured_at=event.captured_at,
             )
-            self._value_bet_detector.evaluate(event.match_id)
+            self._evaluate_value_bet(event.match_id)
         elif isinstance(event, LineupsCaptured):
             self._read_models.upsert_lineups(
                 match_id=event.match_id,
@@ -113,7 +113,7 @@ class ProjectDomainEventHandler:
                 lineups=event.lineups,
                 captured_at=event.captured_at,
             )
-            self._value_bet_detector.evaluate(event.match_id)
+            self._evaluate_value_bet(event.match_id)
         elif isinstance(event, H2HCaptured):
             self._read_models.upsert_h2h(
                 match_id=event.match_id, h2h=event.h2h, captured_at=event.captured_at,
@@ -126,3 +126,16 @@ class ProjectDomainEventHandler:
             )
         else:
             logger.warning(f"unhandled domain event type: {type(event).__name__}")
+
+    def _evaluate_value_bet(self, match_id: object) -> None:
+        """A bug in value-bet detection must never poison the message that
+        triggered it — the odds/lineup write above already committed in its
+        own transaction, so a failure here would otherwise nack an
+        otherwise-valid message and send perfectly good data to the DLX
+        (confirmed live: a probability-scale bug here turned every
+        OddsComparisonCaptured for a match with an insight into a poison
+        message)."""
+        try:
+            self._value_bet_detector.evaluate(match_id)
+        except Exception as exc:
+            logger.error(f"value bet evaluation failed for match {match_id}: {exc}", exc_info=True)

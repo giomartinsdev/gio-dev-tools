@@ -20,10 +20,10 @@ Feature: Translate bzzoiro payloads into canonical domain events
       | 504         | postponed       | POSTPONED         |
       | 505         | cancelled       | CANCELLED         |
 
-  Scenario: Odds prices are translated to Decimal
-    Given a bzzoiro event payload with odds market "1x2" price "2.10" for selection "home"
+  Scenario: A real-shaped payload produces a MatchScheduled event with the right ids and kickoff
+    Given a bzzoiro event payload with id "601" status "notstarted"
     When I translate the payload
-    Then an OddsSnapshotCaptured event with a Decimal price of "2.10" is produced
+    Then a MatchScheduled event with a kickoff time is produced
 
   Scenario: Identity resolution is stable across polls
     Given a bzzoiro event payload with id "777" status "live"

@@ -36,7 +36,20 @@ PROVIDER = "bzzoiro"
 _PRODUCER = "acl.bzzoiro"
 
 _STATUS_MAP = {
+    # Real v2 EventDetailV2Schema.status values (confirmed live against the
+    # OpenAPI spec's status enum: 1st_half, 2nd_half, aet, cancelled,
+    # extratime, finished, halftime, inprogress, notstarted, penalties,
+    # postponed). "upcoming"/"live" are kept too since some other feeds
+    # (predictions) use that v1-style vocabulary instead.
+    "notstarted": MatchStatus.SCHEDULED,
     "upcoming": MatchStatus.SCHEDULED,
+    "inprogress": MatchStatus.LIVE,
+    "1st_half": MatchStatus.LIVE,
+    "2nd_half": MatchStatus.LIVE,
+    "halftime": MatchStatus.LIVE,
+    "extratime": MatchStatus.LIVE,
+    "aet": MatchStatus.LIVE,
+    "penalties": MatchStatus.LIVE,
     "live": MatchStatus.LIVE,
     "finished": MatchStatus.FINISHED,
     "postponed": MatchStatus.POSTPONED,
@@ -105,12 +118,25 @@ class BzzoiroTranslator:
         return self._resolve("competition", provider_ref)
 
     def translate_event(self, payload: dict) -> list[DomainEvent]:
+        """GET /api/v2/events/ (EventDetailV2Schema) -> domain events.
+
+        Confirmed live against a real payload — the actual shape is flat:
+        `home_team_id`/`away_team_id` (ints, no nested `home`/`away` dict),
+        `event_date` (not `date`/`kickoff_at`), `league_id` (not a nested
+        `league.id`), `home_score`/`away_score` (flat ints, not a nested
+        `score` dict), `current_minute` (not `minute`). This function used
+        to read the nested/renamed fields this schema never actually has,
+        which meant `MatchScheduled` almost never fired for real fixtures
+        (`kickoff_raw` was always `None`) — confirmed in production via the
+        `matches` table sitting at a fraction of the real fixture count and
+        never advancing. No `venue` name string exists on this payload,
+        only `venue_id` — `venue` stays `None` until a venue-name lookup
+        exists.
+        """
         match_id = self._resolve("match", payload.get("id"))
-        competition_id = self._resolve("competition", (payload.get("league") or {}).get("id"))
-        home = payload.get("home") or {}
-        away = payload.get("away") or {}
-        home_team_id = self._resolve("team", home.get("id"))
-        away_team_id = self._resolve("team", away.get("id"))
+        competition_id = self._resolve("competition", payload.get("league_id"))
+        home_team_id = self._resolve("team", payload.get("home_team_id"))
+        away_team_id = self._resolve("team", payload.get("away_team_id"))
 
         def _meta() -> EventMeta:
             return EventMeta(
@@ -122,8 +148,9 @@ class BzzoiroTranslator:
         events: list[DomainEvent] = []
         provider_status = _extract_status(payload.get("status")).lower()
         status = _STATUS_MAP.get(provider_status)
+        minute = payload.get("current_minute")
 
-        kickoff_raw = payload.get("date") or payload.get("kickoff_at")
+        kickoff_raw = payload.get("event_date")
         if kickoff_raw:
             kickoff_at = kickoff_raw if isinstance(kickoff_raw, datetime) else datetime.fromisoformat(kickoff_raw)
             events.append(MatchScheduled(
@@ -133,7 +160,7 @@ class BzzoiroTranslator:
                 home_team_id=home_team_id,
                 away_team_id=away_team_id,
                 kickoff_at=kickoff_at,
-                venue=payload.get("venue"),
+                venue=None,
             ))
 
         if status is not None:
@@ -141,45 +168,27 @@ class BzzoiroTranslator:
                 meta=_meta(),
                 match_id=match_id,
                 status=status,
-                minute=payload.get("minute"),
+                minute=minute,
             ))
 
-        score = payload.get("score") or {}
-        if score:
+        home_score = payload.get("home_score")
+        away_score = payload.get("away_score")
+        if home_score is not None and away_score is not None:
             events.append(MatchScoreUpdated(
                 meta=_meta(),
                 match_id=match_id,
-                home_score=int(score.get("home", 0)),
-                away_score=int(score.get("away", 0)),
-                minute=int(payload.get("minute") or 0),
+                home_score=int(home_score),
+                away_score=int(away_score),
+                minute=int(minute or 0),
             ))
 
-        if status == MatchStatus.FINISHED:
+        if status == MatchStatus.FINISHED and home_score is not None and away_score is not None:
             events.append(MatchFinished(
                 meta=_meta(),
                 match_id=match_id,
-                home_score=int(score.get("home", 0)),
-                away_score=int(score.get("away", 0)),
-                statistics=payload.get("stats") or {},
-            ))
-
-        for market, selections in (payload.get("odds") or {}).items():
-            if not isinstance(selections, dict):
-                continue
-            parsed = [
-                OddsSelection(name=name, price=Decimal(str(price)))
-                for name, price in selections.items()
-                if price is not None
-            ]
-            if not parsed:
-                continue
-            events.append(OddsSnapshotCaptured(
-                meta=_meta(),
-                match_id=match_id,
-                bookmaker="aggregate",
-                market=market,
-                selections=parsed,
-                captured_at=datetime.now(timezone.utc),
+                home_score=int(home_score),
+                away_score=int(away_score),
+                statistics=payload.get("statistics") or {},
             ))
 
         return events
