@@ -66,7 +66,7 @@ class PollOddsHandler:
 
             logger.info(f"polled odds batch: offset={offset}, items={len(items)}, total={total_count}")
 
-            if not has_next or len(items) < limit:
+            if not has_next:
                 break
             offset += limit
 

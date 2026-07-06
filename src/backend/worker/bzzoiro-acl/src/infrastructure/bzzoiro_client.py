@@ -158,7 +158,7 @@ class BzzoiroClient:
         while True:
             items, has_next = self.fetch_odds_page(offset, limit, updated_after)
             results.extend(items)
-            if not has_next or len(items) < limit:
+            if not has_next:
                 break
             offset += limit
         return results
