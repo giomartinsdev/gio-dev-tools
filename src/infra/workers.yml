@@ -1,0 +1,40 @@
+services:
+  whatsapp-worker:
+    image: re.giomartins.dev/whatsapp-worker:latest
+    container_name: whatsapp-worker
+    restart: unless-stopped
+    networks:
+      - persistence
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+
+  bzzoiro-acl:
+    image: re.giomartins.dev/bzzoiro-acl:latest
+    container_name: bzzoiro-acl
+    restart: unless-stopped
+    networks:
+      - persistence
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+
+  domain-persister:
+    image: re.giomartins.dev/domain-persister:latest
+    container_name: domain-persister
+    restart: unless-stopped
+    networks:
+      - persistence
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+
+networks:
+  persistence:
+    external: true
