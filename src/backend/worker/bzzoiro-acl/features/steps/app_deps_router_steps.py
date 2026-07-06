@@ -104,6 +104,9 @@ class _FakeClient:
     def fetch_odds(self, updated_after=None):
         return []
 
+    def fetch_odds_page(self, offset=0, limit=200, updated_after=None):
+        return [], False
+
     def fetch_predictions(self, status="upcoming"):
         return []
 
@@ -116,6 +119,9 @@ class _RaisingClient:
         raise RuntimeError("upstream down")
 
     def fetch_odds(self, updated_after=None):
+        raise RuntimeError("upstream down")
+
+    def fetch_odds_page(self, offset=0, limit=200, updated_after=None):
         raise RuntimeError("upstream down")
 
     def fetch_predictions(self, status="upcoming"):

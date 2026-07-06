@@ -42,6 +42,11 @@ class _FakeClient:
     def fetch_odds(self, updated_after=None):
         return self.odds_rows
 
+    def fetch_odds_page(self, offset=0, limit=200, updated_after=None):
+        sliced = self.odds_rows[offset:offset+limit]
+        has_next = (offset + limit) < len(self.odds_rows)
+        return sliced, has_next
+
     def fetch_predictions(self, status="upcoming"):
         return self.prediction_payloads
 
