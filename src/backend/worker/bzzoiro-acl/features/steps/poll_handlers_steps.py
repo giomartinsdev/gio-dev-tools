@@ -197,10 +197,12 @@ def step_one_team_payload(context):
     context.client.squad_payloads = {
         "team_id": 444,
         "count": 1,
+        # Confirmed live: /api/v2/teams/{id}/squad/ never sends
+        # status/club/club_country/player_id — those come from a different
+        # endpoint (/api/v2/worldcup/squads/, national-team call-ups).
         "players": [{
-            "id": 1, "team_id": 444, "name": "Player One", "jersey_number": 10,
-            "position": "ST", "status": "official", "club": "Club X", "club_country": "Brazil",
-            "caps": 5, "goals": 2, "date_of_birth": "2000-01-01", "age": 26, "player_id": 123
+            "id": 1, "name": "Player One", "short_name": "P. One", "jersey_number": 10,
+            "position": "ST", "nationality": "Brazil", "date_of_birth": "2000-01-01",
         }]
     }
 

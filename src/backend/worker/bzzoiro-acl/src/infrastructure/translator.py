@@ -257,24 +257,33 @@ class BzzoiroTranslator:
         )
 
     def translate_squad(self, provider_team_id: int, squad_payloads: list[dict]) -> SquadUpdated:
-        """GET /api/v2/teams/{id}/squad/ -> SquadUpdated event."""
+        """GET /api/v2/teams/{id}/squad/ -> SquadUpdated event.
+
+        Confirmed live against real teams (62-player and 7-player squads,
+        0/69 players had any of the fields below): this endpoint's actual
+        shape is only `id, name, short_name, position, jersey_number,
+        nationality, date_of_birth` — no `status`/`club`/`club_country`/
+        `caps`/`goals`/`player_id`. Those richer fields are real, but come
+        from a different endpoint entirely (`/api/v2/worldcup/squads/`,
+        national-team call-up lists), which this code was apparently
+        written against by mistake. `item["id"]` here IS the player's own
+        provider ref (confirmed: the same id resolves at
+        `/api/v2/players/{id}/`), not a distinct `player_id` field, so it's
+        used for both `squad_row_id` and player identity resolution.
+        """
         team_id = self._resolve("team", provider_team_id)
         members = []
         for item in squad_payloads:
-            player_id = None
-            if item.get("player_id") is not None:
-                player_id = self._resolve("player", item["player_id"])
-            
             members.append(
                 SquadMember(
                     squad_row_id=item["id"],
-                    player_id=player_id,
+                    player_id=self._resolve("player", item["id"]),
                     name=item["name"],
                     jersey_number=item.get("jersey_number"),
-                    position=item["position"],
-                    status=item["status"],
-                    club=item["club"],
-                    club_country=item["club_country"],
+                    position=item.get("position") or "",
+                    status=item.get("status") or "active",
+                    club=item.get("club") or "",
+                    club_country=item.get("club_country") or "",
                     caps=item.get("caps"),
                     goals=item.get("goals"),
                     age=item.get("age"),
