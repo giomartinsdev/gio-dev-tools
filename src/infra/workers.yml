@@ -24,6 +24,7 @@ services:
       if_env: prod
       OTEL_SERVICE_NAME: bzzoiro-acl
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
 
   domain-persister:
     image: re.giomartins.dev/domain-persister:latest
@@ -38,6 +39,7 @@ services:
       if_env: prod
       OTEL_SERVICE_NAME: domain-persister
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
 
 networks:
   persistence:
