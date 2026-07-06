@@ -6,6 +6,7 @@ from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixt
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
 from src.infrastructure.translator import BzzoiroTranslator
@@ -62,6 +63,19 @@ async def poll_predictions(
 ):
     try:
         count = await PollPredictionsHandler(client, translator, publisher).handle(PollPredictionsCommand())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"polled": count}
+
+
+@router.post("/poll/teams")
+async def poll_teams(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+):
+    try:
+        count = await PollTeamsHandler(client, translator, publisher).handle(PollTeamsCommand())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"polled": count}

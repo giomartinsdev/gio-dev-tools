@@ -9,6 +9,7 @@ from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixt
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.domain.repository import IdentityRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
@@ -32,6 +33,7 @@ class _FakeClient:
         self.live_payloads: list[dict] = []
         self.odds_rows: list[dict] = []
         self.prediction_payloads: list[dict] = []
+        self.teams_payloads: list[dict] = []
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -49,6 +51,9 @@ class _FakeClient:
 
     def fetch_predictions(self, status="upcoming"):
         return self.prediction_payloads
+
+    def fetch_teams(self) -> list[dict]:
+        return self.teams_payloads
 
 
 class _FakePublisher:
@@ -136,6 +141,16 @@ def step_one_prediction(context):
     }]
 
 
+@given('the fake client returns 1 team payload')
+def step_one_team_payload(context):
+    context.client.teams_payloads = [{"id": 444, "name": "Team ABC", "code": "ABC"}]
+
+
+@given('the fake client returns no teams')
+def step_no_teams(context):
+    context.client.teams_payloads = []
+
+
 @when('I run the fixtures poll handler')
 def step_run_fixtures(context):
     handler = PollFixturesHandler(context.client, context.translator, context.publisher)
@@ -159,6 +174,12 @@ def step_run_odds(context):
 def step_run_predictions(context):
     handler = PollPredictionsHandler(context.client, context.translator, context.publisher)
     context.polled_count = asyncio.run(handler.handle(PollPredictionsCommand()))
+
+
+@when('I run the teams poll handler')
+def step_run_teams(context):
+    handler = PollTeamsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollTeamsCommand()))
 
 
 @then(r'(\d+) events? (?:was|were) polled')

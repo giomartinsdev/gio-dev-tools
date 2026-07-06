@@ -68,6 +68,13 @@ Feature: bzzoiro REST client
     When I fetch predictions from the client
     Then all prediction rows are returned
 
+  # ── New: teams client scenarios ──────────────────────────────────────────────
+  
+  Scenario: fetch_teams paginates a v2 flat array
+    Given a bzzoiro v2 API that returns 1 page of teams
+    When I fetch teams from the client
+    Then all team rows are returned
+
   # ── New: transient error handling (ReadTimeout / 502) ────────────────────────
 
   Scenario: A 502 is retried and eventually succeeds (positive)

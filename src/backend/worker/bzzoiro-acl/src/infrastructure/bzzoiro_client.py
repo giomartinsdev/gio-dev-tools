@@ -166,3 +166,8 @@ class BzzoiroClient:
     def fetch_predictions(self, status: str = "upcoming") -> list[dict]:
         """GET /api/v2/predictions/ — list of PredictionV2Schema."""
         return self._paginate_v2("v2/predictions/", {"status": status})
+
+    def fetch_teams(self) -> list[dict]:
+        """GET /api/v2/teams/ — list of TeamDetailV2Schema."""
+        return self._paginate_v2("v2/teams/", {})
+

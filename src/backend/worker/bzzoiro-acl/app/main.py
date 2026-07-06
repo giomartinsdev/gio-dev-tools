@@ -15,6 +15,7 @@ from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixt
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.identity_repository import PostgresIdentityRepository
 from src.infrastructure.models import create_all
@@ -30,6 +31,7 @@ FIXTURES_POLL_SECONDS = int(os.environ.get("BZZOIRO_FIXTURES_POLL_SECONDS", "300
 LIVE_POLL_SECONDS = int(os.environ.get("BZZOIRO_LIVE_POLL_SECONDS", "30"))
 ODDS_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_POLL_SECONDS", "60"))
 PREDICTIONS_POLL_SECONDS = int(os.environ.get("BZZOIRO_PREDICTIONS_POLL_SECONDS", "600"))
+TEAMS_POLL_SECONDS = int(os.environ.get("BZZOIRO_TEAMS_POLL_SECONDS", "86400"))
 RECONNECT_DELAY = 5
 
 
@@ -113,11 +115,13 @@ async def _run_background(app: FastAPI) -> None:
             live_handler = PollLiveHandler(app.state.client, app.state.translator, publisher)
             odds_handler = PollOddsHandler(app.state.client, app.state.translator, publisher)
             predictions_handler = PollPredictionsHandler(app.state.client, app.state.translator, publisher)
+            teams_handler = PollTeamsHandler(app.state.client, app.state.translator, publisher)
             await asyncio.gather(
                 _poll_loop("fixtures", FIXTURES_POLL_SECONDS, fixtures_handler, PollFixturesCommand()),
                 _poll_loop("live", LIVE_POLL_SECONDS, live_handler, PollLiveCommand()),
                 _poll_odds_loop(ODDS_POLL_SECONDS, odds_handler),
                 _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
+                _poll_loop("teams", TEAMS_POLL_SECONDS, teams_handler, PollTeamsCommand()),
             )
         except asyncio.CancelledError:
             raise

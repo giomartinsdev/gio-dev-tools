@@ -8,7 +8,7 @@ from behave import given, then, use_step_matcher, when
 from fastapi import HTTPException
 
 from app.deps import _ready, get_client, get_publisher, get_translator
-from app.router import poll_fixtures, poll_live, poll_odds, poll_predictions
+from app.router import poll_fixtures, poll_live, poll_odds, poll_predictions, poll_teams
 
 use_step_matcher("re")
 
@@ -110,6 +110,9 @@ class _FakeClient:
     def fetch_predictions(self, status="upcoming"):
         return []
 
+    def fetch_teams(self) -> list[dict]:
+        return []
+
 
 class _RaisingClient:
     def fetch_events(self, date_from=None, date_to=None, status=None):
@@ -125,6 +128,9 @@ class _RaisingClient:
         raise RuntimeError("upstream down")
 
     def fetch_predictions(self, status="upcoming"):
+        raise RuntimeError("upstream down")
+
+    def fetch_teams(self) -> list[dict]:
         raise RuntimeError("upstream down")
 
 

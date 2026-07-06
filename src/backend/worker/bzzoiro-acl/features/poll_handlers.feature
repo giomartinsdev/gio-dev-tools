@@ -53,3 +53,17 @@ Feature: Poll command handlers
     Given the fake client returns no odds rows
     When I run the odds poll handler
     Then the last_updated_at is None
+
+  # ── New: teams poll scenarios ───────────────────────────────────────────────
+
+  Scenario: Polling teams publishes the raw payload
+    Given the fake client returns 1 team payload
+    When I run the teams poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish
+
+  Scenario: Polling teams with no results publishes nothing
+    Given the fake client returns no teams
+    When I run the teams poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish

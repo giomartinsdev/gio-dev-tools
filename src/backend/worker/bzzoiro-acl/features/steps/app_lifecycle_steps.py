@@ -169,8 +169,8 @@ def step_run_background_success(context):
 @then('the publisher was connected and poll loops were started')
 def step_assert_connected_and_polling(context):
     assert context.fake_app.state.publisher is context.fake_publisher
-    # 3 generic loops (fixtures, live, predictions) + 1 dedicated odds loop
-    assert context.fake_poll_loop.await_count == 3
+    # 4 generic loops (fixtures, live, predictions, teams) + 1 dedicated odds loop
+    assert context.fake_poll_loop.await_count == 4
     assert context.fake_odds_loop.await_count == 1
 
 

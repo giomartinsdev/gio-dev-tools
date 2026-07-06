@@ -130,6 +130,13 @@ def step_v2_enveloped_predictions(context):
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
+@given('a bzzoiro v2 API that returns 1 page of teams')
+def step_v2_teams_page(context):
+    _setup(context)
+    page = _response(200, [{"id": 444, "name": "Team ABC"}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
 @when('I fetch events from the client')
 def step_fetch_events(context):
     sleep_patch = getattr(context, "sleep_patch", None)
@@ -208,6 +215,15 @@ def step_fetch_predictions(context):
             context.error = e
 
 
+@when('I fetch teams from the client')
+def step_fetch_teams(context):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_teams()
+        except Exception as e:
+            context.error = e
+
+
 @then('all results across both pages are returned')
 def step_all_results(context):
     ids = [r["id"] for r in context.result]
@@ -261,6 +277,12 @@ def step_flat_event_page(context):
 def step_flat_live_page(context):
     assert context.error is None, f"unexpected error: {context.error}"
     assert [r["id"] for r in context.result] == [501, 502], context.result
+
+
+@then('all team rows are returned')
+def step_all_team_rows(context):
+    assert context.error is None
+    assert [r["id"] for r in context.result] == [444], context.result
 
 
 @given('a bzzoiro API that returns 502 once then succeeds with one odds row')

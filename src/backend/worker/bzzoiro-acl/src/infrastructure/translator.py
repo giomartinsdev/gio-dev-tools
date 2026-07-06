@@ -82,6 +82,10 @@ class BzzoiroTranslator:
         translated domain events will use, without reaching into _resolve."""
         return self._resolve("match", provider_ref)
 
+    def resolve_team_id(self, provider_ref: object) -> object:
+        """Public helper to resolve provider team ID to canonical UUID."""
+        return self._resolve("team", provider_ref)
+
     def translate_event(self, payload: dict) -> list[DomainEvent]:
         match_id = self._resolve("match", payload.get("id"))
         competition_id = self._resolve("competition", (payload.get("league") or {}).get("id"))
