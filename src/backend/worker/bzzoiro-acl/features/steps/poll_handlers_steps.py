@@ -193,6 +193,11 @@ def step_assert_published(context):
     assert len(context.publisher.domain_events) >= 1, context.publisher.domain_events
 
 
+@then('the publisher recorded a raw publish')
+def step_assert_raw_published(context):
+    assert len(context.publisher.raw_calls) >= 1, context.publisher.raw_calls
+
+
 @then('the publisher recorded a raw publish and at least one insight publish')
 def step_assert_insight_published(context):
     assert len(context.publisher.raw_calls) >= 1, context.publisher.raw_calls
