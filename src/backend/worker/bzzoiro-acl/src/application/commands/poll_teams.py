@@ -37,15 +37,16 @@ class PollTeamsHandler:
 
             # Publish team squad (wrapped in try/except to prevent failures from stopping the poll)
             try:
-                squad_payloads = await asyncio.to_thread(self._client.fetch_squad, team_ref_id)
-                if squad_payloads:
+                squad_payload = await asyncio.to_thread(self._client.fetch_squad, team_ref_id)
+                players = squad_payload.get("players") if isinstance(squad_payload, dict) else None
+                if players:
                     await self._publisher.publish_raw(
                         "team_squad",
                         str(team_ref_id),
-                        {"team_id": team_ref_id, "squad": squad_payloads},
+                        squad_payload,
                         correlation_id=team_id,
                     )
-                    squad_event = self._translator.translate_squad(team_ref_id, squad_payloads)
+                    squad_event = self._translator.translate_squad(team_ref_id, players)
                     await self._publisher.publish_domain_event(squad_event)
                     polled_squads += 1
             except Exception as exc:

@@ -140,7 +140,11 @@ def step_v2_teams_page(context):
 @given('a bzzoiro v2 API that returns a squad for team 444')
 def step_v2_squad_page(context):
     _setup(context)
-    page = _response(200, [{"id": 1, "team_id": 444, "name": "Player One", "position": "ST", "status": "official", "club": "Club X", "club_country": "Brazil", "age": 25}])
+    page = _response(200, {
+        "team_id": 444,
+        "count": 1,
+        "players": [{"id": 1, "team_id": 444, "name": "Player One", "position": "ST", "status": "official", "club": "Club X", "club_country": "Brazil", "age": 25}]
+    })
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
@@ -304,7 +308,8 @@ def step_all_team_rows(context):
 @then('the squad list is returned')
 def step_squad_list_returned(context):
     assert context.error is None
-    assert [r["id"] for r in context.result] == [1], context.result
+    assert isinstance(context.result, dict)
+    assert [r["id"] for r in context.result["players"]] == [1], context.result
 
 
 @given('a bzzoiro API that returns 502 once then succeeds with one odds row')
