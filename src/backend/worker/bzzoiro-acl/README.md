@@ -241,6 +241,22 @@ accumulates as a new row per snapshot in `domain-persister`'s
 and persists these into its `insights` table (`GET /insights` on that
 service).
 
+`status=upcoming` predictions cover every fixture bzzoiro considers upcoming
+with **no date bound** — confirmed live: 293 matches in one poll, vs. the
+handful `PollFixturesHandler`'s 3-day window captures. Left alone, an insight
+can point at a `match_id` with no row yet in `domain-persister`'s `matches`/
+`teams` tables, showing up as blank team names anywhere that joins on them
+(e.g. the `domain-data-insights` dashboard API). Fixed by
+`translate_prediction_context()`: it reuses `translate_event()` on the
+prediction payload's own embedded `event` sub-object (which already carries
+`id`/`event_date`/`status`/`league_id`/`home_team_id`/`away_team_id` — the
+same shape the fixtures feed uses) to emit `MatchScheduled`/
+`MatchStatusChanged`, plus two `TeamUpdated` events built from the embedded
+flat `home_team`/`away_team` name strings via `translate_team()`. Only the
+name is ever known this way — short_name/country/venue_id stay blank until
+the real teams poll's `TeamUpdated` upserts over these placeholder rows, which
+is safe since upserts never regress data, only fill it in.
+
 ## Scaling
 
 Single instance is expected — the poll loops are not partitioned, so running

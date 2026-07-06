@@ -25,10 +25,28 @@ class PollPredictionsHandler:
 
     async def handle(self, cmd: PollPredictionsCommand) -> int:
         payloads = await asyncio.to_thread(self._client.fetch_predictions, cmd.status)
+        polled = 0
         for payload in payloads:
-            match_id = self._translator.resolve_match_id(payload["event"]["id"])
-            await self._publisher.publish_raw("predictions", str(payload.get("id")), payload, correlation_id=match_id)
-            insight = self._translator.translate_prediction(payload)
-            await self._publisher.publish_insight(insight)
-        logger.info(f"polled predictions: {len(payloads)} rows")
-        return len(payloads)
+            try:
+                await self._poll_one_prediction(payload)
+                polled += 1
+            except Exception as exc:
+                logger.warning(f"failed to process prediction {payload.get('id')}: {exc}")
+        logger.info(f"polled predictions: {polled}/{len(payloads)} rows")
+        return polled
+
+    async def _poll_one_prediction(self, payload: dict) -> None:
+        event = payload["event"]
+        match_id = self._translator.resolve_match_id(event["id"])
+        await self._publisher.publish_raw("predictions", str(payload.get("id")), payload, correlation_id=match_id)
+
+        # Predictions cover a far wider set of "upcoming" matches than
+        # PollFixturesHandler's 3-day window (confirmed live: 293 vs a
+        # handful) — without publishing these too, an insight can point at
+        # a match_id with no row in matches/teams yet, showing up as blank
+        # team names anywhere that joins on them.
+        for context_event in self._translator.translate_prediction_context(event):
+            await self._publisher.publish_domain_event(context_event)
+
+        insight = self._translator.translate_prediction(payload)
+        await self._publisher.publish_insight(insight)

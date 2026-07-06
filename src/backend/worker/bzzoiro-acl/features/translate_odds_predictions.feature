@@ -28,6 +28,13 @@ Feature: Translate bzzoiro v2 odds and predictions
     When I translate the prediction
     Then the recommendation is "no_bet"
 
+  Scenario: A prediction's embedded event produces match and team context, not just an insight
+    Given a v2 prediction payload for event "99" with confidence 0.5 recommending the favorite
+    When I translate the prediction context
+    Then a MatchScheduled event is produced
+    And a TeamUpdated event named "A" is produced
+    And a TeamUpdated event named "B" is produced
+
   Scenario: resolve_match_id returns the same id translate_odds_items would use
     Given 3 v2 odds rows for event "42" bookmaker "bet365" market "1x2" with outcomes home=2.10 draw=3.40 away=3.60
     When I translate the odds rows

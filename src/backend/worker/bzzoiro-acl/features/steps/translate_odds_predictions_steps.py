@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from behave import given, then, use_step_matcher, when
 
-from shared.events import InsightGenerated, OddsSnapshotCaptured
+from shared.events import InsightGenerated, MatchScheduled, OddsSnapshotCaptured, TeamUpdated
 from src.domain.repository import IdentityRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
@@ -126,6 +126,25 @@ def step_assert_mentions_favorite(context):
 @then(r'the recommendation is "([^"]+)"')
 def step_assert_recommendation(context, expected):
     assert context.insight.recommendation == expected, context.insight.recommendation
+
+
+@when('I translate the prediction context')
+def step_translate_prediction_context(context):
+    context.context_events = context.translator.translate_prediction_context(
+        context.prediction_payload["event"]
+    )
+
+
+@then('a MatchScheduled event is produced')
+def step_assert_match_scheduled(context):
+    matches = [e for e in context.context_events if isinstance(e, MatchScheduled)]
+    assert len(matches) == 1, context.context_events
+
+
+@then(r'a TeamUpdated event named "([^"]+)" is produced')
+def step_assert_team_updated(context, name):
+    teams = [e for e in context.context_events if isinstance(e, TeamUpdated) and e.name == name]
+    assert len(teams) == 1, context.context_events
 
 
 @when(r'I resolve the match id for provider_ref "([^"]+)"')

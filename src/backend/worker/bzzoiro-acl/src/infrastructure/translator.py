@@ -262,6 +262,37 @@ class BzzoiroTranslator:
             generated_at=_parse_dt(payload["created_at"]),
         )
 
+    def translate_prediction_context(self, event: dict) -> list[DomainEvent]:
+        """`/api/v2/predictions/` embeds a full event sub-object per
+        prediction (`id`, `event_date`, `status`, `league_id`,
+        `home_team_id`/`home_team`, `away_team_id`/`away_team` — confirmed
+        live, same shape `translate_event` already reads off the fixtures
+        feed). Predictions cover every "upcoming" fixture with no date
+        bound (293 matches in one poll, confirmed live) — a far wider set
+        than PollFixturesHandler's 3-day window — so without this, an
+        insight can point at a match_id that has no row in `matches`/
+        `teams` yet, and any dashboard joining on those tables shows blank
+        team names until the fixtures/teams polls eventually catch up
+        (which teams poll, on its 24h interval, may take a while to do).
+        This reuses translate_event for the match/status and translate_team
+        (with a synthesized minimal payload — only name is ever known here)
+        for both sides, so the read models are populated immediately
+        instead of waiting on a separate feed to reach the same fixture.
+        Team rows are only ever completed here, never regressed: a later
+        real TeamUpdated from the teams poll upserts short_name/country/
+        venue_id over these placeholder blanks."""
+        events: list[DomainEvent] = list(self.translate_event(event))
+
+        home_id, home_name = event.get("home_team_id"), event.get("home_team")
+        if home_id is not None and home_name:
+            events.append(self.translate_team({"id": home_id, "name": home_name}))
+
+        away_id, away_name = event.get("away_team_id"), event.get("away_team")
+        if away_id is not None and away_name:
+            events.append(self.translate_team({"id": away_id, "name": away_name}))
+
+        return events
+
     def translate_team(self, payload: dict) -> TeamUpdated:
         """GET /api/v2/teams/ item -> TeamUpdated event."""
         team_id = self._resolve("team", payload.get("id"))
