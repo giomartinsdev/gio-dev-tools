@@ -1,4 +1,4 @@
-name: Deploy workers
+name: Build workers
 
 on:
   push:
@@ -115,63 +115,3 @@ jobs:
             re.giomartins.dev/${{ steps.image.outputs.name }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ steps.image.outputs.name }}
           cache-to: type=gha,mode=max,scope=${{ steps.image.outputs.name }}
-
-  deploy:
-    needs: [detect-changes, build]
-    runs-on: self-hosted
-    if: needs.detect-changes.outputs.workers != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        worker: ${{ fromJson(needs.detect-changes.outputs.workers) }}
-
-    name: Deploy (${{ matrix.worker }})
-    steps:
-      - name: Resolve image name
-        id: image
-        run: |
-          case "${{ matrix.worker }}" in
-            whatsapp) echo "name=whatsapp-worker" >> "$GITHUB_OUTPUT" ;;
-            *) echo "name=${{ matrix.worker }}" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-      - name: Install cloudflared
-        run: |
-          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-            -o cloudflared
-          chmod +x cloudflared
-          sudo mv cloudflared /usr/local/bin/
-
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          cat >> ~/.ssh/config << EOF
-          Host ${{ secrets.SSH_HOST }}
-            ProxyCommand cloudflared access ssh --hostname %h
-            StrictHostKeyChecking no
-            IdentityFile ~/.ssh/id_ed25519
-          EOF
-
-      - name: Pull and restart on server
-        env:
-          IMAGE: ${{ steps.image.outputs.name }}
-        run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << ENDSSH
-          docker pull re.giomartins.dev/${IMAGE}:latest
-          docker stop ${IMAGE} 2>/dev/null || true
-          docker rm ${IMAGE} 2>/dev/null || true
-          IF_ID=\$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_ID';")
-          IF_SECRET=\$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_SECRET';")
-          IF_PROJECT_ID=\$(docker exec dockhand sqlite3 /app/data/db/dockhand.db "SELECT value FROM stack_environment_variables WHERE stack_name='apis' AND key='IF_PROJECT_ID';")
-          docker run -d \
-            --name ${IMAGE} \
-            --restart unless-stopped \
-            --network persistence \
-            -e if_id="\${IF_ID}" \
-            -e if_secret="\${IF_SECRET}" \
-            -e if_project_id="\${IF_PROJECT_ID}" \
-            -e if_env="prod" \
-            re.giomartins.dev/${IMAGE}:latest
-          ENDSSH
