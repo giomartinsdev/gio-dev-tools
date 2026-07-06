@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Optional, Union
 
 import httpx
+import httpcore
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from shared.logger import get_logger
@@ -28,20 +29,28 @@ class BzzoiroRateLimited(Exception):
         super().__init__(f"rate limited, retry after {retry_after}s")
 
 
+class BzzoiroTransientError(Exception):
+    """502/ReadTimeout from bzzoiro — transient, safe to retry."""
+
+
+
 class BzzoiroClient:
-    def __init__(self, api_key: str, base_url: str = _BASE_URL, timeout: float = 15.0):
+    def __init__(self, api_key: str, base_url: str = _BASE_URL, timeout: float = 60.0):
         self._headers = {"Authorization": f"Token {api_key}"}
         self._base_url = base_url
         self._timeout = timeout
 
     @retry(
-        retry=retry_if_exception_type(BzzoiroRateLimited),
-        wait=wait_exponential(multiplier=1, min=1, max=60),
-        stop=stop_after_attempt(6),
+        retry=retry_if_exception_type((BzzoiroRateLimited, BzzoiroTransientError)),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        stop=stop_after_attempt(4),
         reraise=True,
     )
     def _get(self, client: httpx.Client, path: str, params: dict, not_found_default: Union[dict, list]):
-        resp = client.get(path, params=params)
+        try:
+            resp = client.get(path, params=params)
+        except (httpx.ReadTimeout, httpcore.ReadTimeout) as exc:
+            raise BzzoiroTransientError(f"ReadTimeout on {path}") from exc
         if resp.status_code == 429:
             retry_after = float(resp.headers.get("Retry-After", "5"))
             raise BzzoiroRateLimited(retry_after)
@@ -49,6 +58,8 @@ class BzzoiroClient:
             raise BzzoiroAuthError(f"{resp.status_code} from bzzoiro — check BZZOIRO_API_KEY")
         if resp.status_code == 404:
             return not_found_default
+        if resp.status_code in (502, 503, 504):
+            raise BzzoiroTransientError(f"{resp.status_code} from bzzoiro on {path}")
         resp.raise_for_status()
         return resp.json()
 

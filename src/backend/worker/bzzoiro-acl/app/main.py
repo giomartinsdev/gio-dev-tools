@@ -2,6 +2,8 @@ import asyncio
 import os
 import threading
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Optional
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,6 +62,26 @@ async def _poll_loop(name: str, interval: int, handler, cmd) -> None:
         await asyncio.sleep(interval)
 
 
+async def _poll_odds_loop(interval: int, handler) -> None:
+    """Dedicated odds poll loop that tracks updated_after between cycles.
+
+    First cycle fetches everything (no filter). Subsequent cycles use
+    last_updated_at from the previous successful batch as updated_after,
+    so only odds changed in the last ~interval seconds are fetched (~1-2
+    pages instead of ~1400).
+    """
+    updated_after: Optional[datetime] = None
+    while True:
+        try:
+            count, last_updated_at = await handler.handle(PollOddsCommand(updated_after=updated_after))
+            logger.info(f"odds poll completed: {count} rows, next updated_after={last_updated_at}")
+            if last_updated_at is not None:
+                updated_after = last_updated_at
+        except Exception as exc:
+            logger.error(f"odds poll failed: {exc}", exc_info=True)
+        await asyncio.sleep(interval)
+
+
 async def _run_background(app: FastAPI) -> None:
     await asyncio.to_thread(app.state._init_done.wait)
     if app.state._init_error is not None:
@@ -79,7 +101,7 @@ async def _run_background(app: FastAPI) -> None:
             await asyncio.gather(
                 _poll_loop("fixtures", FIXTURES_POLL_SECONDS, fixtures_handler, PollFixturesCommand()),
                 _poll_loop("live", LIVE_POLL_SECONDS, live_handler, PollLiveCommand()),
-                _poll_loop("odds", ODDS_POLL_SECONDS, odds_handler, PollOddsCommand()),
+                _poll_odds_loop(ODDS_POLL_SECONDS, odds_handler),
                 _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
             )
         except asyncio.CancelledError:

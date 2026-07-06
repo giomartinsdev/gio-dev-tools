@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+import httpcore
 import httpx
 from behave import given, then, use_step_matcher, when
 
 import src.infrastructure.bzzoiro_client as bzzoiro_client_module
-from src.infrastructure.bzzoiro_client import BzzoiroAuthError, BzzoiroClient
+from src.infrastructure.bzzoiro_client import BzzoiroAuthError, BzzoiroClient, BzzoiroTransientError
 
 use_step_matcher("re")
 
@@ -143,8 +144,16 @@ def step_fetch_live(context):
 @when('I fetch odds from the client')
 def step_fetch_odds(context):
     max_page_size_patch = getattr(context, "max_page_size_patch", None)
+    sleep_patch = getattr(context, "sleep_patch", None)
     with context.get_patch:
-        if max_page_size_patch is not None:
+        if sleep_patch is not None:
+            with sleep_patch:
+                if max_page_size_patch is not None:
+                    with max_page_size_patch:
+                        _do_fetch_odds(context)
+                else:
+                    _do_fetch_odds(context)
+        elif max_page_size_patch is not None:
             with max_page_size_patch:
                 _do_fetch_odds(context)
         else:
@@ -208,3 +217,35 @@ def step_partial_odds_page(context):
 @then('all prediction rows are returned')
 def step_all_prediction_rows(context):
     assert [r["id"] for r in context.result] == [1], context.result
+
+
+@given('a bzzoiro API that returns 502 once then succeeds with one odds row')
+def step_502_then_success(context):
+    _setup(context)
+    resp_502 = _response(502, {})
+    resp_ok = _response(200, [{"id": 7, "updated_at": "2026-08-01T10:00:00Z"}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp_502, resp_ok])
+    context.sleep_patch = patch("tenacity.nap.sleep")
+
+
+@given('a bzzoiro API that always raises ReadTimeout')
+def step_always_timeout(context):
+    _setup(context)
+    context.get_patch = patch.object(
+        httpx.Client, "get", side_effect=httpx.ReadTimeout("timed out", request=Mock())
+    )
+    context.sleep_patch = patch("tenacity.nap.sleep")
+
+
+@then('only one odds row is returned without error')
+def step_one_odds_row_no_error(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert len(context.result) == 1, f"expected 1 row, got {context.result}"
+    assert context.result[0]["id"] == 7
+
+
+@then('a BzzoiroTransientError is raised')
+def step_transient_error(context):
+    assert isinstance(context.error, BzzoiroTransientError), (
+        f"expected BzzoiroTransientError, got {context.error!r}"
+    )

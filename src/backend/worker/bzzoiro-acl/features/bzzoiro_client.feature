@@ -57,3 +57,15 @@ Feature: bzzoiro REST client
     Given a bzzoiro v2 API that returns 1 enveloped page of predictions
     When I fetch predictions from the client
     Then all prediction rows are returned
+
+  # ── New: transient error handling (ReadTimeout / 502) ────────────────────────
+
+  Scenario: A 502 is retried and eventually succeeds (positive)
+    Given a bzzoiro API that returns 502 once then succeeds with one odds row
+    When I fetch odds from the client
+    Then only one odds row is returned without error
+
+  Scenario: Repeated ReadTimeouts exhaust retries and raise an error (negative)
+    Given a bzzoiro API that always raises ReadTimeout
+    When I fetch odds from the client
+    Then a BzzoiroTransientError is raised

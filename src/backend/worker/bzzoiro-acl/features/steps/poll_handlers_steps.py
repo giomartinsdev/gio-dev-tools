@@ -146,7 +146,8 @@ def step_run_live(context):
 @when('I run the odds poll handler')
 def step_run_odds(context):
     handler = PollOddsHandler(context.client, context.translator, context.publisher)
-    context.polled_count = asyncio.run(handler.handle(PollOddsCommand()))
+    result = asyncio.run(handler.handle(PollOddsCommand()))
+    context.polled_count, context.last_updated_at = result
 
 
 @when('I run the predictions poll handler')
@@ -175,3 +176,15 @@ def step_assert_insight_published(context):
 @then('the publisher recorded no raw publish')
 def step_assert_no_raw(context):
     assert context.publisher.raw_calls == []
+
+
+@then(r'the last_updated_at is (\S+)')
+def step_assert_last_updated_at(context, expected):
+    if expected == "None":
+        assert context.last_updated_at is None, f"expected None, got {context.last_updated_at}"
+    else:
+        from datetime import datetime, timezone
+        expected_dt = datetime.fromisoformat(expected)
+        assert context.last_updated_at == expected_dt, (
+            f"expected {expected_dt!r}, got {context.last_updated_at!r}"
+        )

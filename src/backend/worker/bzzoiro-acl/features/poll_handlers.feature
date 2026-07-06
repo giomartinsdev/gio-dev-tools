@@ -41,3 +41,15 @@ Feature: Poll command handlers
     When I run the predictions poll handler
     Then 1 event was polled
     And the publisher recorded a raw publish and at least one insight publish
+
+  # ── New: odds handler updated_after contract ─────────────────────────────────
+
+  Scenario: Polling odds returns the most recent updated_at as last_updated_at (positive)
+    Given the fake client returns 3 odds rows for the same event/bookmaker/market
+    When I run the odds poll handler
+    Then the last_updated_at is 2026-08-01T10:00:02+00:00
+
+  Scenario: Polling odds with no rows returns None as last_updated_at (negative)
+    Given the fake client returns no odds rows
+    When I run the odds poll handler
+    Then the last_updated_at is None
