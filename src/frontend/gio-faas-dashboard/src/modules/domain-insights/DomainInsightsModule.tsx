@@ -72,6 +72,47 @@ function statusBadge(status: string | null) {
   return STATUS_LABELS[status] ?? { label: status, className: 'text-muted-foreground' }
 }
 
+// Market/outcome codes are bzzoiro's own vocabulary (see value_bet_detector.py's
+// _MARKET_MAP and value_bet_outcome_resolver.py's _did_outcome_hit) — translated
+// here purely for display, the API keeps sending the raw codes.
+const MARKET_LABELS: Record<string, string> = {
+  '1x2': 'Resultado final',
+  match_result: 'Resultado final',
+  over_under_15: 'Mais/menos 1.5 gols',
+  over_under_25: 'Mais/menos 2.5 gols',
+  over_under_35: 'Mais/menos 3.5 gols',
+  over_under: 'Mais/menos gols',
+  btts: 'Ambos marcam (BTTS)',
+}
+
+const OUTCOME_LABELS: Record<string, string> = {
+  HOME: 'Casa',
+  DRAW: 'Empate',
+  AWAY: 'Fora',
+  over: 'Mais (over)',
+  under: 'Menos (under)',
+  yes: 'Sim',
+  no: 'Não',
+}
+
+const FAVORITE_LETTER_LABELS: Record<string, string> = { H: 'Casa', D: 'Empate', A: 'Fora' }
+
+function translateMarket(market: string) {
+  return MARKET_LABELS[market] ?? market
+}
+
+function translateOutcome(outcome: string) {
+  return OUTCOME_LABELS[outcome] ?? outcome
+}
+
+function translateRecommendation(recommendation: string) {
+  const [key, value] = recommendation.split(':')
+  if (key === 'favorite' && value && FAVORITE_LETTER_LABELS[value]) {
+    return `Favorito: ${FAVORITE_LETTER_LABELS[value]}`
+  }
+  return recommendation
+}
+
 function teamNames(homeName: string | null, awayName: string | null) {
   return `${homeName ?? '?'} vs ${awayName ?? '?'}`
 }
@@ -207,8 +248,8 @@ export function DomainInsightsModule() {
             ) : valueBets.map((vb, i) => (
               <tr key={`${vb.match_id}-${vb.market}-${vb.outcome}-${i}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 <Td className="font-medium">{teamNames(vb.home_team_name, vb.away_team_name)}</Td>
-                <Td className="font-mono text-xs">{vb.market}</Td>
-                <Td className="font-mono text-xs">{vb.outcome}</Td>
+                <Td className="text-xs" title={vb.market}>{translateMarket(vb.market)}</Td>
+                <Td className="text-xs" title={vb.outcome}>{translateOutcome(vb.outcome)}</Td>
                 <Td className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
                   <span className="inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" />{formatEdge(vb.edge)}</span>
                 </Td>
@@ -279,8 +320,8 @@ export function DomainInsightsModule() {
               ) : insights.map(ins => (
                 <tr key={ins.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                   <Td className="font-medium">{teamNames(ins.home_team_name, ins.away_team_name)}</Td>
-                  <Td className="font-mono text-xs">{ins.market}</Td>
-                  <Td className="text-xs">{ins.recommendation}</Td>
+                  <Td className="text-xs" title={ins.market}>{translateMarket(ins.market)}</Td>
+                  <Td className="text-xs">{translateRecommendation(ins.recommendation)}</Td>
                   <Td className="text-right tabular-nums">{(parseFloat(ins.confidence) * 100).toFixed(0)}%</Td>
                 </tr>
               ))}
@@ -300,8 +341,8 @@ function Th({ children, className }: { children?: React.ReactNode; className?: s
   )
 }
 
-function Td({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <td className={cn('px-3 py-2.5', className)}>{children}</td>
+function Td({ children, className, title }: { children?: React.ReactNode; className?: string; title?: string }) {
+  return <td className={cn('px-3 py-2.5', className)} title={title}>{children}</td>
 }
 
 export const domainInsightsMeta = {
