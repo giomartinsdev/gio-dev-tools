@@ -37,9 +37,11 @@ def step_fresh_translator(context):
 
 @given(r'a bzzoiro event payload with id "([^"]+)" status "([^"]+)"')
 def step_payload_with_status(context, provider_id, status):
+    # bzzoiro's real /api/events/ response has `status` as a plain string,
+    # not the {"name": ...} shape the WebSocket docs example uses.
     context.payload = {
         "id": provider_id,
-        "status": {"name": status},
+        "status": status,
         "home": {"id": "10"},
         "away": {"id": "20"},
         "league": {"id": "1"},
@@ -52,11 +54,35 @@ def step_payload_with_status(context, provider_id, status):
 def step_payload_with_status_and_score(context, provider_id, status, home_score, away_score):
     context.payload = {
         "id": provider_id,
-        "status": {"name": status},
+        "status": status,
         "home": {"id": "10"},
         "away": {"id": "20"},
         "league": {"id": "1"},
         "score": {"home": int(home_score), "away": int(away_score)},
+    }
+
+
+@given(r'a bzzoiro event payload with id "([^"]+)" and dict-shaped status "([^"]+)"')
+def step_payload_with_dict_status(context, provider_id, status):
+    # Back-compat: WebSocket "event" frames nest status as {"name": ...}.
+    context.payload = {
+        "id": provider_id,
+        "status": {"name": status},
+        "home": {"id": "10"},
+        "away": {"id": "20"},
+        "league": {"id": "1"},
+        "score": {"home": 0, "away": 0},
+    }
+
+
+@given(r'a bzzoiro event payload with id "([^"]+)" and no status field at all')
+def step_payload_without_status(context, provider_id):
+    context.payload = {
+        "id": provider_id,
+        "home": {"id": "10"},
+        "away": {"id": "20"},
+        "league": {"id": "1"},
+        "score": {"home": 0, "away": 0},
     }
 
 
@@ -149,3 +175,9 @@ def step_payload_all_null_odds(context, market):
 def step_no_odds_event(context):
     odds_events = [e for e in context.events if isinstance(e, OddsSnapshotCaptured)]
     assert not odds_events, f"expected no odds event, got: {odds_events}"
+
+
+@then('no MatchStatusChanged event is produced')
+def step_no_status_event(context):
+    status_events = [e for e in context.events if isinstance(e, MatchStatusChanged)]
+    assert not status_events, f"expected no status event, got: {status_events}"

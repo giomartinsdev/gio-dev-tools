@@ -34,3 +34,13 @@ Feature: Translate bzzoiro payloads into canonical domain events
     Given a bzzoiro event payload with id "808" status "finished" score home 3 away 1
     When I translate the payload
     Then a MatchFinished event with home score 3 and away score 1 is produced
+
+  Scenario: A dict-shaped status (WebSocket "event" frame shape) is also accepted
+    Given a bzzoiro event payload with id "909" and dict-shaped status "live"
+    When I translate the payload
+    Then a MatchStatusChanged event with status "LIVE" is produced
+
+  Scenario: A payload with no status field at all produces no status event
+    Given a bzzoiro event payload with id "910" and no status field at all
+    When I translate the payload
+    Then no MatchStatusChanged event is produced

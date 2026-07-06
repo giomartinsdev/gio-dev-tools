@@ -29,6 +29,17 @@ _STATUS_MAP = {
 }
 
 
+def _extract_status(raw: object) -> str:
+    """bzzoiro's `status` field has been observed as both a plain string
+    (`/api/events/`) and a `{"name": ...}` dict (WebSocket `event` frames).
+    Accept either shape rather than assuming one."""
+    if isinstance(raw, dict):
+        return str(raw.get("name") or "")
+    if isinstance(raw, str):
+        return raw
+    return ""
+
+
 class BzzoiroTranslator:
     """The anti-corruption core: bzzoiro payload -> canonical domain events.
 
@@ -58,7 +69,7 @@ class BzzoiroTranslator:
             )
 
         events: list[DomainEvent] = []
-        provider_status = ((payload.get("status") or {}).get("name") or "").lower()
+        provider_status = _extract_status(payload.get("status")).lower()
         status = _STATUS_MAP.get(provider_status)
 
         kickoff_raw = payload.get("date") or payload.get("kickoff_at")
