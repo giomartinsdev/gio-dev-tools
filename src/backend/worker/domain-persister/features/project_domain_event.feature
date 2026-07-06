@@ -22,6 +22,10 @@ Feature: Domain event projection
     When an OddsSnapshotCaptured event is processed
     Then insert_odds_snapshot was called
 
+  Scenario: TeamUpdated projects into upsert_team
+    When a TeamUpdated event is processed
+    Then upsert_team was called
+
   Scenario: An event type outside the known union is logged and skipped
     When an object of an unknown event type is projected directly
     Then no read-model method is called and no exception is raised

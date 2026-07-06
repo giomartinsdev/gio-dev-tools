@@ -28,5 +28,7 @@ class PollTeamsHandler:
         for payload in payloads:
             team_id = self._translator.resolve_team_id(payload.get("id"))
             await self._publisher.publish_raw("teams", str(payload.get("id")), payload, correlation_id=team_id)
+            event = self._translator.translate_team(payload)
+            await self._publisher.publish_domain_event(event)
         logger.info(f"polled teams: {len(payloads)} events")
         return len(payloads)

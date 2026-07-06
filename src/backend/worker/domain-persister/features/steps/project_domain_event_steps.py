@@ -14,6 +14,7 @@ from shared.events import (
     MatchStatusChanged,
     OddsSelection,
     OddsSnapshotCaptured,
+    TeamUpdated,
 )
 from src.application.project_domain_event import ProjectDomainEventHandler
 
@@ -60,6 +61,14 @@ def step_process_odds(context):
     context.projector.handle(event.model_dump_json().encode())
 
 
+@when('a TeamUpdated event is processed')
+def step_process_team(context):
+    event = TeamUpdated(
+        meta=_meta(), team_id=uuid4(), name="Team ABC", code="ABC", logo="http://logo"
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
 @when('an object of an unknown event type is projected directly')
 def step_process_unknown(context):
     context.error = None
@@ -89,11 +98,16 @@ def step_assert_odds(context):
     context.read_models.insert_odds_snapshot.assert_called_once()
 
 
+@then('upsert_team was called')
+def step_assert_team(context):
+    context.read_models.upsert_team.assert_called_once()
+
+
 @then('no read-model method is called and no exception is raised')
 def step_assert_noop(context):
     assert context.error is None
     for method_name in (
         "upsert_match_scheduled", "upsert_match_status", "upsert_match_score",
-        "upsert_match_finished", "insert_odds_snapshot",
+        "upsert_match_finished", "insert_odds_snapshot", "upsert_team",
     ):
         getattr(context.read_models, method_name).assert_not_called()

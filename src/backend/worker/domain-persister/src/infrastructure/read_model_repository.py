@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from shared.transaction_manager import TransactionManager
 
-from .models import InsightModel, MatchModel, OddsSnapshotModel
+from .models import InsightModel, MatchModel, OddsSnapshotModel, TeamModel
 
 
 class ReadModelRepository:
@@ -131,6 +131,30 @@ class ReadModelRepository:
             feature_snapshot=feature_snapshot,
             generated_at=generated_at,
         ).on_conflict_do_nothing(index_elements=["id"])
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def upsert_team(
+        self,
+        team_id: UUID,
+        name: str,
+        code: Optional[str],
+        logo: Optional[str],
+    ) -> None:
+        stmt = pg_insert(TeamModel).values(
+            team_id=str(team_id),
+            name=name,
+            code=code,
+            logo=logo,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["team_id"],
+            set_={
+                "name": stmt.excluded.name,
+                "code": stmt.excluded.code,
+                "logo": stmt.excluded.logo,
+            },
+        )
         with TransactionManager.get().session() as s:
             s.execute(stmt)
 

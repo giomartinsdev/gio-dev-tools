@@ -82,6 +82,16 @@ class OddsSnapshotCaptured(BaseModel):
     captured_at: datetime
 
 
+class TeamUpdated(BaseModel):
+    event_type: Literal["team.updated"] = "team.updated"
+    version: Literal[1] = 1
+    meta: EventMeta
+    team_id: UUID
+    name: str
+    code: Optional[str] = None
+    logo: Optional[str] = None
+
+
 DomainEvent = Annotated[
     Union[
         MatchScheduled,
@@ -89,6 +99,7 @@ DomainEvent = Annotated[
         MatchScoreUpdated,
         MatchFinished,
         OddsSnapshotCaptured,
+        TeamUpdated,
     ],
     Field(discriminator="event_type"),
 ]

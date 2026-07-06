@@ -15,6 +15,7 @@ from shared.events import (
     MatchStatusChanged,
     OddsSelection,
     OddsSnapshotCaptured,
+    TeamUpdated,
 )
 
 from ..domain.repository import IdentityRepository
@@ -230,3 +231,19 @@ class BzzoiroTranslator:
             feature_snapshot=payload["markets"],
             generated_at=_parse_dt(payload["created_at"]),
         )
+
+    def translate_team(self, payload: dict) -> TeamUpdated:
+        """GET /api/v2/teams/ item -> TeamUpdated event."""
+        team_id = self._resolve("team", payload.get("id"))
+        return TeamUpdated(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=team_id,
+            ),
+            team_id=team_id,
+            name=payload.get("name") or "",
+            code=payload.get("code"),
+            logo=payload.get("logo"),
+        )
+
