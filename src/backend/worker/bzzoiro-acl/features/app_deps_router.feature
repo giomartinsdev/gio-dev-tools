@@ -63,10 +63,20 @@ Feature: FastAPI deps and router wiring
     When I call the poll_teams endpoint expecting an error
     Then a 500 HTTPException is raised
 
-  Scenario: POST /resync runs every poller and reports all five feeds
+  Scenario: POST /poll/odds-comparison returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_odds_comparison endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/odds-comparison surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_odds_comparison endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /resync runs every poller and reports all six feeds
     Given fake poll dependencies with 1 fixture payload
     When I call the resync endpoint
-    Then the resync endpoint reports all five feeds
+    Then the resync endpoint reports all six feeds
 
   Scenario: POST /resync surfaces handler errors as a 500
     Given a poll handler that raises an error

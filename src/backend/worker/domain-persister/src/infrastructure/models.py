@@ -114,6 +114,54 @@ class SquadMemberModel(Base):
 
 
 
+class OddsComparisonModel(Base):
+    """Latest known odds-comparison snapshot per match — overwritten on each
+    poll (not append-only) since only the current picture matters for
+    value-bet detection. `markets` is the verbatim per-market/per-outcome/
+    per-bookmaker breakdown, including each outcome's precomputed best price."""
+
+    __tablename__ = "odds_comparisons"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    bookmakers_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_odds: Mapped[int] = mapped_column(Integer, nullable=False)
+    markets: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PolymarketSnapshotModel(Base):
+    """Latest known Polymarket snapshot per match — same "current state,
+    overwritten" semantics as OddsComparisonModel. Kept for cross-checking
+    against bookmaker odds and bzzoiro's own model, even though no live
+    example ever populated this while the ingestion was written."""
+
+    __tablename__ = "polymarket_snapshots"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    markets: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ValueBetModel(Base):
+    """A detected edge between bzzoiro's model probability and the best
+    market price for one (match, market, outcome). Upserted keyed by that
+    triple — this is "the current known opportunity", not a growing history
+    of every time it was recomputed. Deleted outright once the edge drops
+    back below the threshold (see ValueBetDetector)."""
+
+    __tablename__ = "value_bets"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    market: Mapped[str] = mapped_column(String, primary_key=True)
+    outcome: Mapped[str] = mapped_column(String, primary_key=True)
+    model_probability: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    bookmaker: Mapped[str] = mapped_column(String, nullable=False)
+    best_odds: Mapped[Decimal] = mapped_column(Numeric(8, 3), nullable=False)
+    implied_probability: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    edge: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 def create_all(engine: Engine) -> None:
     """Create the bzzoiro_data schema (Postgres doesn't do this for us) then the tables in it."""
     with engine.begin() as conn:

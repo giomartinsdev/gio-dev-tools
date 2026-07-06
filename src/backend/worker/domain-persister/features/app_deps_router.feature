@@ -37,3 +37,8 @@ Feature: FastAPI deps and router wiring
     Given a fake read model repository returning 1 insight
     When I call the list_insights endpoint
     Then 1 insight is returned
+
+  Scenario: GET /value-bets returns the list from the repository
+    Given a fake read model repository returning 1 value bet
+    When I call the list_value_bets endpoint
+    Then 1 value bet is returned

@@ -6,7 +6,9 @@ from shared.events import (
     MatchScheduled,
     MatchScoreUpdated,
     MatchStatusChanged,
+    OddsComparisonCaptured,
     OddsSnapshotCaptured,
+    PolymarketSnapshotCaptured,
     TeamUpdated,
     SquadUpdated,
     domain_event_adapter,
@@ -14,13 +16,15 @@ from shared.events import (
 from shared.logger import get_logger
 
 from ..infrastructure.read_model_repository import ReadModelRepository
+from .value_bet_detector import ValueBetDetector
 
 logger = get_logger(__name__)
 
 
 class ProjectDomainEventHandler:
-    def __init__(self, read_models: ReadModelRepository):
+    def __init__(self, read_models: ReadModelRepository, value_bet_detector: ValueBetDetector):
         self._read_models = read_models
+        self._value_bet_detector = value_bet_detector
 
     def handle(self, raw_body: bytes) -> None:
         event: DomainEvent = domain_event_adapter.validate_json(raw_body)
@@ -75,6 +79,21 @@ class ProjectDomainEventHandler:
             self._read_models.upsert_squad(
                 team_id=event.team_id,
                 members=event.members,
+            )
+        elif isinstance(event, OddsComparisonCaptured):
+            self._read_models.upsert_odds_comparison(
+                match_id=event.match_id,
+                bookmakers_count=event.bookmakers_count,
+                total_odds=event.total_odds,
+                markets=event.markets,
+                captured_at=event.captured_at,
+            )
+            self._value_bet_detector.evaluate(event.match_id)
+        elif isinstance(event, PolymarketSnapshotCaptured):
+            self._read_models.upsert_polymarket_snapshot(
+                match_id=event.match_id,
+                markets=event.markets,
+                captured_at=event.captured_at,
             )
         else:
             logger.warning(f"unhandled domain event type: {type(event).__name__}")

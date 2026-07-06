@@ -116,6 +116,39 @@ class SquadUpdated(BaseModel):
     members: list[SquadMember]
 
 
+class OddsComparisonCaptured(BaseModel):
+    """GET /api/v2/events/{id}/odds/comparison/ — every bookmaker's price for
+    every market/outcome of one match, plus the provider's own pick of the
+    best price per outcome. Kept close to the wire shape (`markets` verbatim)
+    rather than flattened, since domain-persister's value-bet detector reads
+    `best_odds`/`best_bookmaker_slug` per outcome directly off of it."""
+
+    event_type: Literal["odds.comparison_captured"] = "odds.comparison_captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    bookmakers_count: int
+    total_odds: int
+    markets: dict
+    captured_at: datetime
+
+
+class PolymarketSnapshotCaptured(BaseModel):
+    """GET /api/v2/events/{id}/polymarket/ — prediction-market implied
+    probabilities for one match, independent of both bookmaker odds and
+    bzzoiro's own ML model. `markets` is kept as the raw provider shape:
+    at the time this was written no live example ever returned data (every
+    match probed returned "no markets available"), so the exact shape is
+    unconfirmed — see bzzoiro-acl's translator for the defensive parsing."""
+
+    event_type: Literal["polymarket.snapshot_captured"] = "polymarket.snapshot_captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    markets: dict
+    captured_at: datetime
+
+
 DomainEvent = Annotated[
     Union[
         MatchScheduled,
@@ -125,6 +158,8 @@ DomainEvent = Annotated[
         OddsSnapshotCaptured,
         TeamUpdated,
         SquadUpdated,
+        OddsComparisonCaptured,
+        PolymarketSnapshotCaptured,
     ],
     Field(discriminator="event_type"),
 ]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from uuid import uuid4
@@ -70,6 +71,40 @@ def step_insert_odds(context):
     )
 
 
+@when('I upsert an odds comparison')
+def step_upsert_odds_comparison(context):
+    context.repo.upsert_odds_comparison(
+        match_id=uuid4(), bookmakers_count=3, total_odds=10,
+        markets={"1x2": {"HOME": {"best_odds": 2.1}}}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@when('I upsert a polymarket snapshot')
+def step_upsert_polymarket(context):
+    context.repo.upsert_polymarket_snapshot(
+        match_id=uuid4(), markets={"1x2": {"HOME": 0.5}}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@when('I upsert a value bet')
+def step_upsert_value_bet(context):
+    context.repo.upsert_value_bet(
+        match_id=uuid4(), market="1x2", outcome="HOME", model_probability="0.60",
+        bookmaker="bet365", best_odds="2.20", implied_probability="0.4545", edge="0.1455",
+        detected_at=datetime.now(timezone.utc),
+    )
+
+
+@when('I delete a value bet')
+def step_delete_value_bet(context):
+    context.repo.delete_value_bet(match_id=uuid4(), market="1x2", outcome="HOME")
+
+
+@then('a delete was issued against the value_bets table')
+def step_assert_delete_issued(context):
+    context.session.query.return_value.filter.return_value.delete.assert_called_once()
+
+
 @when('I insert an insight')
 def step_insert_insight(context):
     context.repo.insert_insight(
@@ -108,6 +143,77 @@ def step_get_returns_row(context):
 @given('the session get returns no row')
 def step_get_returns_none(context):
     context.session.get.return_value = None
+
+
+def _fake_odds_comparison_row():
+    return SimpleNamespace(
+        match_id=str(uuid4()), bookmakers_count=3, total_odds=10,
+        markets={"1x2": {"HOME": {"best_odds": 2.1}}}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns an odds comparison row')
+def step_get_returns_odds_comparison_row(context):
+    context.session.get.return_value = _fake_odds_comparison_row()
+
+
+@when('I get the odds comparison')
+def step_get_odds_comparison(context):
+    context.result = context.repo.find_odds_comparison("some-id")
+
+
+@then('an odds comparison dict is returned')
+def step_assert_odds_comparison_dict(context):
+    assert context.result is not None
+    assert "markets" in context.result
+
+
+def _fake_value_bet_row():
+    return SimpleNamespace(
+        match_id=str(uuid4()), market="1x2", outcome="HOME", model_probability=Decimal("0.60"),
+        bookmaker="bet365", best_odds=Decimal("2.20"), implied_probability=Decimal("0.4545"),
+        edge=Decimal("0.1455"), detected_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session query returns 1 insight row for find_latest_insight')
+def step_query_returns_latest_insight(context):
+    row = _fake_insight_row()
+    chain = context.session.query.return_value.filter.return_value.order_by.return_value
+    chain.first.return_value = row
+
+
+@given('the session query returns no rows for find_latest_insight')
+def step_query_returns_no_latest_insight(context):
+    chain = context.session.query.return_value.filter.return_value.order_by.return_value
+    chain.first.return_value = None
+
+
+@when('I get the latest insight')
+def step_get_latest_insight(context):
+    context.result = context.repo.find_latest_insight("some-id")
+
+
+@then('an insight dict is returned')
+def step_assert_insight_dict(context):
+    assert context.result is not None
+    assert "feature_snapshot" in context.result
+
+
+@given('the session query returns 1 value bet row')
+def step_query_returns_value_bet_row(context):
+    row = _fake_value_bet_row()
+    context.session.query.return_value.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [row]
+
+
+@when('I list value bets')
+def step_list_value_bets(context):
+    context.result = context.repo.find_value_bets()
+
+
+@then(r'(\d+) value bet dicts? (?:is|are) returned')
+def step_assert_n_value_bets(context, count):
+    assert len(context.result) == int(count)
 
 
 def _fake_insight_row():

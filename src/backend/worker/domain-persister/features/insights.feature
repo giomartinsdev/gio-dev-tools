@@ -8,6 +8,7 @@ Feature: Insight projection, persistence and query
     Given a fresh insight projector with a mocked read model repository
     When an InsightGenerated event is processed
     Then insert_insight was called with the event's fields
+    And the value bet detector evaluated the match
 
   Scenario: insert_insight writes to the insights table
     Given a fake transaction manager for the read model repository
@@ -24,3 +25,8 @@ Feature: Insight projection, persistence and query
     Given a fake read model repository for insights
     When I list insights with limit 10 and offset 5
     Then find_insights was called with match_id None limit 10 and offset 5
+
+  Scenario: ListValueBetsHandler delegates to find_value_bets with paging
+    Given a fake read model repository for value bets
+    When I list value bets with limit 10 and offset 5
+    Then find_value_bets was called with match_id None limit 10 and offset 5

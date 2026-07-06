@@ -40,3 +40,44 @@ Feature: Read model repository
     Given the session get returns no row
     When I get that match
     Then None is returned
+
+  Scenario: upsert_odds_comparison writes to the odds_comparisons table
+    When I upsert an odds comparison
+    Then the session executed a statement against "odds_comparisons"
+
+  Scenario: upsert_polymarket_snapshot writes to the polymarket_snapshots table
+    When I upsert a polymarket snapshot
+    Then the session executed a statement against "polymarket_snapshots"
+
+  Scenario: upsert_value_bet writes to the value_bets table
+    When I upsert a value bet
+    Then the session executed a statement against "value_bets"
+
+  Scenario: find_odds_comparison returns a dict when the row exists
+    Given the session get returns an odds comparison row
+    When I get the odds comparison
+    Then an odds comparison dict is returned
+
+  Scenario: find_odds_comparison returns None when the row is missing
+    Given the session get returns no row
+    When I get the odds comparison
+    Then None is returned
+
+  Scenario: find_latest_insight returns the most recent insight for a match
+    Given the session query returns 1 insight row for find_latest_insight
+    When I get the latest insight
+    Then an insight dict is returned
+
+  Scenario: find_latest_insight returns None when there is no insight yet
+    Given the session query returns no rows for find_latest_insight
+    When I get the latest insight
+    Then None is returned
+
+  Scenario: find_value_bets maps rows to dicts
+    Given the session query returns 1 value bet row
+    When I list value bets
+    Then 1 value bet dict is returned
+
+  Scenario: delete_value_bet issues a delete against the value_bets table
+    When I delete a value bet
+    Then a delete was issued against the value_bets table

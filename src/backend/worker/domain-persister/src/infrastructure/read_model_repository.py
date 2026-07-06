@@ -9,7 +9,16 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from shared.transaction_manager import TransactionManager
 
-from .models import InsightModel, MatchModel, OddsSnapshotModel, TeamModel, SquadMemberModel
+from .models import (
+    InsightModel,
+    MatchModel,
+    OddsComparisonModel,
+    OddsSnapshotModel,
+    PolymarketSnapshotModel,
+    SquadMemberModel,
+    TeamModel,
+    ValueBetModel,
+)
 
 
 class ReadModelRepository:
@@ -191,6 +200,114 @@ class ReadModelRepository:
                 s.add(model_member)
 
 
+    def upsert_odds_comparison(
+        self,
+        match_id: UUID,
+        bookmakers_count: int,
+        total_odds: int,
+        markets: dict,
+        captured_at: datetime,
+    ) -> None:
+        stmt = pg_insert(OddsComparisonModel).values(
+            match_id=str(match_id),
+            bookmakers_count=bookmakers_count,
+            total_odds=total_odds,
+            markets=markets,
+            captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={
+                "bookmakers_count": stmt.excluded.bookmakers_count,
+                "total_odds": stmt.excluded.total_odds,
+                "markets": stmt.excluded.markets,
+                "captured_at": stmt.excluded.captured_at,
+            },
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def upsert_polymarket_snapshot(self, match_id: UUID, markets: dict, captured_at: datetime) -> None:
+        stmt = pg_insert(PolymarketSnapshotModel).values(
+            match_id=str(match_id), markets=markets, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={"markets": stmt.excluded.markets, "captured_at": stmt.excluded.captured_at},
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_odds_comparison(self, match_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(OddsComparisonModel, match_id)
+            return _odds_comparison_to_dict(row) if row else None
+
+    def find_latest_insight(self, match_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = (
+                s.query(InsightModel)
+                .filter(InsightModel.match_id == match_id)
+                .order_by(InsightModel.generated_at.desc())
+                .first()
+            )
+            return _insight_to_dict(row) if row else None
+
+    def upsert_value_bet(
+        self,
+        match_id: UUID,
+        market: str,
+        outcome: str,
+        model_probability: Decimal,
+        bookmaker: str,
+        best_odds: Decimal,
+        implied_probability: Decimal,
+        edge: Decimal,
+        detected_at: datetime,
+    ) -> None:
+        stmt = pg_insert(ValueBetModel).values(
+            match_id=str(match_id),
+            market=market,
+            outcome=outcome,
+            model_probability=model_probability,
+            bookmaker=bookmaker,
+            best_odds=best_odds,
+            implied_probability=implied_probability,
+            edge=edge,
+            detected_at=detected_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id", "market", "outcome"],
+            set_={
+                "model_probability": stmt.excluded.model_probability,
+                "bookmaker": stmt.excluded.bookmaker,
+                "best_odds": stmt.excluded.best_odds,
+                "implied_probability": stmt.excluded.implied_probability,
+                "edge": stmt.excluded.edge,
+                "detected_at": stmt.excluded.detected_at,
+            },
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def delete_value_bet(self, match_id: UUID, market: str, outcome: str) -> None:
+        with TransactionManager.get().session() as s:
+            s.query(ValueBetModel).filter(
+                ValueBetModel.match_id == str(match_id),
+                ValueBetModel.market == market,
+                ValueBetModel.outcome == outcome,
+            ).delete()
+
+    def find_value_bets(
+        self, match_id: Optional[str] = None, limit: int = 50, offset: int = 0,
+    ) -> list[dict]:
+        with TransactionManager.get().read_only() as s:
+            q = s.query(ValueBetModel)
+            if match_id is not None:
+                q = q.filter(ValueBetModel.match_id == match_id)
+            rows = q.order_by(ValueBetModel.edge.desc()).limit(limit).offset(offset).all()
+            return [_value_bet_to_dict(r) for r in rows]
+
     def find_insights(self, match_id: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict]:
         with TransactionManager.get().read_only() as s:
             q = s.query(InsightModel)
@@ -243,4 +360,28 @@ def _insight_to_dict(row: InsightModel) -> dict:
         "model": row.model,
         "feature_snapshot": row.feature_snapshot,
         "generated_at": row.generated_at.isoformat() if row.generated_at else None,
+    }
+
+
+def _odds_comparison_to_dict(row: OddsComparisonModel) -> dict:
+    return {
+        "match_id": row.match_id,
+        "bookmakers_count": row.bookmakers_count,
+        "total_odds": row.total_odds,
+        "markets": row.markets,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _value_bet_to_dict(row: ValueBetModel) -> dict:
+    return {
+        "match_id": row.match_id,
+        "market": row.market,
+        "outcome": row.outcome,
+        "model_probability": str(row.model_probability),
+        "bookmaker": row.bookmaker,
+        "best_odds": str(row.best_odds),
+        "implied_probability": str(row.implied_probability),
+        "edge": str(row.edge),
+        "detected_at": row.detected_at.isoformat() if row.detected_at else None,
     }

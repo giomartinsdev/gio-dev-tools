@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
@@ -60,6 +61,21 @@ async def poll_odds(
     return {"polled": count, "force": force}
 
 
+@router.post("/poll/odds-comparison")
+async def poll_odds_comparison(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+):
+    try:
+        count = await PollOddsComparisonHandler(client, translator, publisher).handle(
+            PollOddsComparisonCommand()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"polled": count}
+
+
 @router.post("/poll/predictions")
 async def poll_predictions(
     client: BzzoiroClient = Depends(get_client),
@@ -98,8 +114,9 @@ async def resync(
     checkpoints: SyncCheckpointRepository = Depends(get_checkpoints),
 ):
     """Force a full resync of every feed, ignoring odds/teams checkpoints.
-    Fixtures/live/predictions have no checkpoint to bypass — they always
-    pull their normal window — so this just runs all five polls once."""
+    Fixtures/live/odds-comparison/predictions have no checkpoint to bypass —
+    they always pull their normal window — so this just runs all six polls
+    once."""
     results: dict[str, object] = {}
     try:
         results["fixtures"] = await PollFixturesHandler(client, translator, publisher).handle(
@@ -108,6 +125,9 @@ async def resync(
         results["live"] = await PollLiveHandler(client, translator, publisher).handle(PollLiveCommand())
         results["odds"] = await PollOddsHandler(client, translator, publisher, checkpoints).handle(
             PollOddsCommand(force=True)
+        )
+        results["odds_comparison"] = await PollOddsComparisonHandler(client, translator, publisher).handle(
+            PollOddsComparisonCommand()
         )
         results["predictions"] = await PollPredictionsHandler(client, translator, publisher).handle(
             PollPredictionsCommand()

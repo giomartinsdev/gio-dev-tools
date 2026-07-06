@@ -342,3 +342,44 @@ def step_transient_error(context):
     assert isinstance(context.error, BzzoiroTransientError), (
         f"expected BzzoiroTransientError, got {context.error!r}"
     )
+
+
+@given(r'a bzzoiro API that returns an odds comparison payload for event (\d+)')
+def step_odds_comparison_payload(context, event_id):
+    _setup(context)
+    payload = {
+        "event_id": int(event_id), "bookmakers_count": 3, "total_odds": 10,
+        "markets": {"1x2": {"HOME": {"best_odds": 2.1, "best_bookmaker_slug": "bet365", "bookmakers": {}}}},
+    }
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch odds comparison for event (\d+) from the client')
+def step_fetch_odds_comparison(context, event_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_odds_comparison(int(event_id))
+        except Exception as e:
+            context.error = e
+
+
+@when(r'I fetch polymarket for event (\d+) from the client')
+def step_fetch_polymarket(context, event_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_polymarket(int(event_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the odds comparison payload is returned')
+def step_assert_odds_comparison_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result["bookmakers_count"] == 3, context.result
+
+
+@then('None is returned by the client')
+def step_assert_none_returned(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result is None, context.result

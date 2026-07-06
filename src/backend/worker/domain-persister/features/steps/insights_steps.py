@@ -9,6 +9,7 @@ from behave import given, then, use_step_matcher, when
 from shared.events import EventMeta, InsightGenerated
 from src.application.project_insight import ProjectInsightHandler
 from src.application.queries.list_insights import ListInsightsHandler, ListInsightsQuery
+from src.application.queries.list_value_bets import ListValueBetsHandler, ListValueBetsQuery
 
 use_step_matcher("re")
 
@@ -16,7 +17,8 @@ use_step_matcher("re")
 @given('a fresh insight projector with a mocked read model repository')
 def step_fresh_insight_projector(context):
     context.read_models = Mock()
-    context.projector = ProjectInsightHandler(context.read_models)
+    context.value_bet_detector = Mock()
+    context.projector = ProjectInsightHandler(context.read_models, context.value_bet_detector)
     context.event = InsightGenerated(
         meta=EventMeta(occurred_at=datetime.now(timezone.utc), producer="acl.bzzoiro", correlation_id=uuid4()),
         insight_id=uuid4(), match_id=uuid4(), market="match_result", recommendation="favorite:H",
@@ -45,6 +47,11 @@ def step_assert_insert_insight_called(context):
     )
 
 
+@then('the value bet detector evaluated the match')
+def step_assert_value_bet_evaluated(context):
+    context.value_bet_detector.evaluate.assert_called_once_with(context.event.match_id)
+
+
 @given('a fake read model repository for insights')
 def step_fake_repo_for_insights(context):
     context.repo = Mock()
@@ -61,3 +68,21 @@ def step_list_insights_paged(context, limit, offset):
 @then(r'find_insights was called with match_id None limit (\d+) and offset (\d+)')
 def step_assert_find_insights_called(context, limit, offset):
     context.repo.find_insights.assert_called_once_with(match_id=None, limit=int(limit), offset=int(offset))
+
+
+@given('a fake read model repository for value bets')
+def step_fake_repo_for_value_bets(context):
+    context.repo = Mock()
+    context.repo.find_value_bets.return_value = [{"match_id": "1"}]
+
+
+@when(r'I list value bets with limit (\d+) and offset (\d+)')
+def step_list_value_bets_paged(context, limit, offset):
+    context.result = ListValueBetsHandler(context.repo).handle(
+        ListValueBetsQuery(limit=int(limit), offset=int(offset))
+    )
+
+
+@then(r'find_value_bets was called with match_id None limit (\d+) and offset (\d+)')
+def step_assert_find_value_bets_called(context, limit, offset):
+    context.repo.find_value_bets.assert_called_once_with(match_id=None, limit=int(limit), offset=int(offset))

@@ -94,3 +94,15 @@ Feature: Poll command handlers
     When I run the teams poll handler with force
     Then 1 event was polled
     And fetch_teams was called
+
+  Scenario: Polling odds comparison publishes comparison and polymarket data for events that have it
+    Given the fake client returns 1 fixture in the date window with odds comparison and polymarket data
+    When I run the odds comparison poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "odds_comparison" and a raw publish for "polymarket"
+
+  Scenario: Polling odds comparison skips events bzzoiro has no odds for
+    Given the fake client returns 1 fixture in the date window with no odds comparison or polymarket data
+    When I run the odds comparison poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish

@@ -25,6 +25,7 @@ Plain env vars (no secret needed):
 | `BZZOIRO_ODDS_POLL_SECONDS` | `60` | Interval between `/api/v2/odds/` polls |
 | `BZZOIRO_PREDICTIONS_POLL_SECONDS` | `600` | Interval between `/api/v2/predictions/` polls |
 | `BZZOIRO_TEAMS_POLL_SECONDS` | `86400` | Interval between team/squad polls, and the minimum time that must pass before a restart re-triggers one (see "Sync checkpoints" below) |
+| `BZZOIRO_ODDS_COMPARISON_POLL_SECONDS` | `90` | Interval between per-event odds-comparison + Polymarket polls |
 
 ## Running locally
 
@@ -41,16 +42,48 @@ the env vars above set directly (bypassing Infisical) for local runs.
 
 - `GET /health` — always 200 once the process is up.
 - `GET /ready` — 503 until secrets/DB are loaded and RabbitMQ is connected.
-- `POST /poll/fixtures`, `POST /poll/live`, `POST /poll/predictions` — manual
-  trigger, on top of the five background poll loops that run continuously
-  once the service is ready.
+- `POST /poll/fixtures`, `POST /poll/live`, `POST /poll/odds-comparison`,
+  `POST /poll/predictions` — manual trigger, on top of the six background
+  poll loops that run continuously once the service is ready.
 - `POST /poll/odds?force=true`, `POST /poll/teams?force=true` — same, but
   these two also read/write a sync checkpoint (see below); `force=true`
   ignores it and does a full resync for that feed only.
-- `POST /resync` — forces a full resync of **all five** feeds in one call
+- `POST /resync` — forces a full resync of **all six** feeds in one call
   (odds and teams with `force=True`, the rest just run once). Use this after
   a schema change, a suspected gap, or whenever you want a clean slate
   without waiting for the natural poll interval.
+
+## Odds comparison, Polymarket, and value-bet detection
+
+`POST /poll/odds-comparison` (loop: `BZZOIRO_ODDS_COMPARISON_POLL_SECONDS`)
+is the part that actually closes the loop from raw data to an actionable
+signal:
+
+- For every match in the same date window `PollFixturesHandler` uses (not
+  the global `/api/v2/odds/` firehose, and not the broken
+  `/api/v2/events/live/` — see below), it fetches
+  `GET /api/v2/events/{id}/odds/comparison/`: every bookmaker's price for
+  every market/outcome, plus bzzoiro's own precomputed best price per
+  outcome. Translated into `OddsComparisonCaptured`, `markets` kept verbatim
+  since that's exactly what the shape the value-bet detector needs.
+- It also fetches `GET /api/v2/events/{id}/polymarket/` (prediction-market
+  implied probabilities — a third, independent probability source, separate
+  from both bookmaker odds and bzzoiro's own ML model) into
+  `PolymarketSnapshotCaptured`. **No live example ever returned real market
+  data while this was written** — every match probed (including World Cup
+  fixtures) returned `404 {"detail": "No Polymarket markets available for
+  this event."}` — so the ingestion is defensive: archived and translated
+  best-effort, logged and skipped if the shape doesn't match what's
+  expected, never crashes the poll.
+- **Value-bet detection** happens in `domain-persister`, not here: it
+  correlates the `InsightGenerated` (bzzoiro's own model probability) it
+  already ingests via `/api/v2/predictions/` against the best price from
+  `OddsComparisonCaptured` for the same match. `edge = model_probability -
+  (1 / best_odds)`; above `VALUE_BET_EDGE_THRESHOLD` (default `0.05`, set on
+  domain-persister) it's recorded as a value bet, queryable at
+  `GET /value-bets` on that service. See its README for the full mapping
+  from bzzoiro's prediction markets (match_result, over_under, btts) to
+  odds markets (1x2, over_under_15/25/35, btts).
 
 ## Sync checkpoints (why restarts don't re-fetch everything)
 
@@ -112,3 +145,13 @@ service.
   (`https://sports.bzzoiro.com/openapi.json`, served as YAML despite the
   `.json` extension) — `OddsItemV2Schema` and `PredictionV2Schema` — not
   guessed from the docs page.
+- `GET /api/v2/events/live/` is broken as a data source: its response
+  envelope uses an `events` key (`{"count": N, "events": [...]}`) instead
+  of the `results` key every other v2 list endpoint uses, so
+  `fetch_live()`/`_paginate_v2` never actually extracts anything from it.
+  Also, `/api/v2/events/?status=upcoming` and `?status=live` were confirmed
+  to return the **same** `count` — the v1-style `status` filter is a no-op
+  on v2 (its real vocabulary is `notstarted`/`inprogress`/`finished`, not
+  `upcoming`/`live`). Neither is fixed here (out of scope for this pass) —
+  `PollOddsComparisonHandler` deliberately avoids both, scoping to
+  `fetch_events()`'s date window instead, which is confirmed to work.

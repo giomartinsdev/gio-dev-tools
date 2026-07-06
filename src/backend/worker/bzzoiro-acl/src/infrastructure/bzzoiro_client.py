@@ -176,4 +176,25 @@ class BzzoiroClient:
         with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
             return self._get(client, f"v2/teams/{team_ref_id}/squad/", {}, {})
 
+    def fetch_odds_comparison(self, event_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/events/{id}/odds/comparison/ — every bookmaker's price
+        for every market/outcome of one match, plus the provider's own best
+        price per outcome. Returns None if bzzoiro has no odds for this
+        event (404) rather than an empty dict — 0 tracked odds and "we don't
+        know" are different things."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/events/{event_ref_id}/odds/comparison/", {}, None)
+            return page if isinstance(page, dict) else None
+
+    def fetch_polymarket(self, event_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/events/{id}/polymarket/ — prediction-market implied
+        probabilities for one match. Returns None on 404 ("no markets
+        available for this event"), which — empirically, as of writing —
+        is the response for every event tried, including World Cup
+        fixtures. Kept anyway: cheap to poll, and free value the moment
+        bzzoiro actually populates it for a match."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/events/{event_ref_id}/polymarket/", {}, None)
+            return page if isinstance(page, dict) else None
+
 

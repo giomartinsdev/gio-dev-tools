@@ -8,7 +8,15 @@ from behave import given, then, use_step_matcher, when
 from fastapi import HTTPException
 
 from app.deps import _ready, get_client, get_publisher, get_translator
-from app.router import poll_fixtures, poll_live, poll_odds, poll_predictions, poll_teams, resync
+from app.router import (
+    poll_fixtures,
+    poll_live,
+    poll_odds,
+    poll_odds_comparison,
+    poll_predictions,
+    poll_teams,
+    resync,
+)
 
 use_step_matcher("re")
 
@@ -110,6 +118,12 @@ class _FakeClient:
     def fetch_predictions(self, status="upcoming"):
         return []
 
+    def fetch_odds_comparison(self, event_ref_id):
+        return None
+
+    def fetch_polymarket(self, event_ref_id):
+        return None
+
     def fetch_teams(self) -> list[dict]:
         return []
 
@@ -148,6 +162,12 @@ class _RaisingClient:
         raise RuntimeError("upstream down")
 
     def fetch_predictions(self, status="upcoming"):
+        raise RuntimeError("upstream down")
+
+    def fetch_odds_comparison(self, event_ref_id):
+        raise RuntimeError("upstream down")
+
+    def fetch_polymarket(self, event_ref_id):
         raise RuntimeError("upstream down")
 
     def fetch_teams(self) -> list[dict]:
@@ -254,6 +274,23 @@ def step_call_poll_odds_error(context):
         context.error = e
 
 
+@when('I call the poll_odds_comparison endpoint')
+def step_call_poll_odds_comparison(context):
+    context.endpoint_result = asyncio.run(
+        poll_odds_comparison(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_odds_comparison endpoint expecting an error')
+def step_call_poll_odds_comparison_error(context):
+    try:
+        asyncio.run(
+            poll_odds_comparison(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
+
+
 @when('I call the poll_teams endpoint')
 def step_call_poll_teams(context):
     context.endpoint_result = asyncio.run(
@@ -322,10 +359,12 @@ def step_assert_polled_count(context, count):
     assert context.endpoint_result["polled"] == int(count), context.endpoint_result
 
 
-@then('the resync endpoint reports all five feeds')
+@then('the resync endpoint reports all six feeds')
 def step_assert_resync_feeds(context):
     resynced = context.endpoint_result["resynced"]
-    assert set(resynced.keys()) == {"fixtures", "live", "odds", "predictions", "teams"}, resynced
+    assert set(resynced.keys()) == {
+        "fixtures", "live", "odds", "odds_comparison", "predictions", "teams",
+    }, resynced
 
 
 @then('a 500 HTTPException is raised')

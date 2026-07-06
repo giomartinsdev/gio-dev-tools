@@ -8,6 +8,7 @@ from behave import given, then, use_step_matcher, when
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.domain.repository import IdentityRepository
@@ -37,6 +38,8 @@ class _FakeClient:
         self.squad_payloads: dict = {}
         self.fetch_teams_calls: int = 0
         self.odds_page_calls: list[tuple] = []
+        self.odds_comparison_by_event: dict = {}
+        self.polymarket_by_event: dict = {}
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -62,6 +65,12 @@ class _FakeClient:
 
     def fetch_squad(self, team_ref_id: int) -> dict:
         return self.squad_payloads
+
+    def fetch_odds_comparison(self, event_ref_id):
+        return self.odds_comparison_by_event.get(event_ref_id)
+
+    def fetch_polymarket(self, event_ref_id):
+        return self.polymarket_by_event.get(event_ref_id)
 
 
 class _FakeCheckpointRepository:
@@ -150,6 +159,21 @@ def step_no_odds_rows(context):
     context.client.odds_rows = []
 
 
+@given('the fake client returns 1 fixture in the date window with odds comparison and polymarket data')
+def step_one_fixture_with_comparison(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="900")]
+    context.client.odds_comparison_by_event["900"] = {
+        "event_id": "900", "bookmakers_count": 3, "total_odds": 10,
+        "markets": {"1x2": {"HOME": {"best_odds": 2.1, "best_bookmaker_slug": "bet365", "bookmakers": {}}}},
+    }
+    context.client.polymarket_by_event["900"] = {"markets": {"1x2": {"HOME": 0.55}}}
+
+
+@given('the fake client returns 1 fixture in the date window with no odds comparison or polymarket data')
+def step_one_fixture_without_comparison(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="901")]
+
+
 @given('the fake client returns 1 prediction payload')
 def step_one_prediction(context):
     context.client.prediction_payloads = [{
@@ -229,6 +253,12 @@ def step_run_predictions(context):
     context.polled_count = asyncio.run(handler.handle(PollPredictionsCommand()))
 
 
+@when('I run the odds comparison poll handler')
+def step_run_odds_comparison(context):
+    handler = PollOddsComparisonHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollOddsComparisonCommand()))
+
+
 @when('I run the teams poll handler')
 def step_run_teams(context):
     handler = PollTeamsHandler(context.client, context.translator, context.publisher, context.checkpoints)
@@ -266,6 +296,13 @@ def step_assert_insight_published(context):
 @then('the publisher recorded no raw publish')
 def step_assert_no_raw(context):
     assert context.publisher.raw_calls == []
+
+
+@then(r'the publisher recorded a raw publish for "([^"]+)" and a raw publish for "([^"]+)"')
+def step_assert_raw_for_feed_types(context, feed_type_a, feed_type_b):
+    feed_types = [call[0] for call in context.publisher.raw_calls]
+    assert feed_type_a in feed_types, feed_types
+    assert feed_type_b in feed_types, feed_types
 
 
 @then(r'the odds checkpoint is (\S+)')

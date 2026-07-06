@@ -12,8 +12,10 @@ from shared.events import (
     MatchScheduled,
     MatchStatus,
     MatchStatusChanged,
+    OddsComparisonCaptured,
     OddsSelection,
     OddsSnapshotCaptured,
+    PolymarketSnapshotCaptured,
     TeamUpdated,
     SquadMember,
     SquadUpdated,
@@ -30,7 +32,8 @@ def _meta() -> EventMeta:
 @given('a fresh persister with a mocked read model repository')
 def step_fresh_persister(context):
     context.read_models = Mock()
-    context.projector = ProjectDomainEventHandler(context.read_models)
+    context.value_bet_detector = Mock()
+    context.projector = ProjectDomainEventHandler(context.read_models, context.value_bet_detector)
 
 
 @when('a MatchScheduled event is processed')
@@ -84,6 +87,25 @@ def step_process_squad(context):
     context.projector.handle(event.model_dump_json().encode())
 
 
+@when('an OddsComparisonCaptured event is processed')
+def step_process_odds_comparison(context):
+    event = OddsComparisonCaptured(
+        meta=_meta(), match_id=uuid4(), bookmakers_count=3, total_odds=10,
+        markets={"1x2": {"HOME": {"best_odds": 2.1, "best_bookmaker_slug": "bet365", "bookmakers": {}}}},
+        captured_at=datetime.now(timezone.utc),
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
+@when('a PolymarketSnapshotCaptured event is processed')
+def step_process_polymarket(context):
+    event = PolymarketSnapshotCaptured(
+        meta=_meta(), match_id=uuid4(), markets={"1x2": {"HOME": 0.55}},
+        captured_at=datetime.now(timezone.utc),
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
 @when('an object of an unknown event type is projected directly')
 def step_process_unknown(context):
     context.error = None
@@ -123,11 +145,32 @@ def step_assert_squad(context):
     context.read_models.upsert_squad.assert_called_once()
 
 
+@then('upsert_odds_comparison was called')
+def step_assert_odds_comparison(context):
+    context.read_models.upsert_odds_comparison.assert_called_once()
+
+
+@then('upsert_polymarket_snapshot was called')
+def step_assert_polymarket(context):
+    context.read_models.upsert_polymarket_snapshot.assert_called_once()
+
+
+@then('the value bet detector evaluated the match after odds comparison')
+def step_assert_value_bet_evaluated(context):
+    context.value_bet_detector.evaluate.assert_called_once()
+
+
+@then('the value bet detector was not called')
+def step_assert_value_bet_not_called(context):
+    context.value_bet_detector.evaluate.assert_not_called()
+
+
 @then('no read-model method is called and no exception is raised')
 def step_assert_noop(context):
     assert context.error is None
     for method_name in (
         "upsert_match_scheduled", "upsert_match_status", "upsert_match_score",
         "upsert_match_finished", "insert_odds_snapshot", "upsert_team", "upsert_squad",
+        "upsert_odds_comparison", "upsert_polymarket_snapshot",
     ):
         getattr(context.read_models, method_name).assert_not_called()

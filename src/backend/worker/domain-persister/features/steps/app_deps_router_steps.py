@@ -9,7 +9,7 @@ from behave import given, then, use_step_matcher, when
 from fastapi import HTTPException
 
 from app.deps import _ready, get_read_models
-from app.router import get_match, list_insights, list_matches
+from app.router import get_match, list_insights, list_matches, list_value_bets
 
 use_step_matcher("re")
 
@@ -92,6 +92,12 @@ def step_fake_repo_insights(context):
     context.repo.find_insights.return_value = [{"id": "1"}]
 
 
+@given('a fake read model repository returning 1 value bet')
+def step_fake_repo_value_bets(context):
+    context.repo = Mock()
+    context.repo.find_value_bets.return_value = [{"match_id": "1"}]
+
+
 @when('I call the list_matches endpoint')
 def step_call_list_matches(context):
     context.result = list_matches(repo=context.repo)
@@ -115,6 +121,11 @@ def step_call_list_insights(context):
     context.result = list_insights(repo=context.repo)
 
 
+@when('I call the list_value_bets endpoint')
+def step_call_list_value_bets(context):
+    context.result = list_value_bets(repo=context.repo)
+
+
 @then(r'(\d+) match(?:es)? (?:is|are) returned')
 def step_assert_n_matches(context, count):
     assert len(context.result) == int(count)
@@ -122,6 +133,11 @@ def step_assert_n_matches(context, count):
 
 @then(r'(\d+) insights? (?:is|are) returned')
 def step_assert_n_insights_endpoint(context, count):
+    assert len(context.result) == int(count)
+
+
+@then(r'(\d+) value bets? (?:is|are) returned')
+def step_assert_n_value_bets_endpoint(context, count):
     assert len(context.result) == int(count)
 
 

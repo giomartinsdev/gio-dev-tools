@@ -1,6 +1,8 @@
 import asyncio
+import os
 import threading
 from contextlib import asynccontextmanager
+from decimal import Decimal
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +12,7 @@ from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.project_domain_event import ProjectDomainEventHandler
 from src.application.project_insight import ProjectInsightHandler
+from src.application.value_bet_detector import ValueBetDetector
 from src.infrastructure.event_store_repository import EventStoreRepository
 from src.infrastructure.models import create_all
 from src.infrastructure.rabbitmq_consumer import run_consumers
@@ -21,6 +24,7 @@ from .router import router
 logger = get_logger(__name__)
 
 RECONNECT_DELAY = 5
+VALUE_BET_EDGE_THRESHOLD = Decimal(os.environ.get("VALUE_BET_EDGE_THRESHOLD", "0.05"))
 
 
 def _init(app: FastAPI) -> None:
@@ -32,6 +36,7 @@ def _init(app: FastAPI) -> None:
 
         app.state.read_models = ReadModelRepository()
         app.state.event_store = EventStoreRepository()
+        app.state.value_bet_detector = ValueBetDetector(app.state.read_models, VALUE_BET_EDGE_THRESHOLD)
         app.state.rabbitmq_uri = rabbitmq_uri
     except Exception as e:
         app.state._init_error = e
@@ -44,8 +49,8 @@ async def _run_background(app: FastAPI) -> None:
     await asyncio.to_thread(app.state._init_done.wait)
     if app.state._init_error is not None:
         return
-    projector = ProjectDomainEventHandler(app.state.read_models)
-    insight_handler = ProjectInsightHandler(app.state.read_models)
+    projector = ProjectDomainEventHandler(app.state.read_models, app.state.value_bet_detector)
+    insight_handler = ProjectInsightHandler(app.state.read_models, app.state.value_bet_detector)
     await run_consumers(app.state.rabbitmq_uri, app.state.event_store, projector, insight_handler)
 
 
@@ -55,6 +60,7 @@ async def lifespan(app: FastAPI):
     app.state._init_error = None
     app.state.read_models = None
     app.state.event_store = None
+    app.state.value_bet_detector = None
     threading.Thread(target=_init, args=(app,), daemon=True).start()
 
     supervisor = asyncio.create_task(_run_background(app))

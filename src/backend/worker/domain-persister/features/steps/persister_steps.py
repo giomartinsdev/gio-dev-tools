@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from unittest.mock import Mock
 from uuid import NAMESPACE_DNS, uuid4, uuid5
 
 from behave import given, then, use_step_matcher, when
@@ -61,7 +62,7 @@ class InMemoryEventStoreRepository:
 def _setup(context):
     context.read_models = InMemoryReadModelRepository()
     context.event_store = InMemoryEventStoreRepository()
-    context.projector = ProjectDomainEventHandler(context.read_models)
+    context.projector = ProjectDomainEventHandler(context.read_models, Mock())
     context.event_json = None
     context.match_id = None
 

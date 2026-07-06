@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 from uuid import uuid4
 
 from shared.events import (
@@ -13,14 +14,19 @@ from shared.events import (
     MatchScoreUpdated,
     MatchStatus,
     MatchStatusChanged,
+    OddsComparisonCaptured,
     OddsSelection,
     OddsSnapshotCaptured,
+    PolymarketSnapshotCaptured,
     TeamUpdated,
     SquadMember,
     SquadUpdated,
 )
+from shared.logger import get_logger
 
 from ..domain.repository import IdentityRepository
+
+logger = get_logger(__name__)
 
 PROVIDER = "bzzoiro"
 _PRODUCER = "acl.bzzoiro"
@@ -284,6 +290,53 @@ class BzzoiroTranslator:
             ),
             team_id=team_id,
             members=members,
+        )
+
+    def translate_odds_comparison(self, payload: dict) -> OddsComparisonCaptured:
+        """GET /api/v2/events/{id}/odds/comparison/ -> OddsComparisonCaptured.
+        `markets` is kept verbatim (per-market -> per-outcome -> best price +
+        per-bookmaker breakdown) since that's exactly the shape the value-bet
+        detector in domain-persister needs."""
+        match_id = self._resolve("match", payload.get("event_id"))
+        return OddsComparisonCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            bookmakers_count=int(payload.get("bookmakers_count") or 0),
+            total_odds=int(payload.get("total_odds") or 0),
+            markets=payload.get("markets") or {},
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_polymarket(self, event_ref_id: object, payload: dict) -> Optional[PolymarketSnapshotCaptured]:
+        """GET /api/v2/events/{id}/polymarket/ -> PolymarketSnapshotCaptured.
+
+        No live example ever returned real market data while this was
+        written (every event probed returned bzzoiro's "no markets
+        available" body) — the client already turns that specific 404 into
+        `None` before this is called, but this stays defensive against a
+        200 with the same error shape rather than assuming a schema we've
+        never actually seen.
+        """
+        if not isinstance(payload, dict) or not payload:
+            return None
+        if "detail" in payload and len(payload) == 1:
+            logger.info(f"polymarket: no markets available for event {event_ref_id}")
+            return None
+
+        match_id = self._resolve("match", event_ref_id)
+        return PolymarketSnapshotCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            markets=payload,
+            captured_at=datetime.now(timezone.utc),
         )
 
 

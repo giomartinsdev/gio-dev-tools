@@ -30,6 +30,16 @@ Feature: Domain event projection
     When a SquadUpdated event is processed
     Then upsert_squad was called
 
+  Scenario: OddsComparisonCaptured projects into upsert_odds_comparison and triggers value-bet evaluation
+    When an OddsComparisonCaptured event is processed
+    Then upsert_odds_comparison was called
+    And the value bet detector evaluated the match after odds comparison
+
+  Scenario: PolymarketSnapshotCaptured projects into upsert_polymarket_snapshot
+    When a PolymarketSnapshotCaptured event is processed
+    Then upsert_polymarket_snapshot was called
+    And the value bet detector was not called
+
   Scenario: An event type outside the known union is logged and skipped
     When an object of an unknown event type is projected directly
     Then no read-model method is called and no exception is raised

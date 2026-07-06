@@ -12,6 +12,7 @@ from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
@@ -29,6 +30,7 @@ logger = get_logger(__name__)
 FIXTURES_POLL_SECONDS = int(os.environ.get("BZZOIRO_FIXTURES_POLL_SECONDS", "300"))
 LIVE_POLL_SECONDS = int(os.environ.get("BZZOIRO_LIVE_POLL_SECONDS", "30"))
 ODDS_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_POLL_SECONDS", "60"))
+ODDS_COMPARISON_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_COMPARISON_POLL_SECONDS", "90"))
 PREDICTIONS_POLL_SECONDS = int(os.environ.get("BZZOIRO_PREDICTIONS_POLL_SECONDS", "600"))
 TEAMS_POLL_SECONDS = int(os.environ.get("BZZOIRO_TEAMS_POLL_SECONDS", "86400"))
 RECONNECT_DELAY = 5
@@ -80,6 +82,7 @@ async def _run_background(app: FastAPI) -> None:
             fixtures_handler = PollFixturesHandler(app.state.client, app.state.translator, publisher)
             live_handler = PollLiveHandler(app.state.client, app.state.translator, publisher)
             odds_handler = PollOddsHandler(app.state.client, app.state.translator, publisher, checkpoints)
+            odds_comparison_handler = PollOddsComparisonHandler(app.state.client, app.state.translator, publisher)
             predictions_handler = PollPredictionsHandler(app.state.client, app.state.translator, publisher)
             teams_handler = PollTeamsHandler(
                 app.state.client, app.state.translator, publisher, checkpoints,
@@ -89,6 +92,10 @@ async def _run_background(app: FastAPI) -> None:
                 _poll_loop("fixtures", FIXTURES_POLL_SECONDS, fixtures_handler, PollFixturesCommand()),
                 _poll_loop("live", LIVE_POLL_SECONDS, live_handler, PollLiveCommand()),
                 _poll_loop("odds", ODDS_POLL_SECONDS, odds_handler, PollOddsCommand()),
+                _poll_loop(
+                    "odds_comparison", ODDS_COMPARISON_POLL_SECONDS,
+                    odds_comparison_handler, PollOddsComparisonCommand(),
+                ),
                 _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
                 _poll_loop("teams", TEAMS_POLL_SECONDS, teams_handler, PollTeamsCommand()),
             )

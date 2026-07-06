@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.application.queries.get_match import GetMatchHandler, GetMatchQuery
 from src.application.queries.list_insights import ListInsightsHandler, ListInsightsQuery
 from src.application.queries.list_matches import ListMatchesHandler, ListMatchesQuery
+from src.application.queries.list_value_bets import ListValueBetsHandler, ListValueBetsQuery
 from src.infrastructure.read_model_repository import ReadModelRepository
 
 from .deps import get_read_models
@@ -39,3 +40,15 @@ def list_insights(
     repo: ReadModelRepository = Depends(get_read_models),
 ):
     return ListInsightsHandler(repo).handle(ListInsightsQuery(match_id=match_id, limit=limit, offset=offset))
+
+
+@router.get("/value-bets")
+def list_value_bets(
+    match_id: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    repo: ReadModelRepository = Depends(get_read_models),
+):
+    """Currently-detected edges (model probability vs. best market price)
+    above VALUE_BET_EDGE_THRESHOLD, highest edge first."""
+    return ListValueBetsHandler(repo).handle(ListValueBetsQuery(match_id=match_id, limit=limit, offset=offset))

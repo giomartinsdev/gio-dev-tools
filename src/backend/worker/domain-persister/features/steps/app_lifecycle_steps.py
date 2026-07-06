@@ -70,6 +70,7 @@ def _fake_app_for_background(init_error=None):
     fake_app.state._init_error = init_error
     fake_app.state.read_models = Mock()
     fake_app.state.event_store = Mock()
+    fake_app.state.value_bet_detector = Mock()
     fake_app.state.rabbitmq_uri = "amqp://fake"
     return fake_app
 

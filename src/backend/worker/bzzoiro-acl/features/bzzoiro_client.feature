@@ -92,3 +92,20 @@ Feature: bzzoiro REST client
     Given a bzzoiro API that always raises ReadTimeout
     When I fetch odds from the client
     Then a BzzoiroTransientError is raised
+
+  # ── New: odds comparison / polymarket client scenarios ───────────────────────
+
+  Scenario: fetch_odds_comparison returns the comparison payload
+    Given a bzzoiro API that returns an odds comparison payload for event 900
+    When I fetch odds comparison for event 900 from the client
+    Then the odds comparison payload is returned
+
+  Scenario: fetch_odds_comparison returns None when bzzoiro has no odds for the event
+    Given a bzzoiro API that returns 404
+    When I fetch odds comparison for event 900 from the client
+    Then None is returned by the client
+
+  Scenario: fetch_polymarket returns None when no markets are available
+    Given a bzzoiro API that returns 404
+    When I fetch polymarket for event 900 from the client
+    Then None is returned by the client
