@@ -81,3 +81,39 @@ Feature: Read model repository
   Scenario: delete_value_bet issues a delete against the value_bets table
     When I delete a value bet
     Then a delete was issued against the value_bets table
+
+  Scenario: merge_odds_comparison_markets writes to the odds_comparisons table
+    When I merge odds comparison markets
+    Then the session executed a statement against "odds_comparisons"
+
+  Scenario: upsert_lineups writes to the lineups table
+    When I upsert lineups
+    Then the session executed a statement against "lineups"
+
+  Scenario: find_lineups returns a dict when the row exists
+    Given the session get returns a lineups row
+    When I get the lineups
+    Then a lineups dict is returned
+
+  Scenario: find_lineups returns None when the row is missing
+    Given the session get returns no row
+    When I get the lineups
+    Then None is returned
+
+  Scenario: upsert_h2h writes to the h2h table
+    When I upsert h2h
+    Then the session executed a statement against "h2h"
+
+  Scenario: find_h2h returns a dict when the row exists
+    Given the session get returns a h2h row
+    When I get the h2h
+    Then a h2h dict is returned
+
+  Scenario: upsert_standings writes to the standings table
+    When I upsert standings
+    Then the session executed a statement against "standings"
+
+  Scenario: find_standings returns a dict when the row exists
+    Given the session get returns a standings row
+    When I get the standings
+    Then a standings dict is returned

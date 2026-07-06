@@ -105,6 +105,35 @@ def step_assert_delete_issued(context):
     context.session.query.return_value.filter.return_value.delete.assert_called_once()
 
 
+@when('I merge odds comparison markets')
+def step_merge_odds_comparison_markets(context):
+    context.repo.merge_odds_comparison_markets(
+        match_id=uuid4(), markets_patch={"1x2": {"HOME": {"best_odds": 2.3}}},
+        captured_at=datetime.now(timezone.utc),
+    )
+
+
+@when('I upsert lineups')
+def step_upsert_lineups(context):
+    context.repo.upsert_lineups(
+        match_id=uuid4(), lineup_status="predicted",
+        lineups={"home": {"confidence": 0.8}, "away": {"confidence": 0.7}},
+        captured_at=datetime.now(timezone.utc),
+    )
+
+
+@when('I upsert h2h')
+def step_upsert_h2h(context):
+    context.repo.upsert_h2h(match_id=uuid4(), h2h={"total_matches": 0}, captured_at=datetime.now(timezone.utc))
+
+
+@when('I upsert standings')
+def step_upsert_standings(context):
+    context.repo.upsert_standings(
+        competition_id=uuid4(), standings={"standings": []}, captured_at=datetime.now(timezone.utc),
+    )
+
+
 @when('I insert an insight')
 def step_insert_insight(context):
     context.repo.insert_insight(
@@ -166,6 +195,74 @@ def step_get_odds_comparison(context):
 def step_assert_odds_comparison_dict(context):
     assert context.result is not None
     assert "markets" in context.result
+
+
+def _fake_lineups_row():
+    return SimpleNamespace(
+        match_id=str(uuid4()), lineup_status="predicted",
+        lineups={"home": {"confidence": 0.8}, "away": {"confidence": 0.7}},
+        captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a lineups row')
+def step_get_returns_lineups_row(context):
+    context.session.get.return_value = _fake_lineups_row()
+
+
+@when('I get the lineups')
+def step_get_lineups(context):
+    context.result = context.repo.find_lineups("some-id")
+
+
+@then('a lineups dict is returned')
+def step_assert_lineups_dict(context):
+    assert context.result is not None
+    assert "lineups" in context.result
+
+
+def _fake_h2h_row():
+    return SimpleNamespace(
+        match_id=str(uuid4()), h2h={"total_matches": 0}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a h2h row')
+def step_get_returns_h2h_row(context):
+    context.session.get.return_value = _fake_h2h_row()
+
+
+@when('I get the h2h')
+def step_get_h2h(context):
+    context.result = context.repo.find_h2h("some-id")
+
+
+@then('a h2h dict is returned')
+def step_assert_h2h_dict(context):
+    assert context.result is not None
+    assert "h2h" in context.result
+
+
+def _fake_standings_row():
+    return SimpleNamespace(
+        competition_id=str(uuid4()), standings={"standings": []}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a standings row')
+def step_get_returns_standings_row(context):
+    context.session.get.return_value = _fake_standings_row()
+
+
+@when('I get the standings')
+def step_get_standings(context):
+    context.result = context.repo.find_standings("some-id")
+
+
+@then('a standings dict is returned')
+def step_assert_standings_dict(context):
+    assert context.result is not None
+    assert "standings" in context.result
 
 
 def _fake_value_bet_row():

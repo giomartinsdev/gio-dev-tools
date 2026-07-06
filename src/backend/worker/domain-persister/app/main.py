@@ -25,6 +25,7 @@ logger = get_logger(__name__)
 
 RECONNECT_DELAY = 5
 VALUE_BET_EDGE_THRESHOLD = Decimal(os.environ.get("VALUE_BET_EDGE_THRESHOLD", "0.05"))
+LINEUP_CONFIDENCE_THRESHOLD = Decimal(os.environ.get("LINEUP_CONFIDENCE_THRESHOLD", "0.6"))
 
 
 def _init(app: FastAPI) -> None:
@@ -36,7 +37,9 @@ def _init(app: FastAPI) -> None:
 
         app.state.read_models = ReadModelRepository()
         app.state.event_store = EventStoreRepository()
-        app.state.value_bet_detector = ValueBetDetector(app.state.read_models, VALUE_BET_EDGE_THRESHOLD)
+        app.state.value_bet_detector = ValueBetDetector(
+            app.state.read_models, VALUE_BET_EDGE_THRESHOLD, LINEUP_CONFIDENCE_THRESHOLD,
+        )
         app.state.rabbitmq_uri = rabbitmq_uri
     except Exception as e:
         app.state._init_error = e

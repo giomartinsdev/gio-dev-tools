@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from shared.events import (
     DomainEvent,
+    H2HCaptured,
+    LineupsCaptured,
     MatchFinished,
     MatchScheduled,
     MatchScoreUpdated,
     MatchStatusChanged,
+    OddsBestCaptured,
     OddsComparisonCaptured,
     OddsSnapshotCaptured,
     PolymarketSnapshotCaptured,
+    StandingsCaptured,
     TeamUpdated,
     SquadUpdated,
     domain_event_adapter,
@@ -93,6 +97,31 @@ class ProjectDomainEventHandler:
             self._read_models.upsert_polymarket_snapshot(
                 match_id=event.match_id,
                 markets=event.markets,
+                captured_at=event.captured_at,
+            )
+        elif isinstance(event, OddsBestCaptured):
+            self._read_models.merge_odds_comparison_markets(
+                match_id=event.match_id,
+                markets_patch=event.markets,
+                captured_at=event.captured_at,
+            )
+            self._value_bet_detector.evaluate(event.match_id)
+        elif isinstance(event, LineupsCaptured):
+            self._read_models.upsert_lineups(
+                match_id=event.match_id,
+                lineup_status=event.lineup_status,
+                lineups=event.lineups,
+                captured_at=event.captured_at,
+            )
+            self._value_bet_detector.evaluate(event.match_id)
+        elif isinstance(event, H2HCaptured):
+            self._read_models.upsert_h2h(
+                match_id=event.match_id, h2h=event.h2h, captured_at=event.captured_at,
+            )
+        elif isinstance(event, StandingsCaptured):
+            self._read_models.upsert_standings(
+                competition_id=event.competition_id,
+                standings=event.standings,
                 captured_at=event.captured_at,
             )
         else:

@@ -6,10 +6,14 @@ from uuid import UUID, uuid4
 from behave import given, then, use_step_matcher, when
 
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
+from src.application.commands.poll_h2h import PollH2HCommand, PollH2HHandler
+from src.application.commands.poll_lineups import PollLineupsCommand, PollLineupsHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_odds_best import PollOddsBestCommand, PollOddsBestHandler
 from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_standings import PollStandingsCommand, PollStandingsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.domain.repository import IdentityRepository
 from src.infrastructure.translator import BzzoiroTranslator
@@ -41,6 +45,10 @@ class _FakeClient:
         self.odds_comparison_by_event: dict = {}
         self.polymarket_by_event: dict = {}
         self.raise_on_comparison_for: set = set()
+        self.odds_best_rows: list[dict] = []
+        self.lineups_by_event: dict = {}
+        self.h2h_by_event: dict = {}
+        self.standings_by_league: dict = {}
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -74,6 +82,18 @@ class _FakeClient:
 
     def fetch_polymarket(self, event_ref_id):
         return self.polymarket_by_event.get(event_ref_id)
+
+    def fetch_odds_best(self) -> list[dict]:
+        return self.odds_best_rows
+
+    def fetch_lineups(self, event_ref_id):
+        return self.lineups_by_event.get(event_ref_id)
+
+    def fetch_h2h(self, event_ref_id):
+        return self.h2h_by_event.get(event_ref_id)
+
+    def fetch_standings(self, league_ref_id):
+        return self.standings_by_league.get(league_ref_id)
 
 
 class _FakeCheckpointRepository:
@@ -188,6 +208,51 @@ def step_two_fixtures_one_raising(context):
     context.client.polymarket_by_event["903"] = {"markets": {"1x2": {"HOME": 0.55}}}
 
 
+@given('the fake client returns 1 fixture in the date window with a lineup')
+def step_one_fixture_with_lineup(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="910")]
+    context.client.lineups_by_event["910"] = {
+        "lineup_status": "predicted",
+        "lineups": {"home": {"confidence": 0.8}, "away": {"confidence": 0.7}},
+    }
+
+
+@given('the fake client returns 1 fixture in the date window with no lineup yet')
+def step_one_fixture_without_lineup(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="911")]
+
+
+@given('the fake client returns 1 fixture in the date window with h2h history')
+def step_one_fixture_with_h2h(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="920")]
+    context.client.h2h_by_event["920"] = {"total_matches": 5, "home_wins": 2, "draws": 1, "away_wins": 2}
+
+
+@given('the fake client returns 1 event with 1x2 odds via odds/best')
+def step_one_odds_best_row(context):
+    context.client.odds_best_rows = [{
+        "event_id": "930",
+        "best_odds": [
+            {"outcome": "HOME", "decimal_odds": 2.1, "bookmaker_slug": "pinnacle"},
+            {"outcome": "DRAW", "decimal_odds": 3.4, "bookmaker_slug": "bet365"},
+            {"outcome": "AWAY", "decimal_odds": 3.9, "bookmaker_slug": "pinnacle"},
+        ],
+    }]
+
+
+@given('the fake client returns 1 fixture in the date window with league 40 standings')
+def step_one_fixture_with_standings(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="940", league_id=40)]
+    context.client.standings_by_league[40] = {
+        "league_id": 40, "standings": [{"team_id": 1, "position": 1, "points": 30}],
+    }
+
+
+@given('the fake client returns 1 fixture in the date window with no league_id')
+def step_one_fixture_without_league_id(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="941")]
+
+
 @given('the fake client returns 1 prediction payload')
 def step_one_prediction(context):
     context.client.prediction_payloads = [{
@@ -275,6 +340,30 @@ def step_run_odds_comparison(context):
     context.polled_count = asyncio.run(handler.handle(PollOddsComparisonCommand()))
 
 
+@when('I run the lineups poll handler')
+def step_run_lineups(context):
+    handler = PollLineupsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollLineupsCommand()))
+
+
+@when('I run the h2h poll handler')
+def step_run_h2h(context):
+    handler = PollH2HHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollH2HCommand()))
+
+
+@when('I run the odds best poll handler')
+def step_run_odds_best(context):
+    handler = PollOddsBestHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollOddsBestCommand()))
+
+
+@when('I run the standings poll handler')
+def step_run_standings(context):
+    handler = PollStandingsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollStandingsCommand()))
+
+
 @when('I run the teams poll handler')
 def step_run_teams(context):
     handler = PollTeamsHandler(context.client, context.translator, context.publisher, context.checkpoints)
@@ -319,6 +408,12 @@ def step_assert_raw_for_feed_types(context, feed_type_a, feed_type_b):
     feed_types = [call[0] for call in context.publisher.raw_calls]
     assert feed_type_a in feed_types, feed_types
     assert feed_type_b in feed_types, feed_types
+
+
+@then(r'the publisher recorded a raw publish for "([^"]+)"')
+def step_assert_raw_for_one_feed_type(context, feed_type):
+    feed_types = [call[0] for call in context.publisher.raw_calls]
+    assert feed_type in feed_types, feed_types
 
 
 @then(r'the odds checkpoint is (\S+)')

@@ -236,4 +236,44 @@ class BzzoiroClient:
             page = self._get(client, f"v2/events/{event_ref_id}/polymarket/", {}, None)
             return page if isinstance(page, dict) else None
 
+    def fetch_lineups(self, event_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/events/{id}/lineups/ — AI-predicted starting lineup
+        for both sides, with a `confidence` score per side and an overall
+        `lineup_status` (confirmed live: `"predicted"`, `beta: true`).
+        Returns None on 404 (no lineup prediction available yet)."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/events/{event_ref_id}/lineups/", {}, None)
+            return page if isinstance(page, dict) else None
+
+    def fetch_h2h(self, event_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/events/{id}/h2h/ — head-to-head record between the
+        two sides. Confirmed live: pairings with no shared history return a
+        200 with every field zeroed/null rather than a 404, so this is
+        never None once the event exists — a genuinely empty history looks
+        the same as "not fetched yet" only at the dict level, not via a
+        missing row."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/events/{event_ref_id}/h2h/", {}, None)
+            return page if isinstance(page, dict) else None
+
+    def fetch_odds_best(self) -> list[dict]:
+        """GET /api/v2/odds/best/ — one row per event with tracked odds,
+        each carrying the best 1x2 price per outcome across all bookmakers.
+        Confirmed live: `limit` narrows `results` (26 total events tracked
+        at the time this was written), but unlike every other v2 list
+        endpoint the envelope has no `next`/`previous` key at all — so
+        `_paginate_v2` fetches exactly one page and stops (its "no `next`
+        key" branch already treats that as "no more pages"). Fine while the
+        tracked-odds count stays under `_MAX_PAGE_SIZE`; there's no
+        confirmed way to page past that if it ever grows beyond it."""
+        return self._paginate_v2("v2/odds/best/", {})
+
+    def fetch_standings(self, league_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/leagues/{id}/standings/ — current league table.
+        Returns None on 404 (no standings for this league/competition
+        type, e.g. a knockout-only cup)."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/leagues/{league_ref_id}/standings/", {}, None)
+            return page if isinstance(page, dict) else None
+
 

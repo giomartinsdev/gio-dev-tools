@@ -162,6 +162,43 @@ class ValueBetModel(Base):
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class LineupsModel(Base):
+    """Latest known AI-predicted lineup per match — overwritten on each
+    poll, same "current state" semantics as OddsComparisonModel. `lineups`
+    keeps the verbatim `{"home": {...}, "away": {...}}` shape (each with
+    `formation`/`confidence`/`players`) since the value-bet detector reads
+    `confidence` per side directly off of it."""
+
+    __tablename__ = "lineups"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    lineup_status: Mapped[str] = mapped_column(String, nullable=False)
+    lineups: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class H2HModel(Base):
+    """Latest known head-to-head record per match. Pure context — doesn't
+    feed edge detection, only a future dashboard's "why" narrative."""
+
+    __tablename__ = "h2h"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    h2h: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StandingsModel(Base):
+    """Latest known league table per competition. Keyed by competition_id,
+    not match_id — same "why" context role as H2HModel."""
+
+    __tablename__ = "standings"
+
+    competition_id: Mapped[str] = mapped_column(String, primary_key=True)
+    standings: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 def create_all(engine: Engine) -> None:
     """Create the bzzoiro_data schema (Postgres doesn't do this for us) then the tables in it."""
     with engine.begin() as conn:

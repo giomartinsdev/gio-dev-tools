@@ -3,10 +3,11 @@
 Consumes everything ACL workers publish and persists it: raw payloads into an
 append-only event store (for replay), canonical domain events into read
 models (`matches`, `odds_snapshots`, `odds_comparisons`,
-`polymarket_snapshots`), and ML predictions (`InsightGenerated`) into an
-`insights` table. All three queues are declared idempotently on startup from
-the same `shared.rabbitmq_topology` module `bzzoiro-acl` uses, so producer
-and consumer can never disagree on exchange/queue/binding names.
+`polymarket_snapshots`, `lineups`, `h2h`, `standings`), and ML predictions
+(`InsightGenerated`) into an `insights` table. All three queues are declared
+idempotently on startup from the same `shared.rabbitmq_topology` module
+`bzzoiro-acl` uses, so producer and consumer can never disagree on
+exchange/queue/binding names.
 
 It also runs the **value-bet detector**: every time a new odds comparison or
 a new insight lands for a match, it recomputes the edge between bzzoiro's
@@ -26,6 +27,7 @@ Plain env vars (no secret needed):
 | Var | Default | Purpose |
 |---|---|---|
 | `VALUE_BET_EDGE_THRESHOLD` | `0.05` | Minimum `model_probability - implied_probability` to record/keep a value bet (5 percentage points) |
+| `LINEUP_CONFIDENCE_THRESHOLD` | `0.6` | Minimum predicted-lineup confidence (either side) below which a detected edge is suppressed rather than recorded |
 
 ## Running locally
 
@@ -47,10 +49,11 @@ PYTHONPATH=$(pwd):$(pwd)/.. uvicorn app.main:app --reload
 
 ## Value-bet detection
 
-`ValueBetDetector.evaluate(match_id)` runs after projecting either an
-`OddsComparisonCaptured` or an `InsightGenerated` event for that match — a
-no-op if the other half of the correlation isn't there yet. It maps
-bzzoiro's own prediction markets onto bzzoiro's odds markets:
+`ValueBetDetector.evaluate(match_id)` runs after projecting an
+`OddsComparisonCaptured`, `OddsBestCaptured`, `InsightGenerated`, or
+`LineupsCaptured` event for that match — a no-op if insight+odds aren't
+both there yet. It maps bzzoiro's own prediction markets onto bzzoiro's
+odds markets:
 
 | Model probability (`InsightModel.feature_snapshot`) | Odds market / outcome |
 |---|---|
@@ -60,16 +63,47 @@ bzzoiro's own prediction markets onto bzzoiro's odds markets:
 
 For each pair present on both sides: `implied_probability = 1 / best_odds`,
 `edge = model_probability - implied_probability`. Above
-`VALUE_BET_EDGE_THRESHOLD` it's upserted into `value_bets` keyed by
-`(match_id, market, outcome)` — reflecting the *current* best-known
-opportunity, not a growing history. Below threshold, any previously
-recorded value bet for that key is deleted — if the market moves back, the
+`VALUE_BET_EDGE_THRESHOLD` **and** with lineup confidence at or above
+`LINEUP_CONFIDENCE_THRESHOLD` (see below), it's upserted into `value_bets`
+keyed by `(match_id, market, outcome)` — reflecting the *current* best-known
+opportunity, not a growing history. Otherwise, any previously recorded
+value bet for that key is deleted — if the market moves back, the
 opportunity disappears from `GET /value-bets` on its own.
 
-`odds_comparisons`/`polymarket_snapshots` are themselves "current state"
-tables too (upserted by `match_id`, not append-only) — only the latest
-picture matters for detection; the raw event-store history is what you'd
-replay from if you needed the full timeline.
+`odds_comparisons`/`polymarket_snapshots`/`lineups`/`h2h`/`standings` are
+themselves "current state" tables too (upserted by `match_id` or
+`competition_id`, not append-only) — only the latest picture matters for
+detection/context; the raw event-store history is what you'd replay from
+if you needed the full timeline.
+
+### Lineup confidence as a trust filter, not another data source
+
+bzzoiro's own model and the market's odds may both have been computed
+before knowing a key player will miss the match. A "value bet" detected in
+that window can just be stale noise, not a real mispricing. So before
+recording an edge, the detector checks `LineupsCaptured.lineups.{home,away}.confidence`
+(the AI-predicted lineup's confidence score per side, lowest of the two
+wins) against `LINEUP_CONFIDENCE_THRESHOLD`:
+
+- No lineup captured yet for the match → filter doesn't apply, detection
+  proceeds normally (missing data isn't the same as "known unreliable").
+- Lineup captured but confidence below threshold → the edge is suppressed
+  (deleted if previously recorded), logged as "value bet suppressed... team
+  news may not be priced in yet".
+- Lineup captured with confidence at/above threshold → detection proceeds
+  as if no lineup data existed.
+
+### Odds/best: a cheap 1x2 feed that merges, never replaces
+
+`bzzoiro-acl`'s `PollOddsBestHandler` polls `/api/v2/odds/best/` — one
+paginated call covering the best 1x2 price for every event with tracked
+odds, far cheaper than the per-event `/odds/comparison/` poll. Since it
+only ever knows about the `1x2` market, `OddsBestCaptured` is projected via
+`merge_odds_comparison_markets` — a single `UPDATE ... SET markets =
+odds_comparisons.markets || EXCLUDED.markets` (Postgres JSONB concat) —
+instead of `upsert_odds_comparison`'s full replace. That means a cheap,
+frequent 1x2 update can't wipe out `over_under`/`btts` data a slower, fuller
+comparison poll already captured for the same match.
 
 ## Idempotency
 
@@ -85,8 +119,12 @@ replay from if you needed the full timeline.
   as `odds_snapshots`.
 - `value_bets` is upserted keyed by `(match_id, market, outcome)` via
   `ON CONFLICT DO UPDATE` — recomputing the same edge just re-applies the
-  same numbers, and a value bet that drops below threshold is deleted
-  outright rather than left stale.
+  same numbers, and a value bet that drops below threshold (or whose
+  lineup confidence drops too low) is deleted outright rather than left
+  stale.
+- `lineups`/`h2h` are upserted by `match_id`, `standings` by
+  `competition_id` — same "current state, overwritten" shape as
+  `odds_comparisons`.
 - Messages are acked only after the DB write commits; validation failures
   (unparseable/failing pydantic) are nacked without requeue, which routes
   them to the queue's DLX (`dlx.<queue>` → `q.<queue>.dead`) instead of

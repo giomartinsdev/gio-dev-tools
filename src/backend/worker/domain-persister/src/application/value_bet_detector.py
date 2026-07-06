@@ -33,13 +33,30 @@ class ValueBetDetector:
     bet for that (match, market, outcome) is removed — this tracks current
     opportunities, not a history of every recomputation.
 
-    Runs after either half of the correlation lands (a new insight or a new
-    odds comparison) for a match; a no-op if the other half isn't there yet.
+    Runs after any of the four inputs lands (a new insight, odds
+    comparison/best, or lineup) for a match; a no-op if insight+odds aren't
+    both there yet.
+
+    Lineup confidence acts as a trust filter, not another data source: if
+    bzzoiro's own AI-predicted lineup for either side is below
+    `lineup_confidence_threshold`, an edge is suppressed rather than acted
+    on — a low-confidence predicted XI means the real team news might not
+    be priced into the model or the odds yet, so an apparent mispricing
+    could just be uncertainty about who's actually playing, not a real
+    edge. No lineup data yet (not polled, or not available for this match)
+    doesn't block detection — only a lineup that HAS been captured with
+    low confidence does.
     """
 
-    def __init__(self, read_models: ReadModelRepository, edge_threshold: Decimal):
+    def __init__(
+        self,
+        read_models: ReadModelRepository,
+        edge_threshold: Decimal,
+        lineup_confidence_threshold: Decimal = Decimal("0.6"),
+    ):
         self._read_models = read_models
         self._edge_threshold = edge_threshold
+        self._lineup_confidence_threshold = lineup_confidence_threshold
 
     def evaluate(self, match_id: object) -> None:
         match_id_str = str(match_id)
@@ -50,6 +67,7 @@ class ValueBetDetector:
 
         feature_snapshot = insight.get("feature_snapshot") or {}
         markets = comparison.get("markets") or {}
+        lineup_confidence = self._extract_lineup_confidence(self._read_models.find_lineups(match_id_str))
 
         for (group_key, prob_key), odds_market, odds_outcome in _MARKET_MAP:
             model_prob = self._extract_probability(feature_snapshot, group_key, prob_key)
@@ -66,7 +84,7 @@ class ValueBetDetector:
             implied_probability = Decimal("1") / best_odds
             edge = model_prob - implied_probability
 
-            if edge > self._edge_threshold:
+            if edge > self._edge_threshold and self._lineup_confidence_ok(lineup_confidence):
                 self._read_models.upsert_value_bet(
                     match_id=match_id,
                     market=odds_market,
@@ -83,7 +101,34 @@ class ValueBetDetector:
                     f"edge={edge:.4f} bookmaker={best_bookmaker} odds={best_odds}"
                 )
             else:
+                if edge > self._edge_threshold:
+                    logger.info(
+                        f"value bet suppressed: match={match_id_str} market={odds_market} "
+                        f"outcome={odds_outcome} edge={edge:.4f} but lineup confidence "
+                        f"{lineup_confidence} < {self._lineup_confidence_threshold} — "
+                        f"team news may not be priced in yet"
+                    )
                 self._read_models.delete_value_bet(match_id, odds_market, odds_outcome)
+
+    def _lineup_confidence_ok(self, lineup_confidence: Optional[Decimal]) -> bool:
+        if lineup_confidence is None:
+            return True
+        return lineup_confidence >= self._lineup_confidence_threshold
+
+    @staticmethod
+    def _extract_lineup_confidence(lineups_row: Optional[dict]) -> Optional[Decimal]:
+        if not lineups_row:
+            return None
+        lineups = lineups_row.get("lineups") or {}
+        values = []
+        for side in ("home", "away"):
+            confidence = (lineups.get(side) or {}).get("confidence")
+            if confidence is not None:
+                try:
+                    values.append(Decimal(str(confidence)))
+                except Exception:
+                    continue
+        return min(values) if values else None
 
     @staticmethod
     def _extract_probability(feature_snapshot: dict, group_key: str, prob_key: str) -> Optional[Decimal]:

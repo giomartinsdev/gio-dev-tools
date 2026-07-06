@@ -8,14 +8,18 @@ from behave import given, then, use_step_matcher, when
 
 from shared.events import (
     EventMeta,
+    H2HCaptured,
+    LineupsCaptured,
     MatchFinished,
     MatchScheduled,
     MatchStatus,
     MatchStatusChanged,
+    OddsBestCaptured,
     OddsComparisonCaptured,
     OddsSelection,
     OddsSnapshotCaptured,
     PolymarketSnapshotCaptured,
+    StandingsCaptured,
     TeamUpdated,
     SquadMember,
     SquadUpdated,
@@ -106,6 +110,44 @@ def step_process_polymarket(context):
     context.projector.handle(event.model_dump_json().encode())
 
 
+@when('an OddsBestCaptured event is processed')
+def step_process_odds_best(context):
+    event = OddsBestCaptured(
+        meta=_meta(), match_id=uuid4(),
+        markets={"1x2": {"HOME": {"best_odds": 2.3, "best_bookmaker_slug": "pinnacle", "bookmakers": {}}}},
+        captured_at=datetime.now(timezone.utc),
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
+@when('a LineupsCaptured event is processed')
+def step_process_lineups(context):
+    event = LineupsCaptured(
+        meta=_meta(), match_id=uuid4(), lineup_status="predicted",
+        lineups={"home": {"confidence": 0.8}, "away": {"confidence": 0.7}},
+        captured_at=datetime.now(timezone.utc),
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
+@when('a H2HCaptured event is processed')
+def step_process_h2h(context):
+    event = H2HCaptured(
+        meta=_meta(), match_id=uuid4(), h2h={"total_matches": 0},
+        captured_at=datetime.now(timezone.utc),
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
+@when('a StandingsCaptured event is processed')
+def step_process_standings(context):
+    event = StandingsCaptured(
+        meta=_meta(), competition_id=uuid4(), standings={"standings": []},
+        captured_at=datetime.now(timezone.utc),
+    )
+    context.projector.handle(event.model_dump_json().encode())
+
+
 @when('an object of an unknown event type is projected directly')
 def step_process_unknown(context):
     context.error = None
@@ -165,6 +207,26 @@ def step_assert_value_bet_not_called(context):
     context.value_bet_detector.evaluate.assert_not_called()
 
 
+@then('merge_odds_comparison_markets was called')
+def step_assert_merge_odds_comparison(context):
+    context.read_models.merge_odds_comparison_markets.assert_called_once()
+
+
+@then('upsert_lineups was called')
+def step_assert_upsert_lineups(context):
+    context.read_models.upsert_lineups.assert_called_once()
+
+
+@then('upsert_h2h was called')
+def step_assert_upsert_h2h(context):
+    context.read_models.upsert_h2h.assert_called_once()
+
+
+@then('upsert_standings was called')
+def step_assert_upsert_standings(context):
+    context.read_models.upsert_standings.assert_called_once()
+
+
 @then('no read-model method is called and no exception is raised')
 def step_assert_noop(context):
     assert context.error is None
@@ -172,5 +234,6 @@ def step_assert_noop(context):
         "upsert_match_scheduled", "upsert_match_status", "upsert_match_score",
         "upsert_match_finished", "insert_odds_snapshot", "upsert_team", "upsert_squad",
         "upsert_odds_comparison", "upsert_polymarket_snapshot",
+        "merge_odds_comparison_markets", "upsert_lineups", "upsert_h2h", "upsert_standings",
     ):
         getattr(context.read_models, method_name).assert_not_called()

@@ -405,3 +405,104 @@ def step_assert_odds_comparison_payload(context):
 def step_assert_none_returned(context):
     assert context.error is None, f"unexpected error: {context.error}"
     assert context.result is None, context.result
+
+
+@given(r'a bzzoiro API that returns a lineups payload for event (\d+)')
+def step_lineups_payload(context, event_id):
+    _setup(context)
+    payload = {
+        "event_id": int(event_id), "lineup_status": "predicted", "beta": True,
+        "lineups": {"home": {"confidence": 0.8}, "away": {"confidence": 0.7}},
+    }
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch lineups for event (\d+) from the client')
+def step_fetch_lineups(context, event_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_lineups(int(event_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the lineups payload is returned')
+def step_assert_lineups_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result["lineup_status"] == "predicted", context.result
+
+
+@given(r'a bzzoiro API that returns a h2h payload for event (\d+)')
+def step_h2h_payload(context, event_id):
+    _setup(context)
+    payload = {"total_matches": 0, "home_wins": 0, "draws": 0, "away_wins": 0}
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch h2h for event (\d+) from the client')
+def step_fetch_h2h(context, event_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_h2h(int(event_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the h2h payload is returned')
+def step_assert_h2h_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result["total_matches"] == 0, context.result
+
+
+@given('a bzzoiro v2 API that returns 1 page of best odds')
+def step_odds_best_payload(context):
+    _setup(context)
+    page = _response(200, {
+        "count": 1,
+        "results": [{
+            "event_id": 46387, "market": "1x2",
+            "best_odds": [{"outcome": "HOME", "decimal_odds": 3.23, "bookmaker_slug": "pinnacle"}],
+        }],
+    })
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
+@when('I fetch odds best from the client')
+def step_fetch_odds_best(context):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_odds_best()
+        except Exception as e:
+            context.error = e
+
+
+@then('the odds best rows are returned')
+def step_assert_odds_best_rows(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert len(context.result) == 1, context.result
+    assert context.result[0]["event_id"] == 46387, context.result
+
+
+@given(r'a bzzoiro API that returns a standings payload for league (\d+)')
+def step_standings_payload(context, league_id):
+    _setup(context)
+    payload = {"league_id": int(league_id), "standings": [{"team_id": 1, "position": 1}]}
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch standings for league (\d+) from the client')
+def step_fetch_standings(context, league_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_standings(int(league_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the standings payload is returned')
+def step_assert_standings_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert len(context.result["standings"]) == 1, context.result

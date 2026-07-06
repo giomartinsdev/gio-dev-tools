@@ -10,10 +10,14 @@ from shared.logger import get_logger
 from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
+from src.application.commands.poll_h2h import PollH2HCommand, PollH2HHandler
+from src.application.commands.poll_lineups import PollLineupsCommand, PollLineupsHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_odds_best import PollOddsBestCommand, PollOddsBestHandler
 from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_standings import PollStandingsCommand, PollStandingsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.identity_repository import PostgresIdentityRepository
@@ -31,6 +35,10 @@ FIXTURES_POLL_SECONDS = int(os.environ.get("BZZOIRO_FIXTURES_POLL_SECONDS", "300
 LIVE_POLL_SECONDS = int(os.environ.get("BZZOIRO_LIVE_POLL_SECONDS", "30"))
 ODDS_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_POLL_SECONDS", "60"))
 ODDS_COMPARISON_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_COMPARISON_POLL_SECONDS", "90"))
+ODDS_BEST_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_BEST_POLL_SECONDS", "60"))
+LINEUPS_POLL_SECONDS = int(os.environ.get("BZZOIRO_LINEUPS_POLL_SECONDS", "300"))
+H2H_POLL_SECONDS = int(os.environ.get("BZZOIRO_H2H_POLL_SECONDS", "3600"))
+STANDINGS_POLL_SECONDS = int(os.environ.get("BZZOIRO_STANDINGS_POLL_SECONDS", "3600"))
 PREDICTIONS_POLL_SECONDS = int(os.environ.get("BZZOIRO_PREDICTIONS_POLL_SECONDS", "600"))
 TEAMS_POLL_SECONDS = int(os.environ.get("BZZOIRO_TEAMS_POLL_SECONDS", "86400"))
 RECONNECT_DELAY = 5
@@ -83,6 +91,10 @@ async def _run_background(app: FastAPI) -> None:
             live_handler = PollLiveHandler(app.state.client, app.state.translator, publisher)
             odds_handler = PollOddsHandler(app.state.client, app.state.translator, publisher, checkpoints)
             odds_comparison_handler = PollOddsComparisonHandler(app.state.client, app.state.translator, publisher)
+            odds_best_handler = PollOddsBestHandler(app.state.client, app.state.translator, publisher)
+            lineups_handler = PollLineupsHandler(app.state.client, app.state.translator, publisher)
+            h2h_handler = PollH2HHandler(app.state.client, app.state.translator, publisher)
+            standings_handler = PollStandingsHandler(app.state.client, app.state.translator, publisher)
             predictions_handler = PollPredictionsHandler(app.state.client, app.state.translator, publisher)
             teams_handler = PollTeamsHandler(
                 app.state.client, app.state.translator, publisher, checkpoints,
@@ -96,6 +108,10 @@ async def _run_background(app: FastAPI) -> None:
                     "odds_comparison", ODDS_COMPARISON_POLL_SECONDS,
                     odds_comparison_handler, PollOddsComparisonCommand(),
                 ),
+                _poll_loop("odds_best", ODDS_BEST_POLL_SECONDS, odds_best_handler, PollOddsBestCommand()),
+                _poll_loop("lineups", LINEUPS_POLL_SECONDS, lineups_handler, PollLineupsCommand()),
+                _poll_loop("h2h", H2H_POLL_SECONDS, h2h_handler, PollH2HCommand()),
+                _poll_loop("standings", STANDINGS_POLL_SECONDS, standings_handler, PollStandingsCommand()),
                 _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
                 _poll_loop("teams", TEAMS_POLL_SECONDS, teams_handler, PollTeamsCommand()),
             )

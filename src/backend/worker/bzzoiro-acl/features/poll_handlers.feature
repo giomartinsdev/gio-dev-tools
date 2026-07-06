@@ -112,3 +112,47 @@ Feature: Poll command handlers
     When I run the odds comparison poll handler
     Then 1 event was polled
     And the publisher recorded a raw publish for "odds_comparison" and a raw publish for "polymarket"
+
+  # ── Lineups ───────────────────────────────────────────────────────────────────
+
+  Scenario: Polling lineups publishes a predicted lineup for events that have one
+    Given the fake client returns 1 fixture in the date window with a lineup
+    When I run the lineups poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "lineups"
+
+  Scenario: Polling lineups skips events with no lineup prediction yet
+    Given the fake client returns 1 fixture in the date window with no lineup yet
+    When I run the lineups poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish
+
+  # ── Head-to-head ──────────────────────────────────────────────────────────────
+
+  Scenario: Polling h2h publishes the head-to-head record for events in the window
+    Given the fake client returns 1 fixture in the date window with h2h history
+    When I run the h2h poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "h2h"
+
+  # ── Odds best (cheap 1x2 feed) ────────────────────────────────────────────────
+
+  Scenario: Polling odds best publishes a partial 1x2 update for each tracked event
+    Given the fake client returns 1 event with 1x2 odds via odds/best
+    When I run the odds best poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "odds_best"
+
+  # ── Standings ─────────────────────────────────────────────────────────────────
+
+  Scenario: Polling standings publishes the league table for leagues active in the window
+    Given the fake client returns 1 fixture in the date window with league 40 standings
+    When I run the standings poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "standings"
+
+  Scenario: Polling standings skips events with no league_id
+    Given the fake client returns 1 fixture in the date window with no league_id
+    When I run the standings poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish

@@ -2,10 +2,12 @@
 
 Anti-corruption layer over the [bzzoiro](https://sports.bzzoiro.com/docs/)
 football API (the only free sport bzzoiro offers). Polls fixtures, live
-scores, v2 odds, v2 predictions and teams/squads, translates them into
-canonical domain events, resolves bzzoiro's own ids to internal canonical
-UUIDs, and publishes both the raw payload and the translated events to
-RabbitMQ. Nothing downstream ever sees a bzzoiro id or status string.
+scores, v2 odds (comparison + a cheap 1x2-only feed), v2 predictions,
+teams/squads, AI-predicted lineups, head-to-head records, and league
+standings, translates them into canonical domain events, resolves
+bzzoiro's own ids to internal canonical UUIDs, and publishes both the raw
+payload and the translated events to RabbitMQ. Nothing downstream ever
+sees a bzzoiro id or status string.
 
 ## Env vars (via Infisical, `shared.secret_manager.SecretManager`)
 
@@ -26,6 +28,10 @@ Plain env vars (no secret needed):
 | `BZZOIRO_PREDICTIONS_POLL_SECONDS` | `600` | Interval between `/api/v2/predictions/` polls |
 | `BZZOIRO_TEAMS_POLL_SECONDS` | `86400` | Interval between team/squad polls, and the minimum time that must pass before a restart re-triggers one (see "Sync checkpoints" below) |
 | `BZZOIRO_ODDS_COMPARISON_POLL_SECONDS` | `90` | Interval between per-event odds-comparison + Polymarket polls |
+| `BZZOIRO_ODDS_BEST_POLL_SECONDS` | `60` | Interval between `/api/v2/odds/best/` polls (cheap, single-call 1x2 coverage) |
+| `BZZOIRO_LINEUPS_POLL_SECONDS` | `300` | Interval between per-event predicted-lineup polls |
+| `BZZOIRO_H2H_POLL_SECONDS` | `3600` | Interval between per-event head-to-head polls |
+| `BZZOIRO_STANDINGS_POLL_SECONDS` | `3600` | Interval between per-league standings polls |
 
 ## Running locally
 
@@ -43,12 +49,14 @@ the env vars above set directly (bypassing Infisical) for local runs.
 - `GET /health` — always 200 once the process is up.
 - `GET /ready` — 503 until secrets/DB are loaded and RabbitMQ is connected.
 - `POST /poll/fixtures`, `POST /poll/live`, `POST /poll/odds-comparison`,
-  `POST /poll/predictions` — manual trigger, on top of the six background
-  poll loops that run continuously once the service is ready.
+  `POST /poll/odds-best`, `POST /poll/lineups`, `POST /poll/h2h`,
+  `POST /poll/standings`, `POST /poll/predictions` — manual trigger, on top
+  of the ten background poll loops that run continuously once the service
+  is ready.
 - `POST /poll/odds?force=true`, `POST /poll/teams?force=true` — same, but
   these two also read/write a sync checkpoint (see below); `force=true`
   ignores it and does a full resync for that feed only.
-- `POST /resync` — forces a full resync of **all six** feeds in one call
+- `POST /resync` — forces a full resync of **all ten** feeds in one call
   (odds and teams with `force=True`, the rest just run once). Use this after
   a schema change, a suspected gap, or whenever you want a clean slate
   without waiting for the natural poll interval.
@@ -84,6 +92,39 @@ signal:
   `GET /value-bets` on that service. See its README for the full mapping
   from bzzoiro's prediction markets (match_result, over_under, btts) to
   odds markets (1x2, over_under_15/25/35, btts).
+
+## Lineups, head-to-head, league standings, and cheap 1x2 odds
+
+Four more per-event/per-league polls, each independently resilient (one
+event/league failing doesn't abort the rest of that poll cycle, same
+pattern as odds comparison):
+
+- **`POST /poll/lineups`** — `GET /api/v2/events/{id}/lineups/`, bzzoiro's
+  AI-predicted starting XI per side with a `confidence` score and an
+  overall `lineup_status` (confirmed live: `"predicted"`, `beta: true`).
+  Translated into `LineupsCaptured`. This is the one that actually changes
+  value-bet quality, not just adds context: `domain-persister`'s
+  `ValueBetDetector` reads lineup confidence as a trust filter — if either
+  side's predicted lineup is below `LINEUP_CONFIDENCE_THRESHOLD` (default
+  `0.6`, set on domain-persister), a detected edge is suppressed rather
+  than recorded, since an unconfident lineup prediction means real team
+  news might not be priced into the model or the odds yet.
+- **`POST /poll/odds-best`** — `GET /api/v2/odds/best/`, a single paginated
+  call covering the best 1x2 price for every event bzzoiro tracks odds for
+  (confirmed live: 26 events in one call, vs. one call per event the full
+  comparison poll needs). Translated into `OddsBestCaptured` and merged
+  (not replaced) into the same `odds_comparisons` row the full comparison
+  poll writes — see domain-persister's README for how the merge avoids
+  clobbering over_under/btts data with a 1x2-only update.
+- **`POST /poll/h2h`** — `GET /api/v2/events/{id}/h2h/`, head-to-head record
+  between the two sides. Pure context (doesn't feed edge detection) —
+  confirmed live that pairings with no shared history return a 200 with
+  every field zeroed rather than a 404, so this is translated the same as
+  a populated record.
+- **`POST /poll/standings`** — `GET /api/v2/leagues/{id}/standings/`,
+  scoped to leagues actually active in the current fixtures date window
+  (extracted from each event's `league_id`, not a full league catalogue
+  crawl). Pure context, same "why" dashboard role as h2h.
 
 ## Sync checkpoints (why restarts don't re-fetch everything)
 
@@ -145,13 +186,37 @@ service.
   (`https://sports.bzzoiro.com/openapi.json`, served as YAML despite the
   `.json` extension) — `OddsItemV2Schema` and `PredictionV2Schema` — not
   guessed from the docs page.
-- `GET /api/v2/events/live/` is broken as a data source: its response
-  envelope uses an `events` key (`{"count": N, "events": [...]}`) instead
-  of the `results` key every other v2 list endpoint uses, so
-  `fetch_live()`/`_paginate_v2` never actually extracts anything from it.
-  Also, `/api/v2/events/?status=upcoming` and `?status=live` were confirmed
-  to return the **same** `count` — the v1-style `status` filter is a no-op
-  on v2 (its real vocabulary is `notstarted`/`inprogress`/`finished`, not
-  `upcoming`/`live`). Neither is fixed here (out of scope for this pass) —
-  `PollOddsComparisonHandler` deliberately avoids both, scoping to
-  `fetch_events()`'s date window instead, which is confirmed to work.
+- **Fixed**: `GET /api/v2/events/live/`'s envelope uses an `events` key
+  (`{"count": N, "events": [...]}`), not `results` — `fetch_live()` now
+  reads it directly instead of going through `_paginate_v2`. Also fixed:
+  the `status` filter on `/api/v2/events/` silently ignored the v1-style
+  values (`upcoming`/`live`) this code used to send — bzzoiro doesn't
+  validate the param, it just drops values it doesn't recognize and
+  returns the unfiltered set. `fetch_events(status=...)` now translates our
+  vocabulary to the real v2 enum (confirmed against the live OpenAPI spec:
+  `notstarted`/`inprogress`/`finished`/etc.) before sending.
+- **Fixed**: `translate_squad` (team `/squad/` polling) assumed a schema
+  (`status`/`club`/`club_country`/`caps`/`goals`/`player_id`) that actually
+  belongs to a different endpoint entirely — `/api/v2/worldcup/squads/`
+  (national-team call-ups). The real `/api/v2/teams/{id}/squad/` payload is
+  leaner (`id`/`name`/`position`/`jersey_number`/`nationality`/
+  `date_of_birth`), and was throwing `KeyError: 'status'` on every single
+  team. Now defaults the missing fields and resolves player identity off
+  the squad item's own `id` (confirmed live: it *is* the player's provider
+  ref, not a distinct `player_id` field that never existed on this
+  endpoint).
+- **Not fixed, flagged for follow-up**: `translate_event` (fixtures
+  ingestion) reads `payload.get("home")`/`payload.get("away")`/
+  `payload.get("date")`/`payload.get("league", {}).get("id")` — none of
+  which exist on the real `EventDetailV2Schema` payload confirmed live via
+  `GET /api/v2/events/`. The actual fields are flat: `home_team_id`,
+  `home_team` (a name string, no nested dict), `away_team_id`, `away_team`,
+  `event_date`, `league_id`. This means `MatchScheduled.home_team_id`,
+  `away_team_id`, `kickoff_at`, `venue`, and `competition_id` have likely
+  been `None`/wrong for every match ingested through this path. Found while
+  building `PollStandingsHandler` (which uses the confirmed-correct flat
+  `league_id` field instead). Not fixed here — it's a correctness bug in
+  the core fixtures path, not one of the three features asked for this
+  pass, and deserves its own careful pass (re-verify every field against
+  live payloads, check downstream impact on already-persisted `matches`
+  rows) rather than a quick patch alongside unrelated work.

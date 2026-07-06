@@ -73,10 +73,50 @@ Feature: FastAPI deps and router wiring
     When I call the poll_odds_comparison endpoint expecting an error
     Then a 500 HTTPException is raised
 
-  Scenario: POST /resync runs every poller and reports all six feeds
+  Scenario: POST /poll/odds-best returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_odds_best endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/odds-best surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_odds_best endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/lineups returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_lineups endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/lineups surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_lineups endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/h2h returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_h2h endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/h2h surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_h2h endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/standings returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_standings endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/standings surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_standings endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /resync runs every poller and reports all ten feeds
     Given fake poll dependencies with 1 fixture payload
     When I call the resync endpoint
-    Then the resync endpoint reports all six feeds
+    Then the resync endpoint reports all ten feeds
 
   Scenario: POST /resync surfaces handler errors as a 500
     Given a poll handler that raises an error

@@ -8,16 +8,20 @@ from uuid import uuid4
 from shared.events import (
     DomainEvent,
     EventMeta,
+    H2HCaptured,
     InsightGenerated,
+    LineupsCaptured,
     MatchFinished,
     MatchScheduled,
     MatchScoreUpdated,
     MatchStatus,
     MatchStatusChanged,
+    OddsBestCaptured,
     OddsComparisonCaptured,
     OddsSelection,
     OddsSnapshotCaptured,
     PolymarketSnapshotCaptured,
+    StandingsCaptured,
     TeamUpdated,
     SquadMember,
     SquadUpdated,
@@ -94,6 +98,11 @@ class BzzoiroTranslator:
     def resolve_team_id(self, provider_ref: object) -> object:
         """Public helper to resolve provider team ID to canonical UUID."""
         return self._resolve("team", provider_ref)
+
+    def resolve_competition_id(self, provider_ref: object) -> object:
+        """Public helper to resolve provider league/competition ID to
+        canonical UUID."""
+        return self._resolve("competition", provider_ref)
 
     def translate_event(self, payload: dict) -> list[DomainEvent]:
         match_id = self._resolve("match", payload.get("id"))
@@ -345,6 +354,113 @@ class BzzoiroTranslator:
             ),
             match_id=match_id,
             markets=payload,
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_lineups(self, event_ref_id: object, payload: dict) -> Optional[LineupsCaptured]:
+        """GET /api/v2/events/{id}/lineups/ -> LineupsCaptured.
+
+        `lineups` kept verbatim (`{"home": {...}, "away": {...}}`, each with
+        `formation`/`confidence`/`players`) since the value-bet detector
+        reads `confidence` per side directly off of it."""
+        if not isinstance(payload, dict) or not isinstance(payload.get("lineups"), dict):
+            return None
+
+        match_id = self._resolve("match", event_ref_id)
+        return LineupsCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            lineup_status=str(payload.get("lineup_status") or "unknown"),
+            lineups=payload["lineups"],
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_h2h(self, event_ref_id: object, payload: dict) -> Optional[H2HCaptured]:
+        """GET /api/v2/events/{id}/h2h/ -> H2HCaptured.
+
+        Confirmed live: pairings with no shared history return a 200 with
+        every field zeroed/null rather than a 404 — that's still a valid,
+        meaningful capture (it says "these two have never met"), not an
+        error, so it's translated the same as a populated one."""
+        if not isinstance(payload, dict):
+            return None
+
+        match_id = self._resolve("match", event_ref_id)
+        return H2HCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            h2h=payload,
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_odds_best(self, payload: dict) -> Optional[OddsBestCaptured]:
+        """GET /api/v2/odds/best/ (one row) -> OddsBestCaptured.
+
+        Only the "1x2" market is ever present on this endpoint — `markets`
+        is built to match the same per-outcome shape
+        `OddsComparisonCaptured` uses (`best_odds`/`best_bookmaker_slug`),
+        minus the per-bookmaker breakdown this leaner feed doesn't carry,
+        so domain-persister's merge-not-replace projection can slot it into
+        the same JSONB column without a shape mismatch."""
+        event_ref_id = payload.get("event_id")
+        if event_ref_id is None:
+            return None
+
+        outcomes: dict = {}
+        for item in payload.get("best_odds") or []:
+            outcome = item.get("outcome")
+            decimal_odds = item.get("decimal_odds")
+            bookmaker_slug = item.get("bookmaker_slug")
+            if not outcome or not decimal_odds or not bookmaker_slug:
+                continue
+            outcomes[outcome] = {
+                "best_odds": decimal_odds,
+                "best_bookmaker_slug": bookmaker_slug,
+                "bookmakers": {},
+            }
+        if not outcomes:
+            return None
+
+        match_id = self._resolve("match", event_ref_id)
+        return OddsBestCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            markets={"1x2": outcomes},
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_standings(self, league_ref_id: object, payload: dict) -> Optional[StandingsCaptured]:
+        """GET /api/v2/leagues/{id}/standings/ -> StandingsCaptured.
+
+        Resolved under the `"competition"` entity type (not `"league"`) to
+        match the identity mapping `translate_event` already uses for the
+        same provider concept — a separate `"league"` type would silently
+        create a second, disconnected identity for the same real-world
+        competition."""
+        if not isinstance(payload, dict):
+            return None
+
+        competition_id = self._resolve("competition", league_ref_id)
+        return StandingsCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=competition_id,
+            ),
+            competition_id=competition_id,
+            standings=payload,
             captured_at=datetime.now(timezone.utc),
         )
 

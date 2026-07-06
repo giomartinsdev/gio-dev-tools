@@ -10,12 +10,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from shared.transaction_manager import TransactionManager
 
 from .models import (
+    H2HModel,
     InsightModel,
+    LineupsModel,
     MatchModel,
     OddsComparisonModel,
     OddsSnapshotModel,
     PolymarketSnapshotModel,
     SquadMemberModel,
+    StandingsModel,
     TeamModel,
     ValueBetModel,
 )
@@ -227,6 +230,38 @@ class ReadModelRepository:
         with TransactionManager.get().session() as s:
             s.execute(stmt)
 
+    def merge_odds_comparison_markets(
+        self,
+        match_id: UUID,
+        markets_patch: dict,
+        captured_at: datetime,
+    ) -> None:
+        """Partial update for OddsBestCaptured (a cheap, 1x2-only feed): the
+        JSONB `||` concat operator merges `markets_patch`'s top-level keys
+        into the existing row's `markets` in a single atomic statement — no
+        read-then-write race, and any other market key (over_under, btts)
+        a fuller OddsComparisonCaptured already wrote is left untouched.
+        On first insert for a match (no existing row), `markets_patch`
+        alone becomes the row's `markets` — bookmakers_count/total_odds
+        default to 0 since this feed doesn't report per-market bookmaker
+        counts; a later full comparison poll overwrites them properly."""
+        stmt = pg_insert(OddsComparisonModel).values(
+            match_id=str(match_id),
+            bookmakers_count=0,
+            total_odds=0,
+            markets=markets_patch,
+            captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={
+                "markets": OddsComparisonModel.markets.op("||")(stmt.excluded.markets),
+                "captured_at": stmt.excluded.captured_at,
+            },
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
     def upsert_polymarket_snapshot(self, match_id: UUID, markets: dict, captured_at: datetime) -> None:
         stmt = pg_insert(PolymarketSnapshotModel).values(
             match_id=str(match_id), markets=markets, captured_at=captured_at,
@@ -242,6 +277,56 @@ class ReadModelRepository:
         with TransactionManager.get().read_only() as s:
             row = s.get(OddsComparisonModel, match_id)
             return _odds_comparison_to_dict(row) if row else None
+
+    def upsert_lineups(self, match_id: UUID, lineup_status: str, lineups: dict, captured_at: datetime) -> None:
+        stmt = pg_insert(LineupsModel).values(
+            match_id=str(match_id), lineup_status=lineup_status, lineups=lineups, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={
+                "lineup_status": stmt.excluded.lineup_status,
+                "lineups": stmt.excluded.lineups,
+                "captured_at": stmt.excluded.captured_at,
+            },
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_lineups(self, match_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(LineupsModel, match_id)
+            return _lineups_to_dict(row) if row else None
+
+    def upsert_h2h(self, match_id: UUID, h2h: dict, captured_at: datetime) -> None:
+        stmt = pg_insert(H2HModel).values(match_id=str(match_id), h2h=h2h, captured_at=captured_at)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={"h2h": stmt.excluded.h2h, "captured_at": stmt.excluded.captured_at},
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_h2h(self, match_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(H2HModel, match_id)
+            return _h2h_to_dict(row) if row else None
+
+    def upsert_standings(self, competition_id: UUID, standings: dict, captured_at: datetime) -> None:
+        stmt = pg_insert(StandingsModel).values(
+            competition_id=str(competition_id), standings=standings, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["competition_id"],
+            set_={"standings": stmt.excluded.standings, "captured_at": stmt.excluded.captured_at},
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_standings(self, competition_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(StandingsModel, competition_id)
+            return _standings_to_dict(row) if row else None
 
     def find_latest_insight(self, match_id: str) -> Optional[dict]:
         with TransactionManager.get().read_only() as s:
@@ -384,4 +469,29 @@ def _value_bet_to_dict(row: ValueBetModel) -> dict:
         "implied_probability": str(row.implied_probability),
         "edge": str(row.edge),
         "detected_at": row.detected_at.isoformat() if row.detected_at else None,
+    }
+
+
+def _lineups_to_dict(row: LineupsModel) -> dict:
+    return {
+        "match_id": row.match_id,
+        "lineup_status": row.lineup_status,
+        "lineups": row.lineups,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _h2h_to_dict(row: H2HModel) -> dict:
+    return {
+        "match_id": row.match_id,
+        "h2h": row.h2h,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _standings_to_dict(row: StandingsModel) -> dict:
+    return {
+        "competition_id": row.competition_id,
+        "standings": row.standings,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
     }

@@ -149,6 +149,73 @@ class PolymarketSnapshotCaptured(BaseModel):
     captured_at: datetime
 
 
+class OddsBestCaptured(BaseModel):
+    """GET /api/v2/odds/best/ — best 1x2 price for one event, drawn from a
+    single paginated list covering ALL events with tracked odds at once (one
+    call for ~26 events observed live, vs. one call per event polling
+    /odds/comparison/ requires). Only ever carries the "1x2" market —
+    `markets` is always `{"1x2": {OUTCOME: {best_odds, best_bookmaker_slug,
+    bookmakers}}}` — and is projected as a partial merge into the same
+    `odds_comparisons` row `OddsComparisonCaptured` writes, never a full
+    replace, so a cheap 1x2-only update can't wipe out over_under/btts data
+    a fuller comparison already captured for the same match."""
+
+    event_type: Literal["odds.best_captured"] = "odds.best_captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    markets: dict
+    captured_at: datetime
+
+
+class LineupsCaptured(BaseModel):
+    """GET /api/v2/events/{id}/lineups/ — AI-predicted starting lineup per
+    side, each with a `confidence` score and an overall `lineup_status`
+    (`predicted` pre-kickoff, presumably `confirmed` once official team
+    sheets drop). `lineups` is kept verbatim (`{"home": {...}, "away":
+    {...}}`, each with `formation`/`confidence`/`players`) since the
+    value-bet detector reads `confidence` directly off of it: a low-
+    confidence predicted lineup means bzzoiro's own model and the market's
+    odds may both have been computed before a real team-news surprise, so a
+    detected edge could be stale noise rather than a real mispricing."""
+
+    event_type: Literal["lineups.captured"] = "lineups.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    lineup_status: str
+    lineups: dict
+    captured_at: datetime
+
+
+class H2HCaptured(BaseModel):
+    """GET /api/v2/events/{id}/h2h/ — head-to-head record between the two
+    sides. Pure context for a future dashboard's "why" narrative — doesn't
+    feed the edge calculation. Often all-zero for pairings with no shared
+    history (confirmed live), so it's kept as a nullable snapshot rather
+    than assumed always meaningful."""
+
+    event_type: Literal["h2h.captured"] = "h2h.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    h2h: dict
+    captured_at: datetime
+
+
+class StandingsCaptured(BaseModel):
+    """GET /api/v2/leagues/{id}/standings/ — the league table at the time of
+    capture. Keyed by competition, not match — same "why" context role as
+    H2HCaptured, doesn't feed edge detection."""
+
+    event_type: Literal["standings.captured"] = "standings.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    competition_id: UUID
+    standings: dict
+    captured_at: datetime
+
+
 DomainEvent = Annotated[
     Union[
         MatchScheduled,
@@ -160,6 +227,10 @@ DomainEvent = Annotated[
         SquadUpdated,
         OddsComparisonCaptured,
         PolymarketSnapshotCaptured,
+        OddsBestCaptured,
+        LineupsCaptured,
+        H2HCaptured,
+        StandingsCaptured,
     ],
     Field(discriminator="event_type"),
 ]

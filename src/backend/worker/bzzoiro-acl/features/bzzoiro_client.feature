@@ -121,3 +121,35 @@ Feature: bzzoiro REST client
     Given a bzzoiro API that returns 404
     When I fetch polymarket for event 900 from the client
     Then None is returned by the client
+
+  # ── New: lineups / h2h / odds-best / standings client scenarios ──────────────
+
+  Scenario: fetch_lineups returns the predicted lineup payload
+    Given a bzzoiro API that returns a lineups payload for event 900
+    When I fetch lineups for event 900 from the client
+    Then the lineups payload is returned
+
+  Scenario: fetch_lineups returns None when no lineup prediction exists yet
+    Given a bzzoiro API that returns 404
+    When I fetch lineups for event 900 from the client
+    Then None is returned by the client
+
+  Scenario: fetch_h2h returns the head-to-head payload
+    Given a bzzoiro API that returns a h2h payload for event 900
+    When I fetch h2h for event 900 from the client
+    Then the h2h payload is returned
+
+  Scenario: fetch_odds_best returns the best-odds rows
+    Given a bzzoiro v2 API that returns 1 page of best odds
+    When I fetch odds best from the client
+    Then the odds best rows are returned
+
+  Scenario: fetch_standings returns the league table payload
+    Given a bzzoiro API that returns a standings payload for league 40
+    When I fetch standings for league 40 from the client
+    Then the standings payload is returned
+
+  Scenario: fetch_standings returns None when the league has no standings
+    Given a bzzoiro API that returns 404
+    When I fetch standings for league 40 from the client
+    Then None is returned by the client

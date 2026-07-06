@@ -51,3 +51,24 @@ Feature: Value bet detection
     When the detector evaluates the match
     Then a value bet is recorded for "1x2" "HOME" with edge close to 0.1455
     And a value bet is recorded for "over_under_25" "over" with edge close to 0.0939
+
+  Scenario: A low-confidence predicted lineup suppresses an otherwise-valid edge
+    Given an insight exists with match_result prob_home 0.60
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
+    And a predicted lineup exists with confidence 0.4 for both sides
+    When the detector evaluates the match
+    Then no value bet is recorded
+
+  Scenario: A high-confidence predicted lineup does not block a valid edge
+    Given an insight exists with match_result prob_home 0.60
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
+    And a predicted lineup exists with confidence 0.8 for both sides
+    When the detector evaluates the match
+    Then a value bet is recorded for "1x2" "HOME" with edge close to 0.1455
+
+  Scenario: A low-confidence lineup on just one side is still enough to suppress
+    Given an insight exists with match_result prob_home 0.60
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
+    And a predicted lineup exists with home confidence 0.9 and away confidence 0.3
+    When the detector evaluates the match
+    Then no value bet is recorded

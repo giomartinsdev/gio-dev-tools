@@ -14,6 +14,7 @@ class _FakeReadModelRepository:
     def __init__(self):
         self.insight: dict | None = None
         self.comparison: dict | None = None
+        self.lineups: dict | None = None
         self.value_bets: dict[tuple, dict] = {}
 
     def find_latest_insight(self, match_id):
@@ -21,6 +22,9 @@ class _FakeReadModelRepository:
 
     def find_odds_comparison(self, match_id):
         return self.comparison
+
+    def find_lineups(self, match_id):
+        return self.lineups
 
     def upsert_value_bet(self, match_id, market, outcome, model_probability, bookmaker,
                           best_odds, implied_probability, edge, detected_at):
@@ -80,6 +84,28 @@ def step_odds_comparison_two_markets(context, odds_a, market_a, outcome_a, odds_
         "markets": {
             market_a: {outcome_a: _outcome_entry(odds_a)},
             market_b: {outcome_b: _outcome_entry(odds_b)},
+        },
+    }
+
+
+@given(r'a predicted lineup exists with confidence ([\d.]+) for both sides')
+def step_lineup_both_sides(context, confidence):
+    context.read_models.lineups = {
+        "lineup_status": "predicted",
+        "lineups": {
+            "home": {"confidence": float(confidence)},
+            "away": {"confidence": float(confidence)},
+        },
+    }
+
+
+@given(r'a predicted lineup exists with home confidence ([\d.]+) and away confidence ([\d.]+)')
+def step_lineup_per_side(context, home_confidence, away_confidence):
+    context.read_models.lineups = {
+        "lineup_status": "predicted",
+        "lineups": {
+            "home": {"confidence": float(home_confidence)},
+            "away": {"confidence": float(away_confidence)},
         },
     }
 

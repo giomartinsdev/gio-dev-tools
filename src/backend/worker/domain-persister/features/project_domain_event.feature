@@ -40,6 +40,26 @@ Feature: Domain event projection
     Then upsert_polymarket_snapshot was called
     And the value bet detector was not called
 
+  Scenario: OddsBestCaptured merges into odds_comparisons and triggers value-bet evaluation
+    When an OddsBestCaptured event is processed
+    Then merge_odds_comparison_markets was called
+    And the value bet detector evaluated the match after odds comparison
+
+  Scenario: LineupsCaptured projects into upsert_lineups and triggers value-bet evaluation
+    When a LineupsCaptured event is processed
+    Then upsert_lineups was called
+    And the value bet detector evaluated the match after odds comparison
+
+  Scenario: H2HCaptured projects into upsert_h2h without triggering value-bet evaluation
+    When a H2HCaptured event is processed
+    Then upsert_h2h was called
+    And the value bet detector was not called
+
+  Scenario: StandingsCaptured projects into upsert_standings without triggering value-bet evaluation
+    When a StandingsCaptured event is processed
+    Then upsert_standings was called
+    And the value bet detector was not called
+
   Scenario: An event type outside the known union is logged and skipped
     When an object of an unknown event type is projected directly
     Then no read-model method is called and no exception is raised
