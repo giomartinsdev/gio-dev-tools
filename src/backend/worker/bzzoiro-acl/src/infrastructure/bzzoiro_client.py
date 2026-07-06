@@ -171,3 +171,9 @@ class BzzoiroClient:
         """GET /api/v2/teams/ — list of TeamDetailV2Schema."""
         return self._paginate_v2("v2/teams/", {})
 
+    def fetch_squad(self, team_ref_id: int) -> list[dict]:
+        """GET /api/v2/teams/{id}/squad/ — list of SquadRowV2Schema."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            return self._get(client, f"v2/teams/{team_ref_id}/squad/", {}, [])
+
+

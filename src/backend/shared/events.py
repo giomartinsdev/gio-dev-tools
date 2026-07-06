@@ -92,6 +92,29 @@ class TeamUpdated(BaseModel):
     logo: Optional[str] = None
 
 
+class SquadMember(BaseModel):
+    squad_row_id: int
+    player_id: Optional[UUID] = None
+    name: str
+    jersey_number: Optional[int] = None
+    position: str
+    status: str
+    club: str
+    club_country: str
+    caps: Optional[int] = None
+    goals: Optional[int] = None
+    age: Optional[int] = None
+    date_of_birth: Optional[str] = None
+
+
+class SquadUpdated(BaseModel):
+    event_type: Literal["team.squad_updated"] = "team.squad_updated"
+    version: Literal[1] = 1
+    meta: EventMeta
+    team_id: UUID
+    members: list[SquadMember]
+
+
 DomainEvent = Annotated[
     Union[
         MatchScheduled,
@@ -100,6 +123,7 @@ DomainEvent = Annotated[
         MatchFinished,
         OddsSnapshotCaptured,
         TeamUpdated,
+        SquadUpdated,
     ],
     Field(discriminator="event_type"),
 ]

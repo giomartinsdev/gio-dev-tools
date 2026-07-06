@@ -16,6 +16,8 @@ from shared.events import (
     OddsSelection,
     OddsSnapshotCaptured,
     TeamUpdated,
+    SquadMember,
+    SquadUpdated,
 )
 
 from ..domain.repository import IdentityRepository
@@ -246,4 +248,41 @@ class BzzoiroTranslator:
             code=payload.get("code"),
             logo=payload.get("logo"),
         )
+
+    def translate_squad(self, provider_team_id: int, squad_payloads: list[dict]) -> SquadUpdated:
+        """GET /api/v2/teams/{id}/squad/ -> SquadUpdated event."""
+        team_id = self._resolve("team", provider_team_id)
+        members = []
+        for item in squad_payloads:
+            player_id = None
+            if item.get("player_id") is not None:
+                player_id = self._resolve("player", item["player_id"])
+            
+            members.append(
+                SquadMember(
+                    squad_row_id=item["id"],
+                    player_id=player_id,
+                    name=item["name"],
+                    jersey_number=item.get("jersey_number"),
+                    position=item["position"],
+                    status=item["status"],
+                    club=item["club"],
+                    club_country=item["club_country"],
+                    caps=item.get("caps"),
+                    goals=item.get("goals"),
+                    age=item.get("age"),
+                    date_of_birth=item.get("date_of_birth"),
+                )
+            )
+        
+        return SquadUpdated(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=team_id,
+            ),
+            team_id=team_id,
+            members=members,
+        )
+
 

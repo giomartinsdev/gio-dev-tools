@@ -25,10 +25,34 @@ class PollTeamsHandler:
 
     async def handle(self, cmd: PollTeamsCommand) -> int:
         payloads = await asyncio.to_thread(self._client.fetch_teams)
-        for payload in payloads:
-            team_id = self._translator.resolve_team_id(payload.get("id"))
-            await self._publisher.publish_raw("teams", str(payload.get("id")), payload, correlation_id=team_id)
-            event = self._translator.translate_team(payload)
-            await self._publisher.publish_domain_event(event)
-        logger.info(f"polled teams: {len(payloads)} events")
+        polled_squads = 0
+        for i, payload in enumerate(payloads):
+            team_ref_id = payload.get("id")
+            team_id = self._translator.resolve_team_id(team_ref_id)
+            
+            # Publish team detail
+            await self._publisher.publish_raw("teams", str(team_ref_id), payload, correlation_id=team_id)
+            team_event = self._translator.translate_team(payload)
+            await self._publisher.publish_domain_event(team_event)
+
+            # Publish team squad (wrapped in try/except to prevent failures from stopping the poll)
+            try:
+                squad_payloads = await asyncio.to_thread(self._client.fetch_squad, team_ref_id)
+                if squad_payloads:
+                    await self._publisher.publish_raw(
+                        "team_squad",
+                        str(team_ref_id),
+                        {"team_id": team_ref_id, "squad": squad_payloads},
+                        correlation_id=team_id,
+                    )
+                    squad_event = self._translator.translate_squad(team_ref_id, squad_payloads)
+                    await self._publisher.publish_domain_event(squad_event)
+                    polled_squads += 1
+            except Exception as exc:
+                logger.warning(f"failed to fetch squad for team {team_ref_id}: {exc}")
+
+            if i > 0 and i % 100 == 0:
+                logger.info(f"polled teams progress: {i}/{len(payloads)} teams completed")
+
+        logger.info(f"polled teams complete: {len(payloads)} teams, {polled_squads} squads fetched")
         return len(payloads)
