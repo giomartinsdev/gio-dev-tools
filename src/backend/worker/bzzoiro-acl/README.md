@@ -49,6 +49,41 @@ PYTHONPATH=$(pwd):$(pwd)/.. uvicorn app.main:app --reload
 Needs Postgres + RabbitMQ reachable (see `src/infra/persistence.yaml`) and
 the env vars above set directly (bypassing Infisical) for local runs.
 
+## Observability (OTel traces)
+
+Same zero-code setup already used by `api/gateway` — no manual
+`TracerProvider`/exporter wiring in application code:
+
+- The Dockerfile's `CMD` runs the process under `opentelemetry-instrument`
+  (from `opentelemetry-distro`), which auto-patches every installed
+  `opentelemetry-instrumentation-*` package (FastAPI, httpx, logging) at
+  startup — this is what actually turns HTTP requests/responses and log
+  lines into spans, no explicit `FastAPIInstrumentor.instrument_app(...)`
+  call needed.
+- `app/main.py`'s very first lines are `from shared.auto_trace import
+  install; install(["app", "src"])` — a homegrown import hook
+  (`shared/auto_trace.py`) that wraps every function/method defined in the
+  `app` and `src` packages in a span as soon as each submodule is
+  imported. Unlike gateway (whose entire logic lives directly in
+  `app/main.py`, so nothing outside of FastAPI's own instrumentation gets
+  traced), most of this service's actual work — poll handlers, the
+  translator, the bzzoiro client, the RabbitMQ publisher — lives under
+  `src/`, so it's included here to get real spans around every poll cycle
+  and translation step, not just the two manual-trigger HTTP endpoints.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` are set directly in
+  `src/infra/workers.yml` (plain env vars, not Infisical secrets — an OTLP
+  collector URL isn't sensitive) pointing at `http://otel-collector:4318`,
+  the same `otel-collector` service `src/infra/observability-stack.yml`
+  runs on the shared `persistence` network this service is already on.
+  `OTEL_SERVICE_NAME` is set to match the container name (`bzzoiro-acl`)
+  so traces line up with the `container` label Loki/Promtail already use —
+  required for the Tempo↔Loki trace-to-logs correlation in the shared
+  Grafana dashboard to work.
+- `shared/logger.py` already reads the active span's `trace_id`/`span_id`
+  into every log line's `trace=... span=...` fields whenever a span is
+  active — this "just works" once the packages above are installed, no
+  change needed there.
+
 ## Endpoints
 
 - `GET /health` — always 200 once the process is up.

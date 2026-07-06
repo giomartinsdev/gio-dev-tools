@@ -1,3 +1,6 @@
+from shared.auto_trace import install
+install(["app", "src"])
+
 import asyncio
 import os
 import threading

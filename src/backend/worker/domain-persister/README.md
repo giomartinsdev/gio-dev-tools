@@ -43,6 +43,32 @@ pip install -r requirements.txt -r requirements-dev.txt
 PYTHONPATH=$(pwd):$(pwd)/.. uvicorn app.main:app --reload
 ```
 
+## Observability (OTel traces)
+
+Same zero-code setup already used by `api/gateway` (and now `bzzoiro-acl`)
+— no manual `TracerProvider`/exporter wiring in application code:
+
+- The Dockerfile's `CMD` runs the process under `opentelemetry-instrument`
+  (from `opentelemetry-distro`), which auto-patches every installed
+  `opentelemetry-instrumentation-*` package (FastAPI, logging) at startup.
+  No httpx instrumentation here — unlike bzzoiro-acl, this service makes
+  no outbound HTTP calls.
+- `app/main.py`'s very first lines are `from shared.auto_trace import
+  install; install(["app", "src"])` — the same homegrown import-hook
+  tracer bzzoiro-acl uses, wrapping every function/method under `app` and
+  `src` in a span as it's imported. Most of the real work here — event
+  projection, value-bet detection and outcome resolution, the RabbitMQ
+  consumers — lives under `src/`, so it's included to get spans around
+  every event handled, not just the read-model query endpoints.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME` are set in
+  `src/infra/workers.yml` pointing at `http://otel-collector:4318` (the
+  `otel-collector` service from `src/infra/observability-stack.yml`, on
+  the same `persistence` network); `OTEL_SERVICE_NAME=domain-persister`
+  matches the container name so Tempo↔Loki trace-to-logs correlation in
+  the shared Grafana dashboard works.
+- `shared/logger.py` already injects the active span's `trace_id`/`span_id`
+  into every log line once a span is active — no change needed there.
+
 ## Endpoints
 
 - `GET /health` — always 200 once the process is up.

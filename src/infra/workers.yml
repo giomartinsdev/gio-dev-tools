@@ -22,6 +22,8 @@ services:
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
       if_env: prod
+      OTEL_SERVICE_NAME: bzzoiro-acl
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
 
   domain-persister:
     image: re.giomartins.dev/domain-persister:latest
@@ -34,6 +36,8 @@ services:
       if_secret: ${IF_SECRET}
       if_project_id: ${IF_PROJECT_ID}
       if_env: prod
+      OTEL_SERVICE_NAME: domain-persister
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
 
 networks:
   persistence:
