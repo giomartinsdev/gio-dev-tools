@@ -48,7 +48,7 @@ async def poll_odds(
     publisher: RabbitMQPublisher = Depends(get_publisher),
 ):
     try:
-        count = await PollOddsHandler(client, translator, publisher).handle(PollOddsCommand())
+        count, _ = await PollOddsHandler(client, translator, publisher).handle(PollOddsCommand())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"polled": count}
