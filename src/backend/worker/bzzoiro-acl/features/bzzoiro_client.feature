@@ -13,6 +13,18 @@ Feature: bzzoiro REST client
     When I fetch events from the client
     Then the flat event page is returned
 
+  Scenario Outline: fetch_events translates our status vocabulary to bzzoiro's real v2 enum
+    Given a bzzoiro v2 API recording requests and returning 1 page of events
+    When I fetch events with status "<our_status>" from the client
+    Then the request was sent with status "<bzzoiro_status>"
+
+    Examples:
+      | our_status | bzzoiro_status |
+      | upcoming   | notstarted     |
+      | live       | inprogress     |
+      | finished   | finished       |
+      | halftime   | halftime       |
+
   Scenario: A 429 is retried and eventually succeeds
     Given a bzzoiro API that returns 429 once then succeeds
     When I fetch events from the client

@@ -79,7 +79,9 @@ def step_404(context):
 @given('a bzzoiro v2 API that returns 1 page of live events as envelope')
 def step_v2_live_envelope(context):
     _setup(context)
-    page = _response(200, {"count": 1, "next": None, "previous": None, "results": [{"id": 500}]})
+    # Confirmed live: /api/v2/events/live/ uses an "events" key, not the
+    # "results" key every other v2 list endpoint uses.
+    page = _response(200, {"count": 1, "events": [{"id": 500}]})
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
@@ -172,6 +174,26 @@ def _do_fetch(context):
             context.result = context.client.fetch_events()
         except Exception as e:
             context.error = e
+
+
+@given('a bzzoiro v2 API recording requests and returning 1 page of events')
+def step_v2_events_recording_status(context):
+    _setup(context)
+    page = _response(200, {"count": 1, "next": None, "previous": None, "results": [{"id": 600}]})
+    context.get_mock = Mock(return_value=page)
+    context.get_patch = patch.object(httpx.Client, "get", context.get_mock)
+
+
+@when(r'I fetch events with status "([^"]+)" from the client')
+def step_fetch_events_with_status(context, status):
+    with context.get_patch:
+        context.result = context.client.fetch_events(status=status)
+
+
+@then(r'the request was sent with status "([^"]+)"')
+def step_assert_request_status(context, expected_status):
+    _, kwargs = context.get_mock.call_args
+    assert kwargs["params"]["status"] == expected_status, kwargs["params"]
 
 
 @when('I fetch live events from the client')

@@ -18,6 +18,18 @@ logger = get_logger(__name__)
 _BASE_URL = "https://sports.bzzoiro.com/api/"
 _MAX_PAGE_SIZE = 200
 
+# Our canonical status vocabulary -> bzzoiro's real v2 `status` enum
+# (confirmed via the live OpenAPI spec's parameter definition for
+# /api/v2/events/, not the docs page). Values not in this map are passed
+# through as-is, so real v2 values (e.g. "halftime", "aet") still work.
+_EVENT_STATUS_MAP = {
+    "upcoming": "notstarted",
+    "live": "inprogress",
+    "finished": "finished",
+    "postponed": "postponed",
+    "cancelled": "cancelled",
+}
+
 
 class BzzoiroAuthError(Exception):
     """401/403 from bzzoiro — a config problem, not transient."""
@@ -110,19 +122,46 @@ class BzzoiroClient:
         date_to: Optional[date] = None,
         status: Optional[str] = None,
     ) -> list[dict]:
-        """GET /api/v2/events/ — EventDetailV2Schema list."""
+        """GET /api/v2/events/ — EventDetailV2Schema list.
+
+        `status` is translated from our canonical vocabulary to bzzoiro's
+        real v2 enum (confirmed against the live OpenAPI spec: `1st_half,
+        2nd_half, aet, cancelled, extratime, finished, halftime, inprogress,
+        notstarted, penalties, postponed`) before being sent. Passing the
+        v1-style values this used to accept (`upcoming`/`live`) silently
+        matched nothing — bzzoiro doesn't validate the `status` param, it
+        just ignores values it doesn't recognize and returns the unfiltered
+        set, which is indistinguishable from "no filter" unless you compare
+        counts. `"live"` only maps to `inprogress` here, which misses
+        halftime/extratime/aet/penalties — use `fetch_live()` for actual
+        live coverage instead of this filter.
+        """
         params: dict = {}
         if date_from:
             params["date_from"] = date_from.isoformat()
         if date_to:
             params["date_to"] = date_to.isoformat()
         if status:
-            params["status"] = status
+            mapped_status = _EVENT_STATUS_MAP.get(status, status)
+            if mapped_status != status:
+                logger.debug(f"fetch_events: translated status {status!r} -> {mapped_status!r}")
+            params["status"] = mapped_status
         return self._paginate_v2("v2/events/", params)
 
     def fetch_live(self) -> list[dict]:
-        """GET /api/v2/events/live/ — lightweight live event list, cached 30s."""
-        return self._paginate_v2("v2/events/live/", {})
+        """GET /api/v2/events/live/ — lightweight live event list, cached
+        30s. Its envelope is `{"count", "events"}`, not the `{"count",
+        "next", "previous", "results"}` shape every other v2 list endpoint
+        uses (confirmed live) — `_paginate_v2` alone can't extract from that
+        key, which meant this returned nothing at all before this fix. Not
+        paginated either — one request is the full live set."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, "v2/events/live/", {}, {})
+        if isinstance(page, dict):
+            return page.get("events") or page.get("results") or []
+        if isinstance(page, list):
+            return page
+        return []
 
     def fetch_odds_page(
         self,
