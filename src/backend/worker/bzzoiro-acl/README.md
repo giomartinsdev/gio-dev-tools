@@ -257,6 +257,20 @@ name is ever known this way — short_name/country/venue_id stay blank until
 the real teams poll's `TeamUpdated` upserts over these placeholder rows, which
 is safe since upserts never regress data, only fill it in.
 
+The predictions poll also has **no checkpoint** (unlike odds/teams) — every
+600s cycle re-fetches and re-translates the *entire* "upcoming" set, not just
+what changed. `translate_prediction()` used to assign a fresh `uuid4()` as
+`insight_id` on every call, so redelivering the same still-unchanged
+prediction inserted a brand new `insights` row every time instead of being
+skipped by `insert_insight`'s `ON CONFLICT (id) DO NOTHING` — confirmed live:
+one match sitting for weeks with an unchanged prediction piled up dozens of
+byte-for-byte-identical insight rows, crowding out everything else in
+`domain-data-insights`'s "most recent" view. Fixed by resolving `insight_id`
+from bzzoiro's own prediction `id` (entity_type `"insight"`), the same
+identity-resolution pattern every other provider entity already goes
+through — same prediction id now always resolves to the same canonical
+insight UUID, so redelivery is idempotent.
+
 ## Scaling
 
 Single instance is expected — the poll loops are not partitioned, so running

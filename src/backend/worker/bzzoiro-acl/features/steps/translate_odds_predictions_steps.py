@@ -128,6 +128,19 @@ def step_assert_recommendation(context, expected):
     assert context.insight.recommendation == expected, context.insight.recommendation
 
 
+@when('I translate the prediction twice')
+def step_translate_prediction_twice(context):
+    context.insight = context.translator.translate_prediction(context.prediction_payload)
+    context.insight_again = context.translator.translate_prediction(context.prediction_payload)
+
+
+@then('both InsightGenerated events have the same insight_id')
+def step_assert_same_insight_id(context):
+    assert context.insight.insight_id == context.insight_again.insight_id, (
+        context.insight.insight_id, context.insight_again.insight_id,
+    )
+
+
 @when('I translate the prediction context')
 def step_translate_prediction_context(context):
     context.context_events = context.translator.translate_prediction_context(

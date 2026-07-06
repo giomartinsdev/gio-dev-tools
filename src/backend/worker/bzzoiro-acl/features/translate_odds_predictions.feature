@@ -35,6 +35,11 @@ Feature: Translate bzzoiro v2 odds and predictions
     And a TeamUpdated event named "A" is produced
     And a TeamUpdated event named "B" is produced
 
+  Scenario: Re-translating the same still-unpolled prediction reuses the same insight_id
+    Given a v2 prediction payload for event "77" with confidence 0.82 recommending the favorite
+    When I translate the prediction twice
+    Then both InsightGenerated events have the same insight_id
+
   Scenario: resolve_match_id returns the same id translate_odds_items would use
     Given 3 v2 odds rows for event "42" bookmaker "bet365" market "1x2" with outcomes home=2.10 draw=3.40 away=3.60
     When I translate the odds rows

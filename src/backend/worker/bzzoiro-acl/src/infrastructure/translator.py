@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
-from uuid import uuid4
 
 from shared.events import (
     DomainEvent,
@@ -236,9 +235,23 @@ class BzzoiroTranslator:
     def translate_prediction(self, payload: dict) -> InsightGenerated:
         """GET /api/v2/predictions/ -> one InsightGenerated per prediction.
         `feature_snapshot` keeps the full markets breakdown (match_result,
-        expected_goals, over_under, btts, score) for later analysis."""
+        expected_goals, over_under, btts, score) for later analysis.
+
+        `insight_id` is resolved from bzzoiro's own prediction `id`
+        (entity_type "insight"), not a fresh `uuid4()` — the predictions
+        poll has no checkpoint (unlike odds/teams) and re-fetches every
+        "upcoming" prediction on every cycle, confirmed live to be a
+        600s-repeating full resync. A random `insight_id` per translation
+        meant every redelivery of the same still-unchanged prediction
+        inserted a brand new row (`insert_insight`'s `ON CONFLICT (id) DO
+        NOTHING` never saw a repeat id to skip), so one match's insight
+        would pile up dozens of near-identical rows and crowd out
+        everything else in "most recent" views. Deriving it from the
+        provider's own id makes redelivery idempotent, same as every other
+        entity this translator resolves."""
         event = payload["event"]
         match_id = self._resolve("match", event["id"])
+        insight_id = self._resolve("insight", payload["id"])
         model = payload["model"]
         recommendations = payload["recommendations"]
 
@@ -248,7 +261,7 @@ class BzzoiroTranslator:
                 producer=_PRODUCER,
                 correlation_id=match_id,
             ),
-            insight_id=uuid4(),
+            insight_id=insight_id,
             match_id=match_id,
             market="match_result",
             recommendation=_summarize_recommendation(recommendations),
