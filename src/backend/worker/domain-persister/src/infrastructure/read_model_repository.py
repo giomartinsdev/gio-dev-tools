@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from shared.transaction_manager import TransactionManager
 
-from .models import InsightModel, MatchModel, OddsSnapshotModel, TeamModel
+from .models import InsightModel, MatchModel, OddsSnapshotModel, TeamModel, SquadMemberModel
 
 
 class ReadModelRepository:
@@ -138,25 +138,58 @@ class ReadModelRepository:
         self,
         team_id: UUID,
         name: str,
-        code: Optional[str],
-        logo: Optional[str],
+        short_name: str,
+        country: str,
+        venue_id: Optional[int],
     ) -> None:
         stmt = pg_insert(TeamModel).values(
             team_id=str(team_id),
             name=name,
-            code=code,
-            logo=logo,
+            short_name=short_name,
+            country=country,
+            venue_id=venue_id,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["team_id"],
             set_={
                 "name": stmt.excluded.name,
-                "code": stmt.excluded.code,
-                "logo": stmt.excluded.logo,
+                "short_name": stmt.excluded.short_name,
+                "country": stmt.excluded.country,
+                "venue_id": stmt.excluded.venue_id,
             },
         )
         with TransactionManager.get().session() as s:
             s.execute(stmt)
+
+    def upsert_squad(
+        self,
+        team_id: UUID,
+        members: list[SquadMember],
+    ) -> None:
+        from shared.events import SquadMember
+        with TransactionManager.get().session() as s:
+            # 1. Clean previous squad members for this team
+            s.query(SquadMemberModel).filter(SquadMemberModel.team_id == str(team_id)).delete()
+            
+            # 2. Insert new squad members using bulk insert or loop
+            for member in members:
+                model_member = SquadMemberModel(
+                    squad_row_id=member.squad_row_id,
+                    team_id=str(team_id),
+                    player_id=str(member.player_id) if member.player_id else None,
+                    name=member.name,
+                    jersey_number=member.jersey_number,
+                    position=member.position,
+                    status=member.status,
+                    club=member.club,
+                    club_country=member.club_country,
+                    caps=member.caps,
+                    goals=member.goals,
+                    age=member.age,
+                    date_of_birth=member.date_of_birth,
+                )
+                s.add(model_member)
+
 
     def find_insights(self, match_id: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict]:
         with TransactionManager.get().read_only() as s:

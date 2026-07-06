@@ -88,8 +88,9 @@ class TeamUpdated(BaseModel):
     meta: EventMeta
     team_id: UUID
     name: str
-    code: Optional[str] = None
-    logo: Optional[str] = None
+    short_name: str
+    country: str
+    venue_id: Optional[int] = None
 
 
 class SquadMember(BaseModel):

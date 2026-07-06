@@ -137,6 +137,13 @@ def step_v2_teams_page(context):
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
+@given('a bzzoiro v2 API that returns a squad for team 444')
+def step_v2_squad_page(context):
+    _setup(context)
+    page = _response(200, [{"id": 1, "team_id": 444, "name": "Player One", "position": "ST", "status": "official", "club": "Club X", "club_country": "Brazil", "age": 25}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
 @when('I fetch events from the client')
 def step_fetch_events(context):
     sleep_patch = getattr(context, "sleep_patch", None)
@@ -224,6 +231,15 @@ def step_fetch_teams(context):
             context.error = e
 
 
+@when('I fetch squad for team (\d+) from the client')
+def step_fetch_squad(context, team_ref_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_squad(int(team_ref_id))
+        except Exception as e:
+            context.error = e
+
+
 @then('all results across both pages are returned')
 def step_all_results(context):
     ids = [r["id"] for r in context.result]
@@ -283,6 +299,12 @@ def step_flat_live_page(context):
 def step_all_team_rows(context):
     assert context.error is None
     assert [r["id"] for r in context.result] == [444], context.result
+
+
+@then('the squad list is returned')
+def step_squad_list_returned(context):
+    assert context.error is None
+    assert [r["id"] for r in context.result] == [1], context.result
 
 
 @given('a bzzoiro API that returns 502 once then succeeds with one odds row')

@@ -84,11 +84,34 @@ class TeamModel(Base):
 
     team_id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    logo: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    short_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    venue_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow,
     )
+
+
+class SquadMemberModel(Base):
+    __tablename__ = "squad_members"
+
+    squad_row_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[str] = mapped_column(String, nullable=False)
+    player_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    jersey_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    position: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    club: Mapped[str] = mapped_column(String, nullable=False)
+    club_country: Mapped[str] = mapped_column(String, nullable=False)
+    caps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    goals: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    date_of_birth: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
 
 
 def create_all(engine: Engine) -> None:

@@ -34,6 +34,7 @@ class _FakeClient:
         self.odds_rows: list[dict] = []
         self.prediction_payloads: list[dict] = []
         self.teams_payloads: list[dict] = []
+        self.squad_payloads: list[dict] = []
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -54,6 +55,9 @@ class _FakeClient:
 
     def fetch_teams(self) -> list[dict]:
         return self.teams_payloads
+
+    def fetch_squad(self, team_ref_id: int) -> list[dict]:
+        return self.squad_payloads
 
 
 class _FakePublisher:
@@ -143,7 +147,12 @@ def step_one_prediction(context):
 
 @given('the fake client returns 1 team payload')
 def step_one_team_payload(context):
-    context.client.teams_payloads = [{"id": 444, "name": "Team ABC", "code": "ABC"}]
+    context.client.teams_payloads = [{"id": 444, "name": "Team ABC", "short_name": "ABC", "country": "Brazil", "venue_id": 12}]
+    context.client.squad_payloads = [{
+        "id": 1, "team_id": 444, "name": "Player One", "jersey_number": 10,
+        "position": "ST", "status": "official", "club": "Club X", "club_country": "Brazil",
+        "caps": 5, "goals": 2, "date_of_birth": "2000-01-01", "age": 26, "player_id": 123
+    }]
 
 
 @given('the fake client returns no teams')

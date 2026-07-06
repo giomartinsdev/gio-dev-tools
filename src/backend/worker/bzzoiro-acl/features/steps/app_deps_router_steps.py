@@ -113,6 +113,9 @@ class _FakeClient:
     def fetch_teams(self) -> list[dict]:
         return []
 
+    def fetch_squad(self, team_ref_id: int) -> list[dict]:
+        return []
+
 
 class _RaisingClient:
     def fetch_events(self, date_from=None, date_to=None, status=None):
@@ -131,6 +134,9 @@ class _RaisingClient:
         raise RuntimeError("upstream down")
 
     def fetch_teams(self) -> list[dict]:
+        raise RuntimeError("upstream down")
+
+    def fetch_squad(self, team_ref_id: int) -> list[dict]:
         raise RuntimeError("upstream down")
 
 

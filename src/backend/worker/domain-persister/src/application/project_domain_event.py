@@ -8,6 +8,7 @@ from shared.events import (
     MatchStatusChanged,
     OddsSnapshotCaptured,
     TeamUpdated,
+    SquadUpdated,
     domain_event_adapter,
 )
 from shared.logger import get_logger
@@ -66,8 +67,14 @@ class ProjectDomainEventHandler:
             self._read_models.upsert_team(
                 team_id=event.team_id,
                 name=event.name,
-                code=event.code,
-                logo=event.logo,
+                short_name=event.short_name,
+                country=event.country,
+                venue_id=event.venue_id,
+            )
+        elif isinstance(event, SquadUpdated):
+            self._read_models.upsert_squad(
+                team_id=event.team_id,
+                members=event.members,
             )
         else:
             logger.warning(f"unhandled domain event type: {type(event).__name__}")

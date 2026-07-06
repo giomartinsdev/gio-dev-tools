@@ -75,6 +75,12 @@ Feature: bzzoiro REST client
     When I fetch teams from the client
     Then all team rows are returned
 
+  Scenario: fetch_squad returns the team squad list
+    Given a bzzoiro v2 API that returns a squad for team 444
+    When I fetch squad for team 444 from the client
+    Then the squad list is returned
+
+
   # ── New: transient error handling (ReadTimeout / 502) ────────────────────────
 
   Scenario: A 502 is retried and eventually succeeds (positive)

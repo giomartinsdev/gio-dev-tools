@@ -245,8 +245,9 @@ class BzzoiroTranslator:
             ),
             team_id=team_id,
             name=payload.get("name") or "",
-            code=payload.get("code"),
-            logo=payload.get("logo"),
+            short_name=payload.get("short_name") or "",
+            country=payload.get("country") or "",
+            venue_id=payload.get("venue_id"),
         )
 
     def translate_squad(self, provider_team_id: int, squad_payloads: list[dict]) -> SquadUpdated:
