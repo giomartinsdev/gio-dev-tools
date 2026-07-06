@@ -124,13 +124,44 @@ class BzzoiroClient:
         """GET /api/v2/events/live/ — lightweight live event list, cached 30s."""
         return self._paginate_v2("v2/events/live/", {})
 
+    def fetch_odds_page(
+        self,
+        offset: int = 0,
+        limit: int = 200,
+        updated_after: Optional[datetime] = None,
+    ) -> tuple[list[dict], bool]:
+        """Fetch a single page of odds.
+
+        Returns a tuple of (results_list, has_next_page).
+        """
+        params: dict = {"limit": limit, "offset": offset}
+        if updated_after:
+            params["updated_after"] = updated_after.isoformat()
+
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, "v2/odds/", params, [])
+            if isinstance(page, dict):
+                results = page.get("results") or []
+                has_next = bool(page.get("next"))
+                return results, has_next
+            if isinstance(page, list):
+                # If it's a flat list, we assume there's a next page if we got a full page
+                return page, len(page) >= limit
+            return [], False
+
     def fetch_odds(self, updated_after: Optional[datetime] = None) -> list[dict]:
         """GET /api/v2/odds/ — flat list of OddsItemV2Schema (one row per
         bookmaker+market+outcome, not grouped)."""
-        params: dict = {}
-        if updated_after:
-            params["updated_after"] = updated_after.isoformat()
-        return self._paginate_v2("v2/odds/", params)
+        results: list[dict] = []
+        offset = 0
+        limit = _MAX_PAGE_SIZE
+        while True:
+            items, has_next = self.fetch_odds_page(offset, limit, updated_after)
+            results.extend(items)
+            if not has_next or len(items) < limit:
+                break
+            offset += limit
+        return results
 
     def fetch_predictions(self, status: str = "upcoming") -> list[dict]:
         """GET /api/v2/predictions/ — list of PredictionV2Schema."""
