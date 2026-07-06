@@ -110,6 +110,7 @@ class BzzoiroClient:
         date_to: Optional[date] = None,
         status: Optional[str] = None,
     ) -> list[dict]:
+        """GET /api/v2/events/ — EventDetailV2Schema list."""
         params: dict = {}
         if date_from:
             params["date_from"] = date_from.isoformat()
@@ -117,10 +118,11 @@ class BzzoiroClient:
             params["date_to"] = date_to.isoformat()
         if status:
             params["status"] = status
-        return self._paginate("events/", params)
+        return self._paginate_v2("v2/events/", params)
 
     def fetch_live(self) -> list[dict]:
-        return self._paginate("live/", {})
+        """GET /api/v2/events/live/ — lightweight live event list, cached 30s."""
+        return self._paginate_v2("v2/events/live/", {})
 
     def fetch_odds(self, updated_after: Optional[datetime] = None) -> list[dict]:
         """GET /api/v2/odds/ — flat list of OddsItemV2Schema (one row per

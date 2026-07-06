@@ -37,12 +37,20 @@ def step_fresh_client(context):
     _setup(context)
 
 
-@given('a bzzoiro API that returns 2 pages of events')
-def step_two_pages(context):
+@given('a bzzoiro v2 API that returns 2 pages of events as envelope')
+def step_v2_two_event_pages(context):
     _setup(context)
     page1 = _response(200, {"count": 4, "next": "https://x/?offset=200", "previous": None, "results": [{"id": 1}, {"id": 2}]})
     page2 = _response(200, {"count": 4, "next": None, "previous": "...", "results": [{"id": 3}, {"id": 4}]})
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page1, page2])
+
+
+@given('a bzzoiro v2 API that returns 1 flat page of events')
+def step_v2_flat_events_page(context):
+    _setup(context)
+    context.max_page_size_patch = patch.object(bzzoiro_client_module, "_MAX_PAGE_SIZE", 5)
+    page = _response(200, [{"id": 10}, {"id": 11}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
 @given('a bzzoiro API that returns 429 once then succeeds')
@@ -68,10 +76,18 @@ def step_404(context):
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
 
 
-@given('a bzzoiro API that returns 1 page of live events')
-def step_one_live_page(context):
+@given('a bzzoiro v2 API that returns 1 page of live events as envelope')
+def step_v2_live_envelope(context):
     _setup(context)
     page = _response(200, {"count": 1, "next": None, "previous": None, "results": [{"id": 500}]})
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
+@given('a bzzoiro v2 API that returns 1 flat page of live events')
+def step_v2_flat_live_page(context):
+    _setup(context)
+    context.max_page_size_patch = patch.object(bzzoiro_client_module, "_MAX_PAGE_SIZE", 5)
+    page = _response(200, [{"id": 501}, {"id": 502}])
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
@@ -126,19 +142,35 @@ def step_fetch_events(context):
 
 
 def _do_fetch(context):
-    try:
-        context.result = context.client.fetch_events()
-    except Exception as e:
-        context.error = e
+    max_page_size_patch = getattr(context, "max_page_size_patch", None)
+    if max_page_size_patch is not None:
+        with max_page_size_patch:
+            try:
+                context.result = context.client.fetch_events()
+            except Exception as e:
+                context.error = e
+    else:
+        try:
+            context.result = context.client.fetch_events()
+        except Exception as e:
+            context.error = e
 
 
 @when('I fetch live events from the client')
 def step_fetch_live(context):
+    max_page_size_patch = getattr(context, "max_page_size_patch", None)
     with context.get_patch:
-        try:
-            context.result = context.client.fetch_live()
-        except Exception as e:
-            context.error = e
+        if max_page_size_patch is not None:
+            with max_page_size_patch:
+                try:
+                    context.result = context.client.fetch_live()
+                except Exception as e:
+                    context.error = e
+        else:
+            try:
+                context.result = context.client.fetch_live()
+            except Exception as e:
+                context.error = e
 
 
 @when('I fetch odds from the client')
@@ -217,6 +249,18 @@ def step_partial_odds_page(context):
 @then('all prediction rows are returned')
 def step_all_prediction_rows(context):
     assert [r["id"] for r in context.result] == [1], context.result
+
+
+@then('the flat event page is returned')
+def step_flat_event_page(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert [r["id"] for r in context.result] == [10, 11], context.result
+
+
+@then('the flat live page is returned')
+def step_flat_live_page(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert [r["id"] for r in context.result] == [501, 502], context.result
 
 
 @given('a bzzoiro API that returns 502 once then succeeds with one odds row')

@@ -3,10 +3,15 @@ Feature: bzzoiro REST client
   I want pagination, rate-limit backoff and error handling to work correctly
   So that a slow/rate-limiting/flaky upstream doesn't break polling
 
-  Scenario: Pagination follows next until it is null
-    Given a bzzoiro API that returns 2 pages of events
+  Scenario: fetch_events paginates v2 events via envelope shape
+    Given a bzzoiro v2 API that returns 2 pages of events as envelope
     When I fetch events from the client
     Then all results across both pages are returned
+
+  Scenario: fetch_events accepts a flat array response from v2
+    Given a bzzoiro v2 API that returns 1 flat page of events
+    When I fetch events from the client
+    Then the flat event page is returned
 
   Scenario: A 429 is retried and eventually succeeds
     Given a bzzoiro API that returns 429 once then succeeds
@@ -23,10 +28,15 @@ Feature: bzzoiro REST client
     When I fetch events from the client
     Then an empty list is returned
 
-  Scenario: fetch_live paginates the live endpoint
-    Given a bzzoiro API that returns 1 page of live events
+  Scenario: fetch_live returns events from the v2 live endpoint (envelope shape)
+    Given a bzzoiro v2 API that returns 1 page of live events as envelope
     When I fetch live events from the client
     Then all results from the live page are returned
+
+  Scenario: fetch_live accepts a flat array from the v2 live endpoint
+    Given a bzzoiro v2 API that returns 1 flat page of live events
+    When I fetch live events from the client
+    Then the flat live page is returned
 
   Scenario: fetch_odds paginates a v2 flat array across two full pages
     Given a bzzoiro v2 API that returns 2 full pages of odds
