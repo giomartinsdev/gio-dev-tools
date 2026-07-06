@@ -67,20 +67,30 @@ class BzzoiroClient:
         return results
 
     def _paginate_v2(self, path: str, params: dict) -> list[dict]:
-        """Paginate a v2 endpoint, which returns a plain JSON array (no
-        count/next envelope) — keep paging while a full page comes back."""
+        """Paginate a v2 endpoint. The OpenAPI schema documents a plain JSON
+        array, but the real API has been observed returning the same
+        `{count, next, previous, results}` envelope v1 uses — accept either
+        shape rather than trusting the docs (bitten by this once already
+        with `status`)."""
         results: list[dict] = []
         limit = min(int(params.get("limit", _MAX_PAGE_SIZE)), _MAX_PAGE_SIZE)
         offset = 0
         with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
             while True:
                 page = self._get(client, path, {**params, "limit": limit, "offset": offset}, [])
-                if not isinstance(page, list):
-                    break
-                results.extend(page)
-                if len(page) < limit:
-                    break
-                offset += limit
+                if isinstance(page, dict):
+                    results.extend(page.get("results") or [])
+                    if not page.get("next"):
+                        break
+                    offset += limit
+                    continue
+                if isinstance(page, list):
+                    results.extend(page)
+                    if len(page) < limit:
+                        break
+                    offset += limit
+                    continue
+                break
         return results
 
     def fetch_events(

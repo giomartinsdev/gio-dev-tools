@@ -98,6 +98,21 @@ def step_v2_predictions_page(context):
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
+@given('a bzzoiro v2 API that returns 2 enveloped pages of odds')
+def step_v2_enveloped_pages(context):
+    _setup(context)
+    page1 = _response(200, {"count": 3, "next": "https://x/?offset=2", "previous": None, "results": [{"id": 1}, {"id": 2}]})
+    page2 = _response(200, {"count": 3, "next": None, "previous": "...", "results": [{"id": 3}]})
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page1, page2])
+
+
+@given('a bzzoiro v2 API that returns 1 enveloped page of predictions')
+def step_v2_enveloped_predictions(context):
+    _setup(context)
+    page = _response(200, {"count": 1, "next": None, "previous": None, "results": [{"id": 1, "event": {"id": 42}}]})
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
 @when('I fetch events from the client')
 def step_fetch_events(context):
     sleep_patch = getattr(context, "sleep_patch", None)

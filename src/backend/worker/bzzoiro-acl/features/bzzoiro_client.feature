@@ -47,3 +47,13 @@ Feature: bzzoiro REST client
     Given a bzzoiro v2 API that returns 1 page of predictions
     When I fetch predictions from the client
     Then all prediction rows are returned
+
+  Scenario: fetch_odds paginates the real {count,next,results} envelope
+    Given a bzzoiro v2 API that returns 2 enveloped pages of odds
+    When I fetch odds from the client
+    Then all odds rows across both pages are returned
+
+  Scenario: fetch_predictions also accepts the enveloped shape
+    Given a bzzoiro v2 API that returns 1 enveloped page of predictions
+    When I fetch predictions from the client
+    Then all prediction rows are returned
