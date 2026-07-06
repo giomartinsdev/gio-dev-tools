@@ -8,14 +8,15 @@ from sqlalchemy import text
 from shared.transaction_manager import TransactionManager
 
 from ..domain.repository import IdentityRepository
+from .models import SCHEMA
 
-_SELECT = text("""
-    SELECT canonical_id FROM provider_mappings
+_SELECT = text(f"""
+    SELECT canonical_id FROM {SCHEMA}.provider_mappings
     WHERE provider = :provider AND provider_ref = :provider_ref AND entity_type = :entity_type
 """)
 
-_INSERT = text("""
-    INSERT INTO provider_mappings (provider, provider_ref, entity_type, canonical_id)
+_INSERT = text(f"""
+    INSERT INTO {SCHEMA}.provider_mappings (provider, provider_ref, entity_type, canonical_id)
     VALUES (:provider, :provider_ref, :entity_type, :canonical_id)
     ON CONFLICT (provider, provider_ref, entity_type) DO NOTHING
 """)

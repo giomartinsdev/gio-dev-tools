@@ -3,13 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Engine, Integer, MetaData, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+SCHEMA = "bzzoiro_data"
+
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(schema=SCHEMA)
 
 
 class EventStoreModel(Base):
@@ -56,3 +58,10 @@ class OddsSnapshotModel(Base):
     market: Mapped[str] = mapped_column(String, nullable=False)
     selections: Mapped[dict] = mapped_column(JSONB, nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+def create_all(engine: Engine) -> None:
+    """Create the bzzoiro_data schema (Postgres doesn't do this for us) then the tables in it."""
+    with engine.begin() as conn:
+        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}"))
+    Base.metadata.create_all(engine)

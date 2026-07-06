@@ -13,7 +13,12 @@ use_step_matcher("re")
 def step_fresh_table(context):
     TransactionManager.reset()
     TransactionManager.configure(TransactionConfig(url="sqlite:///:memory:"))
-    Base.metadata.create_all(TransactionManager.get().engine)
+    engine = TransactionManager.get().engine
+    # SQLite has no CREATE SCHEMA; ATTACH a second in-memory DB under the
+    # "bzzoiro_data" alias so the schema-qualified table name resolves.
+    with engine.begin() as conn:
+        conn.exec_driver_sql("ATTACH DATABASE ':memory:' AS bzzoiro_data")
+    Base.metadata.create_all(engine)
     context.repo = PostgresIdentityRepository()
     context.canonical_id = None
     context.previous_canonical_id = None

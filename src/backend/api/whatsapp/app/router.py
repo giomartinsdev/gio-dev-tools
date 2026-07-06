@@ -1,11 +1,9 @@
 from __future__ import annotations
 import asyncio
 import json
-import os
 from typing import AsyncGenerator
 
 import aio_pika
-import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
@@ -13,8 +11,6 @@ from .schemas import ChatSummary, Message, SendRequest
 
 SEND_QUEUE = "whatsapp-send"
 MESSAGE_EVENTS = ["messages.upsert", "send.message"]
-ALEXA_URL = os.environ.get("ALEXA_URL", "http://alexa:8000")
-ALEXA_PREFIX = "a."
 
 router = APIRouter()
 
@@ -64,17 +60,6 @@ async def list_messages(jid: str, request: Request, limit: int = 200):
 @router.post("/send")
 async def send_message(body: SendRequest, request: Request):
     text = body.text
-
-    if text.startswith(ALEXA_PREFIX):
-        command = text[len(ALEXA_PREFIX):].strip()
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{ALEXA_URL}/command",
-                json={"text": command},
-                timeout=15.0,
-            )
-            resp.raise_for_status()
-        return {"alexa": True, "text": command}
 
     payload = {
         "number": body.number,

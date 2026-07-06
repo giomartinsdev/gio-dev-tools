@@ -1,30 +1,4 @@
 services:
-  kanban:
-    image: re.giomartins.dev/kanban:latest
-    container_name: kanban
-    environment:
-      if_id: ${IF_ID}
-      if_secret: ${IF_SECRET}
-      if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
-    restart: unless-stopped
-    networks:
-      - apis
-      - persistence
-
-  obsidian:
-    image: re.giomartins.dev/obsidian:latest
-    container_name: obsidian
-    environment:
-      if_id: ${IF_ID}
-      if_secret: ${IF_SECRET}
-      if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
-    restart: unless-stopped
-    networks:
-      - apis
-      - persistence
-
   finance:
     image: re.giomartins.dev/finance:latest
     container_name: finance
@@ -77,20 +51,6 @@ services:
       - apis
       - persistence
 
-  alexa:
-    image: re.giomartins.dev/alexa:latest
-    container_name: alexa
-    environment:
-      if_id: ${IF_ID}
-      if_secret: ${IF_SECRET}
-      if_project_id: ${IF_PROJECT_ID}
-      if_env: prod
-    restart: unless-stopped
-    volumes:
-      - alexa_data:/data/alexa
-    networks:
-      - apis
-
   whatsapp:
     image: re.giomartins.dev/whatsapp:latest
     container_name: whatsapp
@@ -110,6 +70,3 @@ networks:
     driver: bridge
   persistence:
     external: true
-
-volumes:
-  alexa_data:

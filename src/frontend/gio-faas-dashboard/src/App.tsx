@@ -3,12 +3,9 @@ import { Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioModule'
-import { KanbanModule, kanbanMeta } from '@/modules/kanban/KanbanModule'
-import { ObsidianModule, obsidianMeta } from '@/modules/obsidian/ObsidianModule'
-import { AlexaModule, alexaMeta } from '@/modules/alexa/AlexaModule'
 import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
 
-const modules = [financeMeta, portfolioMeta, kanbanMeta, obsidianMeta, alexaMeta, whatsappMeta]
+const modules = [financeMeta, portfolioMeta, whatsappMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -68,9 +65,6 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6">
           {activeId === 'finance' && <FinanceModule />}
           {activeId === 'portfolio' && <PortfolioModule />}
-          {activeId === 'kanban' && <KanbanModule />}
-          {activeId === 'obsidian' && <ObsidianModule />}
-          {activeId === 'alexa' && <AlexaModule />}
           {activeId === 'whatsapp' && <WhatsappModule />}
         </main>
       </div>

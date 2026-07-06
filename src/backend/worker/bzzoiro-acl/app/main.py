@@ -13,7 +13,7 @@ from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixt
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.identity_repository import PostgresIdentityRepository
-from src.infrastructure.models import Base
+from src.infrastructure.models import create_all
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
 from src.infrastructure.translator import BzzoiroTranslator
 
@@ -33,7 +33,7 @@ def _init(app: FastAPI) -> None:
         bzzoiro_api_key = sm.get_secret("BZZOIRO_API_KEY")
         rabbitmq_uri = sm.get_secret("RABBITMQ_URI")
         TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
-        Base.metadata.create_all(TransactionManager.get().engine)
+        create_all(TransactionManager.get().engine)
 
         app.state.identity_repo = PostgresIdentityRepository()
         app.state.client = BzzoiroClient(api_key=bzzoiro_api_key)

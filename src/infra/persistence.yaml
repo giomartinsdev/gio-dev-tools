@@ -42,7 +42,6 @@ services:
       USERNAME: ${USERNAME}
       PASSWORD: ${PASSWORD}
     volumes:
-      - obsidian_data:/var/lib/dav
       - gio_data:/var/lib/dav/data/gio
     ports:
       - "8585:80"
@@ -125,7 +124,6 @@ services:
 
 volumes:
   postgres_data:
-  obsidian_data:
   gio_data:
   redis_data:
   rabbitmq_data:

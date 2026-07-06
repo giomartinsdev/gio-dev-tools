@@ -11,13 +11,10 @@ FAAS_GATEWAY_URL = os.environ.get("FAAS_GATEWAY_URL", "https://of.giomartins.dev
 CF_CLIENT_ID = os.environ["CF_ACCESS_CLIENT_ID"]
 CF_CLIENT_SECRET = os.environ["CF_ACCESS_CLIENT_SECRET"]
 PORT = int(os.environ.get("PORT", "3000"))
-KANBAN_URL = os.environ.get("KANBAN_URL", "http://kanban:8000")
-OBSIDIAN_URL = os.environ.get("OBSIDIAN_URL", "http://obsidian:8000")
 FINANCE_URL = os.environ.get("FINANCE_URL", "http://finance:8000")
 FINANCE_OCR_URL = os.environ.get("FINANCE_OCR_URL", "http://finance-ocr:8000")
 ASSET_QUOTES_URL = os.environ.get("ASSET_QUOTES_URL", "http://asset-quotes:8000")
 PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "http://portfolio:8000")
-ALEXA_URL = os.environ.get("ALEXA_URL", "http://alexa:8000")
 WHATSAPP_URL = os.environ.get("WHATSAPP_URL", "http://whatsapp:8000")
 
 _HOP_BY_HOP = {
@@ -85,20 +82,6 @@ async def _forward_internal(request: Request, target: str) -> Response:
     )
 
 
-@app.api_route("/kanban", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-@app.api_route("/kanban/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_kanban(request: Request, path: str = ""):
-    target = f"{KANBAN_URL}/{path}" if path else KANBAN_URL
-    return await _forward_internal(request, target)
-
-
-@app.api_route("/obsidian", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-@app.api_route("/obsidian/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_obsidian(request: Request, path: str = ""):
-    target = f"{OBSIDIAN_URL}/{path}" if path else OBSIDIAN_URL
-    return await _forward_internal(request, target)
-
-
 @app.api_route("/finance", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @app.api_route("/finance/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_finance(request: Request, path: str = ""):
@@ -124,13 +107,6 @@ async def proxy_asset_quotes(request: Request, path: str = ""):
 @app.api_route("/portfolio/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_portfolio(request: Request, path: str = ""):
     target = f"{PORTFOLIO_URL}/{path}" if path else PORTFOLIO_URL
-    return await _forward_internal(request, target)
-
-
-@app.api_route("/alexa", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-@app.api_route("/alexa/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_alexa(request: Request, path: str = ""):
-    target = f"{ALEXA_URL}/{path}" if path else ALEXA_URL
     return await _forward_internal(request, target)
 
 
@@ -185,12 +161,9 @@ def health():
     return {
         "status": "OK",
         "faas_gateway_url": FAAS_GATEWAY_URL,
-        "kanban_url": KANBAN_URL,
-        "obsidian_url": OBSIDIAN_URL,
         "finance_url": FINANCE_URL,
         "finance_ocr_url": FINANCE_OCR_URL,
         "asset_quotes_url": ASSET_QUOTES_URL,
         "portfolio_url": PORTFOLIO_URL,
-        "alexa_url": ALEXA_URL,
         "whatsapp_url": WHATSAPP_URL,
     }

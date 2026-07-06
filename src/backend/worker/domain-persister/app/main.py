@@ -10,7 +10,7 @@ from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.project_domain_event import ProjectDomainEventHandler
 from src.infrastructure.event_store_repository import EventStoreRepository
-from src.infrastructure.models import Base
+from src.infrastructure.models import create_all
 from src.infrastructure.rabbitmq_consumer import run_consumers
 from src.infrastructure.read_model_repository import ReadModelRepository
 
@@ -27,7 +27,7 @@ def _init(app: FastAPI) -> None:
         sm = SecretManager()
         rabbitmq_uri = sm.get_secret("RABBITMQ_URI")
         TransactionManager.configure(TransactionConfig(url=sm.get_secret("DATABASE_URL")))
-        Base.metadata.create_all(TransactionManager.get().engine)
+        create_all(TransactionManager.get().engine)
 
         app.state.read_models = ReadModelRepository()
         app.state.event_store = EventStoreRepository()
