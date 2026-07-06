@@ -167,7 +167,7 @@ def step_run_background_success(context):
 @then('the publisher was connected and poll loops were started')
 def step_assert_connected_and_polling(context):
     assert context.fake_app.state.publisher is context.fake_publisher
-    assert context.fake_poll_loop.await_count == 2
+    assert context.fake_poll_loop.await_count == 4
 
 
 @when('_run_background hits a connection error on its first attempt')

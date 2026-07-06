@@ -32,3 +32,23 @@ Feature: FastAPI deps and router wiring
     Given fake poll dependencies with 1 live payload
     When I call the poll_live endpoint
     Then the endpoint returns polled count 1
+
+  Scenario: POST /poll/odds returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_odds endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/predictions returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_predictions endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/odds surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_odds endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/predictions surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_predictions endpoint expecting an error
+    Then a 500 HTTPException is raised

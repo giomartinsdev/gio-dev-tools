@@ -11,6 +11,8 @@ from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
+from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.identity_repository import PostgresIdentityRepository
 from src.infrastructure.models import create_all
@@ -24,6 +26,8 @@ logger = get_logger(__name__)
 
 FIXTURES_POLL_SECONDS = int(os.environ.get("BZZOIRO_FIXTURES_POLL_SECONDS", "300"))
 LIVE_POLL_SECONDS = int(os.environ.get("BZZOIRO_LIVE_POLL_SECONDS", "30"))
+ODDS_POLL_SECONDS = int(os.environ.get("BZZOIRO_ODDS_POLL_SECONDS", "60"))
+PREDICTIONS_POLL_SECONDS = int(os.environ.get("BZZOIRO_PREDICTIONS_POLL_SECONDS", "600"))
 RECONNECT_DELAY = 5
 
 
@@ -70,9 +74,13 @@ async def _run_background(app: FastAPI) -> None:
 
             fixtures_handler = PollFixturesHandler(app.state.client, app.state.translator, publisher)
             live_handler = PollLiveHandler(app.state.client, app.state.translator, publisher)
+            odds_handler = PollOddsHandler(app.state.client, app.state.translator, publisher)
+            predictions_handler = PollPredictionsHandler(app.state.client, app.state.translator, publisher)
             await asyncio.gather(
                 _poll_loop("fixtures", FIXTURES_POLL_SECONDS, fixtures_handler, PollFixturesCommand()),
                 _poll_loop("live", LIVE_POLL_SECONDS, live_handler, PollLiveCommand()),
+                _poll_loop("odds", ODDS_POLL_SECONDS, odds_handler, PollOddsCommand()),
+                _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
             )
         except asyncio.CancelledError:
             raise

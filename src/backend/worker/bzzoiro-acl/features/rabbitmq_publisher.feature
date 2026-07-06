@@ -14,6 +14,10 @@ Feature: RabbitMQ publisher
     When I publish a MatchStatusChanged domain event
     Then the domain exchange received a message with routing key "match.status_changed"
 
+  Scenario: Publishing an insight routes to the analysis exchange
+    When I publish an InsightGenerated event
+    Then the analysis exchange received a message with routing key "analysis.insight_generated"
+
   Scenario: Closing the publisher closes the underlying connection
     When I close the publisher
     Then the underlying connection was closed

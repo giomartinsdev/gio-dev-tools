@@ -27,3 +27,23 @@ Feature: bzzoiro REST client
     Given a bzzoiro API that returns 1 page of live events
     When I fetch live events from the client
     Then all results from the live page are returned
+
+  Scenario: fetch_odds paginates a v2 flat array across two full pages
+    Given a bzzoiro v2 API that returns 2 full pages of odds
+    When I fetch odds from the client
+    Then all odds rows across both pages are returned
+
+  Scenario: fetch_odds stops after a partial page
+    Given a bzzoiro v2 API that returns 1 partial page of odds
+    When I fetch odds from the client
+    Then only the partial page of odds is returned
+
+  Scenario: fetch_odds treats a 404 as an empty list
+    Given a bzzoiro API that returns 404
+    When I fetch odds from the client
+    Then an empty list is returned
+
+  Scenario: fetch_predictions paginates a v2 flat array
+    Given a bzzoiro v2 API that returns 1 page of predictions
+    When I fetch predictions from the client
+    Then all prediction rows are returned

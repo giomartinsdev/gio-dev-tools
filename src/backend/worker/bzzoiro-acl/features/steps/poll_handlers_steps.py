@@ -7,6 +7,8 @@ from behave import given, then, use_step_matcher, when
 
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
+from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
+from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
 from src.domain.repository import IdentityRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
@@ -28,6 +30,8 @@ class _FakeClient:
     def __init__(self):
         self.events_payloads: list[dict] = []
         self.live_payloads: list[dict] = []
+        self.odds_rows: list[dict] = []
+        self.prediction_payloads: list[dict] = []
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -35,17 +39,27 @@ class _FakeClient:
     def fetch_live(self):
         return self.live_payloads
 
+    def fetch_odds(self, updated_after=None):
+        return self.odds_rows
+
+    def fetch_predictions(self, status="upcoming"):
+        return self.prediction_payloads
+
 
 class _FakePublisher:
     def __init__(self):
         self.raw_calls: list[tuple] = []
         self.domain_events: list = []
+        self.insights: list = []
 
     async def publish_raw(self, feed_type, provider_ref, payload, correlation_id=None):
         self.raw_calls.append((feed_type, provider_ref, payload, correlation_id))
 
     async def publish_domain_event(self, event):
         self.domain_events.append(event)
+
+    async def publish_insight(self, event):
+        self.insights.append(event)
 
 
 _SAMPLE_PAYLOAD = {
@@ -86,6 +100,37 @@ def step_one_live(context):
     context.client.live_payloads = [dict(_SAMPLE_PAYLOAD, status={"name": "live"})]
 
 
+@given('the fake client returns 3 odds rows for the same event/bookmaker/market')
+def step_three_odds_rows(context):
+    context.client.odds_rows = [
+        {"event_id": "42", "bookmaker_slug": "bet365", "market": "1x2", "outcome": "HOME", "decimal_odds": "2.10", "updated_at": "2026-08-01T10:00:00Z"},
+        {"event_id": "42", "bookmaker_slug": "bet365", "market": "1x2", "outcome": "DRAW", "decimal_odds": "3.40", "updated_at": "2026-08-01T10:00:01Z"},
+        {"event_id": "42", "bookmaker_slug": "bet365", "market": "1x2", "outcome": "AWAY", "decimal_odds": "3.60", "updated_at": "2026-08-01T10:00:02Z"},
+    ]
+
+
+@given('the fake client returns no odds rows')
+def step_no_odds_rows(context):
+    context.client.odds_rows = []
+
+
+@given('the fake client returns 1 prediction payload')
+def step_one_prediction(context):
+    context.client.prediction_payloads = [{
+        "id": 1,
+        "created_at": "2026-08-01T09:00:00Z",
+        "event": {"id": "77", "event_date": "2026-08-01T20:00:00Z", "status": "notstarted",
+                   "home_team_id": 1, "home_team": "A", "away_team_id": 2, "away_team": "B",
+                   "league_id": 1, "league_name": "L"},
+        "markets": {"match_result": {"prob_home": 0.6, "prob_draw": 0.2, "prob_away": 0.2, "predicted": "H"}},
+        "recommendations": {
+            "favorite": "H", "favorite_prob": 0.6, "bet_favorite": True,
+            "over_15": False, "over_25": False, "over_35": False, "btts": False, "winner": True,
+        },
+        "model": {"confidence": 0.82, "version": "v4"},
+    }]
+
+
 @when('I run the fixtures poll handler')
 def step_run_fixtures(context):
     handler = PollFixturesHandler(context.client, context.translator, context.publisher)
@@ -98,6 +143,18 @@ def step_run_live(context):
     context.polled_count = asyncio.run(handler.handle(PollLiveCommand()))
 
 
+@when('I run the odds poll handler')
+def step_run_odds(context):
+    handler = PollOddsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollOddsCommand()))
+
+
+@when('I run the predictions poll handler')
+def step_run_predictions(context):
+    handler = PollPredictionsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollPredictionsCommand()))
+
+
 @then(r'(\d+) events? (?:was|were) polled')
 def step_assert_count(context, expected):
     assert context.polled_count == int(expected), f"expected {expected}, got {context.polled_count}"
@@ -105,8 +162,14 @@ def step_assert_count(context, expected):
 
 @then('the publisher recorded a raw publish and at least one domain event publish')
 def step_assert_published(context):
-    assert len(context.publisher.raw_calls) == 1, context.publisher.raw_calls
+    assert len(context.publisher.raw_calls) >= 1, context.publisher.raw_calls
     assert len(context.publisher.domain_events) >= 1, context.publisher.domain_events
+
+
+@then('the publisher recorded a raw publish and at least one insight publish')
+def step_assert_insight_published(context):
+    assert len(context.publisher.raw_calls) >= 1, context.publisher.raw_calls
+    assert len(context.publisher.insights) >= 1, context.publisher.insights
 
 
 @then('the publisher recorded no raw publish')

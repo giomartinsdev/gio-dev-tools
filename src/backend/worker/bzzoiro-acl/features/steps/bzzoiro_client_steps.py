@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import httpx
 from behave import given, then, use_step_matcher, when
 
+import src.infrastructure.bzzoiro_client as bzzoiro_client_module
 from src.infrastructure.bzzoiro_client import BzzoiroAuthError, BzzoiroClient
 
 use_step_matcher("re")
@@ -73,6 +74,30 @@ def step_one_live_page(context):
     context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
 
 
+@given('a bzzoiro v2 API that returns 2 full pages of odds')
+def step_v2_two_full_pages(context):
+    _setup(context)
+    context.max_page_size_patch = patch.object(bzzoiro_client_module, "_MAX_PAGE_SIZE", 2)
+    page1 = _response(200, [{"id": 1}, {"id": 2}])
+    page2 = _response(200, [{"id": 3}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page1, page2])
+
+
+@given('a bzzoiro v2 API that returns 1 partial page of odds')
+def step_v2_partial_page(context):
+    _setup(context)
+    context.max_page_size_patch = patch.object(bzzoiro_client_module, "_MAX_PAGE_SIZE", 5)
+    page = _response(200, [{"id": 1}, {"id": 2}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
+@given('a bzzoiro v2 API that returns 1 page of predictions')
+def step_v2_predictions_page(context):
+    _setup(context)
+    page = _response(200, [{"id": 1, "event": {"id": 42}}])
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[page])
+
+
 @when('I fetch events from the client')
 def step_fetch_events(context):
     sleep_patch = getattr(context, "sleep_patch", None)
@@ -96,6 +121,33 @@ def step_fetch_live(context):
     with context.get_patch:
         try:
             context.result = context.client.fetch_live()
+        except Exception as e:
+            context.error = e
+
+
+@when('I fetch odds from the client')
+def step_fetch_odds(context):
+    max_page_size_patch = getattr(context, "max_page_size_patch", None)
+    with context.get_patch:
+        if max_page_size_patch is not None:
+            with max_page_size_patch:
+                _do_fetch_odds(context)
+        else:
+            _do_fetch_odds(context)
+
+
+def _do_fetch_odds(context):
+    try:
+        context.result = context.client.fetch_odds()
+    except Exception as e:
+        context.error = e
+
+
+@when('I fetch predictions from the client')
+def step_fetch_predictions(context):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_predictions()
         except Exception as e:
             context.error = e
 
@@ -126,3 +178,18 @@ def step_empty_list(context):
 @then('all results from the live page are returned')
 def step_live_results(context):
     assert [r["id"] for r in context.result] == [500]
+
+
+@then('all odds rows across both pages are returned')
+def step_all_odds_rows(context):
+    assert [r["id"] for r in context.result] == [1, 2, 3], context.result
+
+
+@then('only the partial page of odds is returned')
+def step_partial_odds_page(context):
+    assert [r["id"] for r in context.result] == [1, 2], context.result
+
+
+@then('all prediction rows are returned')
+def step_all_prediction_rows(context):
+    assert [r["id"] for r in context.result] == [1], context.result

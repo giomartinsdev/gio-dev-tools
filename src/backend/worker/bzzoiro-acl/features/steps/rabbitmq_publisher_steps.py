@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from behave import given, then, use_step_matcher, when
 
-from shared.events import EventMeta, MatchStatusChanged, MatchStatus
+from shared.events import EventMeta, InsightGenerated, MatchStatusChanged, MatchStatus
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
 
 use_step_matcher("re")
@@ -68,6 +68,23 @@ def step_publish_domain_event(context):
     asyncio.run(context.publisher.publish_domain_event(event))
 
 
+@when('I publish an InsightGenerated event')
+def step_publish_insight(context):
+    event = InsightGenerated(
+        meta=EventMeta(occurred_at=datetime.now(timezone.utc), producer="acl.bzzoiro", correlation_id=uuid4()),
+        insight_id=uuid4(),
+        match_id=uuid4(),
+        market="match_result",
+        recommendation="favorite:H",
+        confidence="0.82",
+        rationale="test",
+        model="v4",
+        feature_snapshot={},
+        generated_at=datetime.now(timezone.utc),
+    )
+    asyncio.run(context.publisher.publish_insight(event))
+
+
 @when('I close the publisher')
 def step_close_publisher(context):
     asyncio.run(context.publisher.close())
@@ -84,6 +101,14 @@ def step_assert_ingestion_routing_key(context, routing_key):
 @then(r'the domain exchange received a message with routing key "([^"]+)"')
 def step_assert_domain_routing_key(context, routing_key):
     exchange = context.fake_exchanges["domain.events"]
+    exchange.publish.assert_awaited_once()
+    _, kwargs = exchange.publish.await_args
+    assert kwargs["routing_key"] == routing_key, f"expected {routing_key}, got {kwargs['routing_key']}"
+
+
+@then(r'the analysis exchange received a message with routing key "([^"]+)"')
+def step_assert_analysis_routing_key(context, routing_key):
+    exchange = context.fake_exchanges["analysis.events"]
     exchange.publish.assert_awaited_once()
     _, kwargs = exchange.publish.await_args
     assert kwargs["routing_key"] == routing_key, f"expected {routing_key}, got {kwargs['routing_key']}"

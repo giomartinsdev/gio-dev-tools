@@ -8,7 +8,7 @@ from behave import given, then, use_step_matcher, when
 from fastapi import HTTPException
 
 from app.deps import _ready, get_client, get_publisher, get_translator
-from app.router import poll_fixtures, poll_live
+from app.router import poll_fixtures, poll_live, poll_odds, poll_predictions
 
 use_step_matcher("re")
 
@@ -79,12 +79,16 @@ class _FakePublisher:
     def __init__(self):
         self.raw_calls = []
         self.domain_events = []
+        self.insights = []
 
     async def publish_raw(self, feed_type, provider_ref, payload, correlation_id=None):
         self.raw_calls.append((feed_type, provider_ref, payload))
 
     async def publish_domain_event(self, event):
         self.domain_events.append(event)
+
+    async def publish_insight(self, event):
+        self.insights.append(event)
 
 
 class _FakeClient:
@@ -97,12 +101,24 @@ class _FakeClient:
     def fetch_live(self):
         return self._payloads
 
+    def fetch_odds(self, updated_after=None):
+        return []
+
+    def fetch_predictions(self, status="upcoming"):
+        return []
+
 
 class _RaisingClient:
     def fetch_events(self, date_from=None, date_to=None, status=None):
         raise RuntimeError("upstream down")
 
     def fetch_live(self):
+        raise RuntimeError("upstream down")
+
+    def fetch_odds(self, updated_after=None):
+        raise RuntimeError("upstream down")
+
+    def fetch_predictions(self, status="upcoming"):
         raise RuntimeError("upstream down")
 
 
@@ -176,6 +192,40 @@ def step_call_poll_live(context):
     context.endpoint_result = asyncio.run(
         poll_live(client=context.client, translator=context.translator, publisher=context.publisher)
     )
+
+
+@when('I call the poll_odds endpoint')
+def step_call_poll_odds(context):
+    context.endpoint_result = asyncio.run(
+        poll_odds(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_odds endpoint expecting an error')
+def step_call_poll_odds_error(context):
+    try:
+        asyncio.run(
+            poll_odds(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
+
+
+@when('I call the poll_predictions endpoint')
+def step_call_poll_predictions(context):
+    context.endpoint_result = asyncio.run(
+        poll_predictions(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_predictions endpoint expecting an error')
+def step_call_poll_predictions_error(context):
+    try:
+        asyncio.run(
+            poll_predictions(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
 
 
 @then(r'the endpoint returns polled count (\d+)')

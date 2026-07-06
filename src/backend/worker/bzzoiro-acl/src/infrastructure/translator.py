@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from uuid import uuid4
 
 from shared.events import (
     DomainEvent,
     EventMeta,
+    InsightGenerated,
     MatchFinished,
     MatchScheduled,
     MatchScoreUpdated,
@@ -27,6 +29,27 @@ _STATUS_MAP = {
     "postponed": MatchStatus.POSTPONED,
     "cancelled": MatchStatus.CANCELLED,
 }
+
+
+def _parse_dt(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _summarize_recommendation(recommendations: dict) -> str:
+    flags = []
+    if recommendations.get("bet_favorite"):
+        flags.append(f"favorite:{recommendations.get('favorite')}")
+    if recommendations.get("over_15"):
+        flags.append("over_1.5")
+    if recommendations.get("over_25"):
+        flags.append("over_2.5")
+    if recommendations.get("over_35"):
+        flags.append("over_3.5")
+    if recommendations.get("btts"):
+        flags.append("btts_yes")
+    if recommendations.get("winner"):
+        flags.append("winner")
+    return ",".join(flags) if flags else "no_bet"
 
 
 def _extract_status(raw: object) -> str:
@@ -52,6 +75,12 @@ class BzzoiroTranslator:
 
     def _resolve(self, entity_type: str, provider_ref: object) -> object:
         return self._identity.get_or_create(PROVIDER, str(provider_ref), entity_type)
+
+    def resolve_match_id(self, provider_ref: object) -> object:
+        """Public helper so callers (e.g. poll handlers) can correlate a
+        raw.feed_received record to the same canonical match_id the
+        translated domain events will use, without reaching into _resolve."""
+        return self._resolve("match", provider_ref)
 
     def translate_event(self, payload: dict) -> list[DomainEvent]:
         match_id = self._resolve("match", payload.get("id"))
@@ -132,3 +161,68 @@ class BzzoiroTranslator:
             ))
 
         return events
+
+    def translate_odds_items(self, items: list[dict]) -> list[DomainEvent]:
+        """GET /api/v2/odds/ returns a flat list — one row per
+        (event, bookmaker, market, outcome). Group rows sharing an
+        (event, bookmaker, market) into a single OddsSnapshotCaptured."""
+        groups: dict[tuple, list[dict]] = {}
+        for item in items:
+            key = (item["event_id"], item["bookmaker_slug"], item["market"])
+            groups.setdefault(key, []).append(item)
+
+        match_id_cache: dict[object, object] = {}
+        events: list[DomainEvent] = []
+        for (event_id, bookmaker_slug, market), group in groups.items():
+            if event_id not in match_id_cache:
+                match_id_cache[event_id] = self._resolve("match", event_id)
+            match_id = match_id_cache[event_id]
+
+            selections = [
+                OddsSelection(name=item["outcome"], price=Decimal(str(item["decimal_odds"])))
+                for item in group
+            ]
+            captured_at = max(_parse_dt(item["updated_at"]) for item in group)
+
+            events.append(OddsSnapshotCaptured(
+                meta=EventMeta(
+                    occurred_at=datetime.now(timezone.utc),
+                    producer=_PRODUCER,
+                    correlation_id=match_id,
+                ),
+                match_id=match_id,
+                bookmaker=bookmaker_slug,
+                market=market,
+                selections=selections,
+                captured_at=captured_at,
+            ))
+        return events
+
+    def translate_prediction(self, payload: dict) -> InsightGenerated:
+        """GET /api/v2/predictions/ -> one InsightGenerated per prediction.
+        `feature_snapshot` keeps the full markets breakdown (match_result,
+        expected_goals, over_under, btts, score) for later analysis."""
+        event = payload["event"]
+        match_id = self._resolve("match", event["id"])
+        model = payload["model"]
+        recommendations = payload["recommendations"]
+
+        return InsightGenerated(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            insight_id=uuid4(),
+            match_id=match_id,
+            market="match_result",
+            recommendation=_summarize_recommendation(recommendations),
+            confidence=Decimal(str(model["confidence"])),
+            rationale=(
+                f"favorite={recommendations.get('favorite')} "
+                f"favorite_prob={recommendations.get('favorite_prob')}"
+            ),
+            model=model["version"],
+            feature_snapshot=payload["markets"],
+            generated_at=_parse_dt(payload["created_at"]),
+        )
