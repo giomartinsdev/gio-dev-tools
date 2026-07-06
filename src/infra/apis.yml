@@ -64,6 +64,19 @@ services:
       - apis
       - persistence
 
+  domain-data-insights:
+    image: re.giomartins.dev/domain-data-insights:latest
+    container_name: domain-data-insights
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    networks:
+      - apis
+      - persistence
+
 networks:
   apis:
     name: apis

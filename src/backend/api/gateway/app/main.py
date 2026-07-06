@@ -16,6 +16,7 @@ FINANCE_OCR_URL = os.environ.get("FINANCE_OCR_URL", "http://finance-ocr:8000")
 ASSET_QUOTES_URL = os.environ.get("ASSET_QUOTES_URL", "http://asset-quotes:8000")
 PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "http://portfolio:8000")
 WHATSAPP_URL = os.environ.get("WHATSAPP_URL", "http://whatsapp:8000")
+DOMAIN_DATA_INSIGHTS_URL = os.environ.get("DOMAIN_DATA_INSIGHTS_URL", "http://domain-data-insights:8000")
 
 _HOP_BY_HOP = {
     "connection", "keep-alive", "transfer-encoding",
@@ -110,6 +111,13 @@ async def proxy_portfolio(request: Request, path: str = ""):
     return await _forward_internal(request, target)
 
 
+@app.api_route("/domain-data-insights", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@app.api_route("/domain-data-insights/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_domain_data_insights(request: Request, path: str = ""):
+    target = f"{DOMAIN_DATA_INSIGHTS_URL}/{path}" if path else DOMAIN_DATA_INSIGHTS_URL
+    return await _forward_internal(request, target)
+
+
 async def _forward_stream(request: Request, target: str) -> StreamingResponse:
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
 
@@ -166,4 +174,5 @@ def health():
         "asset_quotes_url": ASSET_QUOTES_URL,
         "portfolio_url": PORTFOLIO_URL,
         "whatsapp_url": WHATSAPP_URL,
+        "domain_data_insights_url": DOMAIN_DATA_INSIGHTS_URL,
     }

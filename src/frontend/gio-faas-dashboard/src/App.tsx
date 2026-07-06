@@ -4,8 +4,9 @@ import { cn } from '@/lib/utils'
 import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioModule'
 import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
+import { DomainInsightsModule, domainInsightsMeta } from '@/modules/domain-insights/DomainInsightsModule'
 
-const modules = [financeMeta, portfolioMeta, whatsappMeta]
+const modules = [financeMeta, portfolioMeta, whatsappMeta, domainInsightsMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -66,6 +67,7 @@ export default function App() {
           {activeId === 'finance' && <FinanceModule />}
           {activeId === 'portfolio' && <PortfolioModule />}
           {activeId === 'whatsapp' && <WhatsappModule />}
+          {activeId === 'domain-insights' && <DomainInsightsModule />}
         </main>
       </div>
     </div>
