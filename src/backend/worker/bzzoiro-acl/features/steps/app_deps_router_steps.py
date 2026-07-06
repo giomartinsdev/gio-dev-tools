@@ -8,7 +8,7 @@ from behave import given, then, use_step_matcher, when
 from fastapi import HTTPException
 
 from app.deps import _ready, get_client, get_publisher, get_translator
-from app.router import poll_fixtures, poll_live, poll_odds, poll_predictions, poll_teams
+from app.router import poll_fixtures, poll_live, poll_odds, poll_predictions, poll_teams, resync
 
 use_step_matcher("re")
 
@@ -117,6 +117,23 @@ class _FakeClient:
         return []
 
 
+class _FakeCheckpointRepository:
+    def __init__(self):
+        self._store: dict[str, str] = {}
+
+    def get_cursor(self, feed_type):
+        return self._store.get(feed_type)
+
+    def set_cursor(self, feed_type, cursor):
+        self._store[feed_type] = cursor
+
+    def clear(self, feed_type):
+        self._store.pop(feed_type, None)
+
+    def clear_all(self):
+        self._store.clear()
+
+
 class _RaisingClient:
     def fetch_events(self, date_from=None, date_to=None, status=None):
         raise RuntimeError("upstream down")
@@ -163,6 +180,7 @@ def step_fake_deps_fixture(context):
     context.client = _FakeClient([_SAMPLE_PAYLOAD])
     context.translator = BzzoiroTranslator(_Ident())
     context.publisher = _FakePublisher()
+    context.checkpoints = _FakeCheckpointRepository()
     context.error = None
     context.endpoint_result = None
 
@@ -185,6 +203,7 @@ def step_raising_client(context):
 
     context.translator = BzzoiroTranslator(_Ident())
     context.publisher = _FakePublisher()
+    context.checkpoints = _FakeCheckpointRepository()
     context.error = None
 
 
@@ -215,7 +234,10 @@ def step_call_poll_live(context):
 @when('I call the poll_odds endpoint')
 def step_call_poll_odds(context):
     context.endpoint_result = asyncio.run(
-        poll_odds(client=context.client, translator=context.translator, publisher=context.publisher)
+        poll_odds(
+            client=context.client, translator=context.translator,
+            publisher=context.publisher, checkpoints=context.checkpoints,
+        )
     )
 
 
@@ -223,7 +245,56 @@ def step_call_poll_odds(context):
 def step_call_poll_odds_error(context):
     try:
         asyncio.run(
-            poll_odds(client=context.client, translator=context.translator, publisher=context.publisher)
+            poll_odds(
+                client=context.client, translator=context.translator,
+                publisher=context.publisher, checkpoints=context.checkpoints,
+            )
+        )
+    except HTTPException as e:
+        context.error = e
+
+
+@when('I call the poll_teams endpoint')
+def step_call_poll_teams(context):
+    context.endpoint_result = asyncio.run(
+        poll_teams(
+            client=context.client, translator=context.translator,
+            publisher=context.publisher, checkpoints=context.checkpoints,
+        )
+    )
+
+
+@when('I call the poll_teams endpoint expecting an error')
+def step_call_poll_teams_error(context):
+    try:
+        asyncio.run(
+            poll_teams(
+                client=context.client, translator=context.translator,
+                publisher=context.publisher, checkpoints=context.checkpoints,
+            )
+        )
+    except HTTPException as e:
+        context.error = e
+
+
+@when('I call the resync endpoint')
+def step_call_resync(context):
+    context.endpoint_result = asyncio.run(
+        resync(
+            client=context.client, translator=context.translator,
+            publisher=context.publisher, checkpoints=context.checkpoints,
+        )
+    )
+
+
+@when('I call the resync endpoint expecting an error')
+def step_call_resync_error(context):
+    try:
+        asyncio.run(
+            resync(
+                client=context.client, translator=context.translator,
+                publisher=context.publisher, checkpoints=context.checkpoints,
+            )
         )
     except HTTPException as e:
         context.error = e
@@ -248,7 +319,13 @@ def step_call_poll_predictions_error(context):
 
 @then(r'the endpoint returns polled count (\d+)')
 def step_assert_polled_count(context, count):
-    assert context.endpoint_result == {"polled": int(count)}, context.endpoint_result
+    assert context.endpoint_result["polled"] == int(count), context.endpoint_result
+
+
+@then('the resync endpoint reports all five feeds')
+def step_assert_resync_feeds(context):
+    resynced = context.endpoint_result["resynced"]
+    assert set(resynced.keys()) == {"fixtures", "live", "odds", "predictions", "teams"}, resynced
 
 
 @then('a 500 HTTPException is raised')

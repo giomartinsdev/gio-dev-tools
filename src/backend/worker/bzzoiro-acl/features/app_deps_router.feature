@@ -52,3 +52,23 @@ Feature: FastAPI deps and router wiring
     Given a poll handler that raises an error
     When I call the poll_predictions endpoint expecting an error
     Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/teams returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_teams endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/teams surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_teams endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /resync runs every poller and reports all five feeds
+    Given fake poll dependencies with 1 fixture payload
+    When I call the resync endpoint
+    Then the resync endpoint reports all five feeds
+
+  Scenario: POST /resync surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the resync endpoint expecting an error
+    Then a 500 HTTPException is raised

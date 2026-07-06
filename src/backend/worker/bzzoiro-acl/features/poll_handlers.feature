@@ -42,28 +42,55 @@ Feature: Poll command handlers
     Then 1 event was polled
     And the publisher recorded a raw publish and at least one insight publish
 
-  # ── New: odds handler updated_after contract ─────────────────────────────────
+  # ── Odds checkpoint contract ──────────────────────────────────────────────────
 
-  Scenario: Polling odds returns the most recent updated_at as last_updated_at (positive)
+  Scenario: Polling odds persists the most recent updated_at as its own checkpoint
     Given the fake client returns 3 odds rows for the same event/bookmaker/market
     When I run the odds poll handler
-    Then the last_updated_at is 2026-08-01T10:00:02+00:00
+    Then the odds checkpoint is 2026-08-01T10:00:02+00:00
 
-  Scenario: Polling odds with no rows returns None as last_updated_at (negative)
+  Scenario: Polling odds with no rows leaves the checkpoint untouched
     Given the fake client returns no odds rows
     When I run the odds poll handler
-    Then the last_updated_at is None
+    Then the odds checkpoint is None
 
-  # ── New: teams poll scenarios ───────────────────────────────────────────────
+  Scenario: Polling odds honors an existing checkpoint as updated_after
+    Given an odds checkpoint of "2026-08-01T09:00:00+00:00" already exists
+    And the fake client returns 3 odds rows for the same event/bookmaker/market
+    When I run the odds poll handler
+    Then fetch_odds_page was called with updated_after 2026-08-01T09:00:00+00:00
+
+  Scenario: Forcing an odds poll ignores the existing checkpoint
+    Given an odds checkpoint of "2026-08-01T09:00:00+00:00" already exists
+    And the fake client returns 3 odds rows for the same event/bookmaker/market
+    When I run the odds poll handler with force
+    Then fetch_odds_page was called with updated_after None
+
+  # ── Teams poll + skip-if-recent contract ─────────────────────────────────────
 
   Scenario: Polling teams publishes the raw payload
     Given the fake client returns 1 team payload
     When I run the teams poll handler
     Then 1 event was polled
     And the publisher recorded a raw publish
+    And a teams checkpoint was recorded
 
   Scenario: Polling teams with no results publishes nothing
     Given the fake client returns no teams
     When I run the teams poll handler
     Then 0 events were polled
     And the publisher recorded no raw publish
+
+  Scenario: Polling teams skips the crawl if synced recently
+    Given a teams checkpoint from 60 seconds ago exists
+    And the fake client returns 1 team payload
+    When I run the teams poll handler
+    Then 0 events were polled
+    And fetch_teams was not called
+
+  Scenario: Forcing a teams poll bypasses the recent-checkpoint skip
+    Given a teams checkpoint from 60 seconds ago exists
+    And the fake client returns 1 team payload
+    When I run the teams poll handler with force
+    Then 1 event was polled
+    And fetch_teams was called

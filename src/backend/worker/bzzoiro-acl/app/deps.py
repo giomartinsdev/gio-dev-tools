@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Request
 
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
+from src.infrastructure.sync_checkpoint_repository import SyncCheckpointRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
 
@@ -26,3 +27,7 @@ def get_translator(request: Request, _: None = Depends(_ready)) -> BzzoiroTransl
 
 def get_publisher(request: Request, _: None = Depends(_ready)) -> RabbitMQPublisher:
     return request.app.state.publisher
+
+
+def get_checkpoints(request: Request, _: None = Depends(_ready)) -> SyncCheckpointRepository:
+    return request.app.state.checkpoints

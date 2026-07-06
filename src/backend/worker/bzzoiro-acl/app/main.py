@@ -2,8 +2,6 @@ import asyncio
 import os
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Optional
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +18,7 @@ from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.identity_repository import PostgresIdentityRepository
 from src.infrastructure.models import create_all
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
+from src.infrastructure.sync_checkpoint_repository import SyncCheckpointRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
 from .deps import _ready
@@ -44,6 +43,7 @@ def _init(app: FastAPI) -> None:
         create_all(TransactionManager.get().engine)
 
         app.state.identity_repo = PostgresIdentityRepository()
+        app.state.checkpoints = SyncCheckpointRepository()
         app.state.client = BzzoiroClient(api_key=bzzoiro_api_key)
         app.state.translator = BzzoiroTranslator(app.state.identity_repo)
         app.state.rabbitmq_uri = rabbitmq_uri
@@ -64,41 +64,6 @@ async def _poll_loop(name: str, interval: int, handler, cmd) -> None:
         await asyncio.sleep(interval)
 
 
-async def _poll_odds_loop(interval: int, handler) -> None:
-    """Dedicated odds poll loop that tracks updated_after between cycles.
-
-    Starts by checking the last captured_at from the database.
-    If database is empty, fetches everything (no filter).
-    """
-    from sqlalchemy import text
-    updated_after: Optional[datetime] = None
-    try:
-        def _get_last_captured():
-            try:
-                with TransactionManager.get().session() as s:
-                    return s.execute(text("SELECT max(captured_at) FROM bzzoiro_data.odds_snapshots")).scalar()
-            except Exception as e:
-                logger.warning(f"Could not retrieve last captured_at: {e}")
-                return None
-
-        db_val = await asyncio.to_thread(_get_last_captured)
-        if db_val:
-            updated_after = db_val
-            logger.info(f"odds loop starting with updated_after={updated_after} (loaded from db)")
-    except Exception as exc:
-        logger.warning(f"failed to load initial updated_after: {exc}")
-
-    while True:
-        try:
-            count, last_updated_at = await handler.handle(PollOddsCommand(updated_after=updated_after))
-            logger.info(f"odds poll completed: {count} rows, next updated_after={last_updated_at}")
-            if last_updated_at is not None:
-                updated_after = last_updated_at
-        except Exception as exc:
-            logger.error(f"odds poll failed: {exc}", exc_info=True)
-        await asyncio.sleep(interval)
-
-
 async def _run_background(app: FastAPI) -> None:
     await asyncio.to_thread(app.state._init_done.wait)
     if app.state._init_error is not None:
@@ -111,15 +76,19 @@ async def _run_background(app: FastAPI) -> None:
             app.state.publisher = publisher
             logger.info("bzzoiro-acl connected to RabbitMQ, starting poll loops")
 
+            checkpoints = app.state.checkpoints
             fixtures_handler = PollFixturesHandler(app.state.client, app.state.translator, publisher)
             live_handler = PollLiveHandler(app.state.client, app.state.translator, publisher)
-            odds_handler = PollOddsHandler(app.state.client, app.state.translator, publisher)
+            odds_handler = PollOddsHandler(app.state.client, app.state.translator, publisher, checkpoints)
             predictions_handler = PollPredictionsHandler(app.state.client, app.state.translator, publisher)
-            teams_handler = PollTeamsHandler(app.state.client, app.state.translator, publisher)
+            teams_handler = PollTeamsHandler(
+                app.state.client, app.state.translator, publisher, checkpoints,
+                min_resync_seconds=TEAMS_POLL_SECONDS,
+            )
             await asyncio.gather(
                 _poll_loop("fixtures", FIXTURES_POLL_SECONDS, fixtures_handler, PollFixturesCommand()),
                 _poll_loop("live", LIVE_POLL_SECONDS, live_handler, PollLiveCommand()),
-                _poll_odds_loop(ODDS_POLL_SECONDS, odds_handler),
+                _poll_loop("odds", ODDS_POLL_SECONDS, odds_handler, PollOddsCommand()),
                 _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
                 _poll_loop("teams", TEAMS_POLL_SECONDS, teams_handler, PollTeamsCommand()),
             )
@@ -138,6 +107,7 @@ async def lifespan(app: FastAPI):
     app.state.client = None
     app.state.translator = None
     app.state.identity_repo = None
+    app.state.checkpoints = None
     app.state.publisher = None
     threading.Thread(target=_init, args=(app,), daemon=True).start()
 

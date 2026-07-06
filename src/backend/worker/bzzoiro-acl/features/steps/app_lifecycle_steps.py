@@ -124,6 +124,7 @@ def _fake_app_for_background(init_error=None):
     fake_app.state._init_error = init_error
     fake_app.state.client = Mock()
     fake_app.state.translator = Mock()
+    fake_app.state.checkpoints = Mock()
     fake_app.state.rabbitmq_uri = "amqp://fake"
     fake_app.state.publisher = None
     return fake_app
@@ -153,8 +154,7 @@ def step_run_background_success(context):
     fake_publisher.connect = AsyncMock(side_effect=[None, asyncio.CancelledError])
 
     with patch.object(main_module, "RabbitMQPublisher", return_value=fake_publisher), \
-         patch.object(main_module, "_poll_loop", AsyncMock(return_value=None)) as fake_poll_loop, \
-         patch.object(main_module, "_poll_odds_loop", AsyncMock(return_value=None)) as fake_odds_loop:
+         patch.object(main_module, "_poll_loop", AsyncMock(return_value=None)) as fake_poll_loop:
         try:
             asyncio.run(main_module._run_background(fake_app))
         except asyncio.CancelledError:
@@ -163,15 +163,13 @@ def step_run_background_success(context):
     context.fake_app = fake_app
     context.fake_publisher = fake_publisher
     context.fake_poll_loop = fake_poll_loop
-    context.fake_odds_loop = fake_odds_loop
 
 
 @then('the publisher was connected and poll loops were started')
 def step_assert_connected_and_polling(context):
     assert context.fake_app.state.publisher is context.fake_publisher
-    # 4 generic loops (fixtures, live, predictions, teams) + 1 dedicated odds loop
-    assert context.fake_poll_loop.await_count == 4
-    assert context.fake_odds_loop.await_count == 1
+    # fixtures, live, odds, predictions, teams — all through the generic loop now
+    assert context.fake_poll_loop.await_count == 5
 
 
 @when('_run_background hits a connection error on its first attempt')

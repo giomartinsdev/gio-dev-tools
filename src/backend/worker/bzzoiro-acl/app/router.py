@@ -9,9 +9,10 @@ from src.application.commands.poll_predictions import PollPredictionsCommand, Po
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
+from src.infrastructure.sync_checkpoint_repository import SyncCheckpointRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
-from .deps import get_client, get_publisher, get_translator
+from .deps import get_checkpoints, get_client, get_publisher, get_translator
 
 router = APIRouter()
 
@@ -44,15 +45,19 @@ async def poll_live(
 
 @router.post("/poll/odds")
 async def poll_odds(
+    force: bool = False,
     client: BzzoiroClient = Depends(get_client),
     translator: BzzoiroTranslator = Depends(get_translator),
     publisher: RabbitMQPublisher = Depends(get_publisher),
+    checkpoints: SyncCheckpointRepository = Depends(get_checkpoints),
 ):
     try:
-        count, _ = await PollOddsHandler(client, translator, publisher).handle(PollOddsCommand())
+        count = await PollOddsHandler(client, translator, publisher, checkpoints).handle(
+            PollOddsCommand(force=force)
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"polled": count}
+    return {"polled": count, "force": force}
 
 
 @router.post("/poll/predictions")
@@ -70,12 +75,46 @@ async def poll_predictions(
 
 @router.post("/poll/teams")
 async def poll_teams(
+    force: bool = False,
     client: BzzoiroClient = Depends(get_client),
     translator: BzzoiroTranslator = Depends(get_translator),
     publisher: RabbitMQPublisher = Depends(get_publisher),
+    checkpoints: SyncCheckpointRepository = Depends(get_checkpoints),
 ):
     try:
-        count = await PollTeamsHandler(client, translator, publisher).handle(PollTeamsCommand())
+        count = await PollTeamsHandler(client, translator, publisher, checkpoints).handle(
+            PollTeamsCommand(force=force)
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"polled": count}
+    return {"polled": count, "force": force}
+
+
+@router.post("/resync")
+async def resync(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+    checkpoints: SyncCheckpointRepository = Depends(get_checkpoints),
+):
+    """Force a full resync of every feed, ignoring odds/teams checkpoints.
+    Fixtures/live/predictions have no checkpoint to bypass — they always
+    pull their normal window — so this just runs all five polls once."""
+    results: dict[str, object] = {}
+    try:
+        results["fixtures"] = await PollFixturesHandler(client, translator, publisher).handle(
+            PollFixturesCommand()
+        )
+        results["live"] = await PollLiveHandler(client, translator, publisher).handle(PollLiveCommand())
+        results["odds"] = await PollOddsHandler(client, translator, publisher, checkpoints).handle(
+            PollOddsCommand(force=True)
+        )
+        results["predictions"] = await PollPredictionsHandler(client, translator, publisher).handle(
+            PollPredictionsCommand()
+        )
+        results["teams"] = await PollTeamsHandler(client, translator, publisher, checkpoints).handle(
+            PollTeamsCommand(force=True)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"resynced": results}
