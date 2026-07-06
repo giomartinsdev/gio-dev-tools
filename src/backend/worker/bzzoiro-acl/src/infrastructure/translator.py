@@ -102,7 +102,7 @@ class BzzoiroTranslator:
         status = _STATUS_MAP.get(provider_status)
 
         kickoff_raw = payload.get("date") or payload.get("kickoff_at")
-        if kickoff_raw and status == MatchStatus.SCHEDULED:
+        if kickoff_raw:
             kickoff_at = kickoff_raw if isinstance(kickoff_raw, datetime) else datetime.fromisoformat(kickoff_raw)
             events.append(MatchScheduled(
                 meta=_meta(),

@@ -65,12 +65,27 @@ async def _poll_loop(name: str, interval: int, handler, cmd) -> None:
 async def _poll_odds_loop(interval: int, handler) -> None:
     """Dedicated odds poll loop that tracks updated_after between cycles.
 
-    First cycle fetches everything (no filter). Subsequent cycles use
-    last_updated_at from the previous successful batch as updated_after,
-    so only odds changed in the last ~interval seconds are fetched (~1-2
-    pages instead of ~1400).
+    Starts by checking the last captured_at from the database.
+    If database is empty, fetches everything (no filter).
     """
+    from sqlalchemy import text
     updated_after: Optional[datetime] = None
+    try:
+        def _get_last_captured():
+            try:
+                with TransactionManager.get().session() as s:
+                    return s.execute(text("SELECT max(captured_at) FROM bzzoiro_data.odds_snapshots")).scalar()
+            except Exception as e:
+                logger.warning(f"Could not retrieve last captured_at: {e}")
+                return None
+
+        db_val = await asyncio.to_thread(_get_last_captured)
+        if db_val:
+            updated_after = db_val
+            logger.info(f"odds loop starting with updated_after={updated_after} (loaded from db)")
+    except Exception as exc:
+        logger.warning(f"failed to load initial updated_after: {exc}")
+
     while True:
         try:
             count, last_updated_at = await handler.handle(PollOddsCommand(updated_after=updated_after))
