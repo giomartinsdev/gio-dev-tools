@@ -30,3 +30,13 @@ Feature: Insight projection, persistence and query
     Given a fake read model repository for value bets
     When I list value bets with limit 10 and offset 5
     Then find_value_bets was called with match_id None limit 10 and offset 5
+
+  Scenario: ListValueBetOutcomesHandler delegates to find_value_bet_outcomes with paging
+    Given a fake read model repository for value bet outcomes
+    When I list value bet outcomes with limit 10 and offset 5
+    Then find_value_bet_outcomes was called with match_id None limit 10 and offset 5
+
+  Scenario: SummarizeValueBetOutcomesHandler delegates to summarize_value_bet_outcomes
+    Given a fake read model repository for value bet outcomes
+    When I summarize value bet outcomes via the handler
+    Then summarize_value_bet_outcomes was called

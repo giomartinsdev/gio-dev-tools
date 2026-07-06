@@ -4,14 +4,18 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_h2h import PollH2HCommand, PollH2HHandler
+from src.application.commands.poll_incidents import PollIncidentsCommand, PollIncidentsHandler
 from src.application.commands.poll_lineups import PollLineupsCommand, PollLineupsHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
 from src.application.commands.poll_odds_best import PollOddsBestCommand, PollOddsBestHandler
 from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
+from src.application.commands.poll_player_stats import PollPlayerStatsCommand, PollPlayerStatsHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_referees import PollRefereesCommand, PollRefereesHandler
 from src.application.commands.poll_standings import PollStandingsCommand, PollStandingsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
+from src.application.commands.poll_venues import PollVenuesCommand, PollVenuesHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.rabbitmq_publisher import RabbitMQPublisher
 from src.infrastructure.sync_checkpoint_repository import SyncCheckpointRepository
@@ -162,6 +166,58 @@ async def poll_teams(
     return {"polled": count, "force": force}
 
 
+@router.post("/poll/venues")
+async def poll_venues(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+):
+    try:
+        count = await PollVenuesHandler(client, translator, publisher).handle(PollVenuesCommand())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"polled": count}
+
+
+@router.post("/poll/referees")
+async def poll_referees(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+):
+    try:
+        count = await PollRefereesHandler(client, translator, publisher).handle(PollRefereesCommand())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"polled": count}
+
+
+@router.post("/poll/player-stats")
+async def poll_player_stats(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+):
+    try:
+        count = await PollPlayerStatsHandler(client, translator, publisher).handle(PollPlayerStatsCommand())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"polled": count}
+
+
+@router.post("/poll/incidents")
+async def poll_incidents(
+    client: BzzoiroClient = Depends(get_client),
+    translator: BzzoiroTranslator = Depends(get_translator),
+    publisher: RabbitMQPublisher = Depends(get_publisher),
+):
+    try:
+        count = await PollIncidentsHandler(client, translator, publisher).handle(PollIncidentsCommand())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"polled": count}
+
+
 @router.post("/resync")
 async def resync(
     client: BzzoiroClient = Depends(get_client),
@@ -170,9 +226,8 @@ async def resync(
     checkpoints: SyncCheckpointRepository = Depends(get_checkpoints),
 ):
     """Force a full resync of every feed, ignoring odds/teams checkpoints.
-    Fixtures/live/odds-comparison/odds-best/lineups/h2h/standings/predictions
-    have no checkpoint to bypass — they always pull their normal window —
-    so this just runs all ten polls once."""
+    Every other feed has no checkpoint to bypass — they always pull their
+    normal window — so this just runs all fourteen polls once."""
     results: dict[str, object] = {}
     try:
         results["fixtures"] = await PollFixturesHandler(client, translator, publisher).handle(
@@ -200,6 +255,16 @@ async def resync(
         )
         results["teams"] = await PollTeamsHandler(client, translator, publisher, checkpoints).handle(
             PollTeamsCommand(force=True)
+        )
+        results["venues"] = await PollVenuesHandler(client, translator, publisher).handle(PollVenuesCommand())
+        results["referees"] = await PollRefereesHandler(client, translator, publisher).handle(
+            PollRefereesCommand()
+        )
+        results["player_stats"] = await PollPlayerStatsHandler(client, translator, publisher).handle(
+            PollPlayerStatsCommand()
+        )
+        results["incidents"] = await PollIncidentsHandler(client, translator, publisher).handle(
+            PollIncidentsCommand()
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

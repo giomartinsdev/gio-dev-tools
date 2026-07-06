@@ -11,14 +11,18 @@ from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_h2h import PollH2HCommand, PollH2HHandler
+from src.application.commands.poll_incidents import PollIncidentsCommand, PollIncidentsHandler
 from src.application.commands.poll_lineups import PollLineupsCommand, PollLineupsHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
 from src.application.commands.poll_odds_best import PollOddsBestCommand, PollOddsBestHandler
 from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
+from src.application.commands.poll_player_stats import PollPlayerStatsCommand, PollPlayerStatsHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_referees import PollRefereesCommand, PollRefereesHandler
 from src.application.commands.poll_standings import PollStandingsCommand, PollStandingsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
+from src.application.commands.poll_venues import PollVenuesCommand, PollVenuesHandler
 from src.infrastructure.bzzoiro_client import BzzoiroClient
 from src.infrastructure.identity_repository import PostgresIdentityRepository
 from src.infrastructure.models import create_all
@@ -41,6 +45,10 @@ H2H_POLL_SECONDS = int(os.environ.get("BZZOIRO_H2H_POLL_SECONDS", "3600"))
 STANDINGS_POLL_SECONDS = int(os.environ.get("BZZOIRO_STANDINGS_POLL_SECONDS", "3600"))
 PREDICTIONS_POLL_SECONDS = int(os.environ.get("BZZOIRO_PREDICTIONS_POLL_SECONDS", "600"))
 TEAMS_POLL_SECONDS = int(os.environ.get("BZZOIRO_TEAMS_POLL_SECONDS", "86400"))
+VENUES_POLL_SECONDS = int(os.environ.get("BZZOIRO_VENUES_POLL_SECONDS", "86400"))
+REFEREES_POLL_SECONDS = int(os.environ.get("BZZOIRO_REFEREES_POLL_SECONDS", "86400"))
+PLAYER_STATS_POLL_SECONDS = int(os.environ.get("BZZOIRO_PLAYER_STATS_POLL_SECONDS", "600"))
+INCIDENTS_POLL_SECONDS = int(os.environ.get("BZZOIRO_INCIDENTS_POLL_SECONDS", "120"))
 RECONNECT_DELAY = 5
 
 
@@ -100,6 +108,10 @@ async def _run_background(app: FastAPI) -> None:
                 app.state.client, app.state.translator, publisher, checkpoints,
                 min_resync_seconds=TEAMS_POLL_SECONDS,
             )
+            venues_handler = PollVenuesHandler(app.state.client, app.state.translator, publisher)
+            referees_handler = PollRefereesHandler(app.state.client, app.state.translator, publisher)
+            player_stats_handler = PollPlayerStatsHandler(app.state.client, app.state.translator, publisher)
+            incidents_handler = PollIncidentsHandler(app.state.client, app.state.translator, publisher)
             await asyncio.gather(
                 _poll_loop("fixtures", FIXTURES_POLL_SECONDS, fixtures_handler, PollFixturesCommand()),
                 _poll_loop("live", LIVE_POLL_SECONDS, live_handler, PollLiveCommand()),
@@ -114,6 +126,12 @@ async def _run_background(app: FastAPI) -> None:
                 _poll_loop("standings", STANDINGS_POLL_SECONDS, standings_handler, PollStandingsCommand()),
                 _poll_loop("predictions", PREDICTIONS_POLL_SECONDS, predictions_handler, PollPredictionsCommand()),
                 _poll_loop("teams", TEAMS_POLL_SECONDS, teams_handler, PollTeamsCommand()),
+                _poll_loop("venues", VENUES_POLL_SECONDS, venues_handler, PollVenuesCommand()),
+                _poll_loop("referees", REFEREES_POLL_SECONDS, referees_handler, PollRefereesCommand()),
+                _poll_loop(
+                    "player_stats", PLAYER_STATS_POLL_SECONDS, player_stats_handler, PollPlayerStatsCommand(),
+                ),
+                _poll_loop("incidents", INCIDENTS_POLL_SECONDS, incidents_handler, PollIncidentsCommand()),
             )
         except asyncio.CancelledError:
             raise

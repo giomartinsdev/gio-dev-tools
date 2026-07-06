@@ -3,16 +3,20 @@
 Consumes everything ACL workers publish and persists it: raw payloads into an
 append-only event store (for replay), canonical domain events into read
 models (`matches`, `odds_snapshots`, `odds_comparisons`,
-`polymarket_snapshots`, `lineups`, `h2h`, `standings`), and ML predictions
-(`InsightGenerated`) into an `insights` table. All three queues are declared
-idempotently on startup from the same `shared.rabbitmq_topology` module
-`bzzoiro-acl` uses, so producer and consumer can never disagree on
-exchange/queue/binding names.
+`polymarket_snapshots`, `lineups`, `h2h`, `standings`, `teams`,
+`squad_members`, `venues`, `referees`, `player_stats`, `incidents`), and ML
+predictions (`InsightGenerated`) into an `insights` table. All three queues
+are declared idempotently on startup from the same
+`shared.rabbitmq_topology` module `bzzoiro-acl` uses, so producer and
+consumer can never disagree on exchange/queue/binding names.
 
 It also runs the **value-bet detector**: every time a new odds comparison or
 a new insight lands for a match, it recomputes the edge between bzzoiro's
 own model probability and the best market price, and keeps a `value_bets`
-table of everything currently above threshold — see below.
+table of everything currently above threshold — see below. When a match
+finishes, whatever value bets were still open for it are archived into
+`value_bet_outcomes` with the real score (win/loss), and a new value bet
+triggers a WhatsApp alert if one is configured.
 
 ## Env vars (via Infisical, `shared.secret_manager.SecretManager`)
 
@@ -20,7 +24,9 @@ table of everything currently above threshold — see below.
 |---|---|
 | `if_id`, `if_secret`, `if_project_id`, `if_env` | Infisical universal-auth client |
 | `DATABASE_URL` | Postgres DSN (event store + read models) |
-| `RABBITMQ_URI` | amqp:// URI to consume `q.archive.raw` / `q.persister` / `q.insight.projector` |
+| `RABBITMQ_URI` | amqp:// URI to consume `q.archive.raw` / `q.persister` / `q.insight.projector`, and to publish WhatsApp alerts to `whatsapp-send` |
+| `VALUE_BET_ALERT_NUMBER` | Optional. WhatsApp number to alert when a brand-new value bet is detected. If unset/unfetchable, alerting is silently disabled — this is a normal, supported state, not every deployment wants it wired up |
+| `VALUE_BET_ALERT_INSTANCE` | Optional. Evolution API instance name for the alert; defaults to whatever `whatsapp-worker` uses if omitted |
 
 Plain env vars (no secret needed):
 
@@ -46,6 +52,56 @@ PYTHONPATH=$(pwd):$(pwd)/.. uvicorn app.main:app --reload
   recent first.
 - `GET /value-bets`, `GET /value-bets?match_id=...` — currently-detected
   edges above `VALUE_BET_EDGE_THRESHOLD`, highest edge first.
+- `GET /value-bets/outcomes`, `GET /value-bets/outcomes?match_id=...` —
+  resolved value bets (won/lost, with the final score), most recently
+  resolved first.
+- `GET /value-bets/outcomes/summary` — win rate across every resolved value
+  bet: `{"total", "won", "lost", "win_rate"}`.
+
+## Value-bet outcome history (backtesting)
+
+`ValueBetOutcomeResolver.resolve_match(match_id, home_score, away_score)`
+runs when a `MatchFinished` event lands. It looks at whatever's still open
+in `value_bets` for that match at that exact moment, resolves each one
+against the final score (`1x2`/`over_under_*`/`btts` markets), archives the
+result into the append-only `value_bet_outcomes` table, and deletes the
+`value_bets` row — the match is over, so it's no longer an actionable
+opportunity either way.
+
+This only captures bets still open right at full time — a value bet that
+existed earlier and closed *before* the match (edge dropped, or lineup
+confidence recovered) was already deleted by `ValueBetDetector` and never
+makes it into this history. That's an intentional v1 simplicity trade-off:
+it answers "did my final picks win", not "did every edge that ever existed
+win" (which would need `ValueBetDetector` to never delete, and this
+resolver to reconcile every past snapshot instead).
+
+Same isolation guarantee as value-bet detection: a bug here can't poison an
+otherwise-valid `MatchFinished` message, since the match-finished write
+already committed before this runs.
+
+## WhatsApp alert on a new value bet
+
+The first time `ValueBetDetector.evaluate()` upserts a value bet for a
+`(match, market, outcome)` it hasn't seen before (checked via
+`find_value_bet` right before the upsert), it fires a WhatsApp text through
+`WhatsAppNotifier` — the same `whatsapp-send` RabbitMQ queue `api/whatsapp`'s
+`POST /send` publishes to and `worker/whatsapp`'s `consume_outbound()`
+already consumes. domain-persister can't reach `api/whatsapp`'s HTTP
+endpoint directly (it's only on the `persistence` Docker network, not
+`apis`), but it's already got a RabbitMQ connection for its own event
+consumption on that same network, so publishing directly needs no new
+network access — just a short-lived extra AMQP connection per alert (rare
+enough not to be worth keeping one open).
+
+Re-detecting an already-known value bet (edge just recomputed to a similar
+number on a later poll) does **not** re-alert — only a genuinely new
+`(match, market, outcome)` triggers a message. A failing notifier (queue
+down, etc.) is caught and logged; it can never stop the value bet itself
+from being recorded.
+
+Disabled by default — set `VALUE_BET_ALERT_NUMBER` (and optionally
+`VALUE_BET_ALERT_INSTANCE`) to turn it on.
 
 ## Value-bet detection
 
@@ -171,3 +227,8 @@ comparison poll already captured for the same match.
   run against the live DB — `create_all()` alone will not apply it. See
   `docs/fix-teams-schema-drift.sql` in the repo root for the one-off fix
   and a general drift-check query across every table in `bzzoiro_data`.
+- `MatchScheduled.venue` still always projects as `None` even though a
+  `venues` table now exists (populated from `VenueCaptured`, keyed by
+  `venue_id`) — nothing currently joins `MatchModel.venue` to it at
+  projection time. Doing that join is a small follow-up, not implemented
+  yet in this pass.

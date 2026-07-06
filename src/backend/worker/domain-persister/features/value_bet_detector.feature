@@ -78,3 +78,25 @@ Feature: Value bet detection
     And odds comparison data exists for the match with best odds 2.50 on "1x2" "HOME"
     When the detector evaluates the match
     Then a value bet is recorded for "1x2" "HOME" with edge close to 0.155
+
+  Scenario: A brand-new value bet triggers a notification
+    Given a fresh value bet detector with a notifier
+    And an insight exists with match_result prob_home 60
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
+    When the detector evaluates the match
+    Then the notifier sent an alert
+
+  Scenario: Re-confirming an already-known value bet does not notify again
+    Given a fresh value bet detector with a notifier
+    And an insight exists with match_result prob_home 60
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
+    And the detector already evaluated the match once
+    When the detector evaluates the match
+    Then the notifier was not called again
+
+  Scenario: A failing notifier does not stop the value bet from being recorded
+    Given a fresh value bet detector with a notifier that raises on notify
+    And an insight exists with match_result prob_home 60
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
+    When the detector evaluates the match
+    Then a value bet is recorded for "1x2" "HOME" with edge close to 0.1455

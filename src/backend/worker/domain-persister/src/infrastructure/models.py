@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import DateTime, Engine, Integer, MetaData, Numeric, String, text
+from sqlalchemy import Boolean, DateTime, Engine, Integer, MetaData, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -196,6 +196,86 @@ class StandingsModel(Base):
 
     competition_id: Mapped[str] = mapped_column(String, primary_key=True)
     standings: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ValueBetOutcomeModel(Base):
+    """Append-only record of what happened to a value bet once its match
+    finished — the piece the "current state" `value_bets` table can't
+    answer on its own (did the edge we detected actually pay off?).
+    Populated by ValueBetOutcomeResolver from whatever's still open in
+    `value_bets` for a match at the moment MatchFinished lands; the
+    corresponding `value_bets` row is deleted right after (the match is
+    over, it's no longer an actionable opportunity either way)."""
+
+    __tablename__ = "value_bet_outcomes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(String, nullable=False)
+    market: Mapped[str] = mapped_column(String, nullable=False)
+    outcome: Mapped[str] = mapped_column(String, nullable=False)
+    model_probability: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    bookmaker: Mapped[str] = mapped_column(String, nullable=False)
+    best_odds: Mapped[Decimal] = mapped_column(Numeric(8, 3), nullable=False)
+    implied_probability: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    edge: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    won: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    home_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    away_score: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class VenueModel(Base):
+    """Latest known venue detail — lets MatchScheduled.venue finally carry
+    a real name instead of always None (the events feed only ever has
+    venue_id, never a name)."""
+
+    __tablename__ = "venues"
+
+    venue_id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    capacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RefereeModel(Base):
+    """Latest known referee detail, tied to events' referee_id. Pure
+    context (e.g. card/penalty tendency), doesn't feed edge detection."""
+
+    __tablename__ = "referees"
+
+    referee_id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    country: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    details: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PlayerStatsModel(Base):
+    """Latest known per-player stat lines for one match, kept verbatim as
+    one blob (not exploded per player) — same "keep it close to the wire
+    shape" choice as h2h/standings. Only ever populated post-kickoff, so
+    it's context for review, not pre-match edge detection."""
+
+    __tablename__ = "player_stats"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    stats: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class IncidentsModel(Base):
+    """Latest known incident timeline (goals/cards/subs) for one match,
+    kept verbatim as one blob. Only ever populated once a match is
+    live/finished."""
+
+    __tablename__ = "incidents"
+
+    match_id: Mapped[str] = mapped_column(String, primary_key=True)
+    incidents: Mapped[dict] = mapped_column(JSONB, nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

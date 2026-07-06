@@ -59,7 +59,7 @@ async def _consume_persister(uri: str, projector: ProjectDomainEventHandler) -> 
                 async with queue.iterator() as it:
                     async for message in it:
                         try:
-                            projector.handle(message.body)
+                            await projector.handle(message.body)
                             await message.ack()
                         except Exception as exc:
                             logger.error(f"poison message on {Q_PERSISTER}: {exc}", exc_info=True)
@@ -82,7 +82,7 @@ async def _consume_insights(uri: str, insight_handler: ProjectInsightHandler) ->
                 async with queue.iterator() as it:
                     async for message in it:
                         try:
-                            insight_handler.handle(message.body)
+                            await insight_handler.handle(message.body)
                             await message.ack()
                         except Exception as exc:
                             logger.error(f"poison message on {Q_INSIGHT_PROJECTOR}: {exc}", exc_info=True)

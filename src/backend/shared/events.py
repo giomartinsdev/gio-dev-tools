@@ -216,6 +216,62 @@ class StandingsCaptured(BaseModel):
     captured_at: datetime
 
 
+class VenueCaptured(BaseModel):
+    """GET /api/v2/venues/{id}/ — venue detail. Exists so `MatchScheduled`'s
+    venue field can eventually carry a real name: the events feed only ever
+    has `venue_id`, never a name string."""
+
+    event_type: Literal["venue.captured"] = "venue.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    venue_id: str
+    name: str
+    city: Optional[str] = None
+    country: Optional[str] = None
+    capacity: Optional[int] = None
+    captured_at: datetime
+
+
+class RefereeCaptured(BaseModel):
+    """GET /api/v2/referees/{id}/ — referee detail, tied to events'
+    referee_id. Pure context (card/penalty tendency), doesn't feed edge
+    detection."""
+
+    event_type: Literal["referee.captured"] = "referee.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    referee_id: str
+    name: str
+    country: Optional[str] = None
+    details: dict
+    captured_at: datetime
+
+
+class PlayerStatsCaptured(BaseModel):
+    """GET /api/v2/events/{id}/player-stats/ — per-player stat lines for
+    one match, kept verbatim. Only ever populated post-kickoff."""
+
+    event_type: Literal["player_stats.captured"] = "player_stats.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    stats: dict
+    captured_at: datetime
+
+
+class IncidentsCaptured(BaseModel):
+    """GET /api/v2/events/{id}/incidents/ — goal/card/substitution timeline
+    for one match, kept verbatim. Only ever populated once a match is
+    live/finished."""
+
+    event_type: Literal["incidents.captured"] = "incidents.captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    match_id: UUID
+    incidents: dict
+    captured_at: datetime
+
+
 DomainEvent = Annotated[
     Union[
         MatchScheduled,
@@ -231,6 +287,10 @@ DomainEvent = Annotated[
         LineupsCaptured,
         H2HCaptured,
         StandingsCaptured,
+        VenueCaptured,
+        RefereeCaptured,
+        PlayerStatsCaptured,
+        IncidentsCaptured,
     ],
     Field(discriminator="event_type"),
 ]

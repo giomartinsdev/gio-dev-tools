@@ -153,3 +153,45 @@ Feature: bzzoiro REST client
     Given a bzzoiro API that returns 404
     When I fetch standings for league 40 from the client
     Then None is returned by the client
+
+  # ── New: venues / referees / player-stats / incidents client scenarios ────────
+
+  Scenario: fetch_venue returns the venue payload
+    Given a bzzoiro API that returns a venue payload for venue 735
+    When I fetch venue 735 from the client
+    Then the venue payload is returned
+
+  Scenario: fetch_venue returns None when the venue does not exist
+    Given a bzzoiro API that returns 404
+    When I fetch venue 735 from the client
+    Then None is returned by the client
+
+  Scenario: fetch_referee returns the referee payload
+    Given a bzzoiro API that returns a referee payload for referee 2535
+    When I fetch referee 2535 from the client
+    Then the referee payload is returned
+
+  Scenario: fetch_referee returns None when the referee does not exist
+    Given a bzzoiro API that returns 404
+    When I fetch referee 2535 from the client
+    Then None is returned by the client
+
+  Scenario: fetch_player_stats returns the player stats payload
+    Given a bzzoiro API that returns a player stats payload for event 8378
+    When I fetch player stats for event 8378 from the client
+    Then the player stats payload is returned
+
+  Scenario: fetch_player_stats returns None before kickoff
+    Given a bzzoiro API that returns 404
+    When I fetch player stats for event 8378 from the client
+    Then None is returned by the client
+
+  Scenario: fetch_incidents returns the incidents payload
+    Given a bzzoiro API that returns an incidents payload for event 8378
+    When I fetch incidents for event 8378 from the client
+    Then the incidents payload is returned
+
+  Scenario: fetch_incidents returns None before kickoff
+    Given a bzzoiro API that returns 404
+    When I fetch incidents for event 8378 from the client
+    Then None is returned by the client

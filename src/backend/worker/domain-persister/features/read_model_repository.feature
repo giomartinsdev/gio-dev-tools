@@ -117,3 +117,73 @@ Feature: Read model repository
     Given the session get returns a standings row
     When I get the standings
     Then a standings dict is returned
+
+  Scenario: find_value_bet returns a dict when the row exists
+    Given the session get returns a value bet row
+    When I get the value bet
+    Then a value bet dict is returned
+
+  Scenario: find_value_bet returns None when the row is missing
+    Given the session get returns no row
+    When I get the value bet
+    Then None is returned
+
+  Scenario: insert_value_bet_outcome writes to the value_bet_outcomes table
+    When I insert a value bet outcome
+    Then a value_bet_outcomes row was added to the session
+
+  Scenario: find_value_bet_outcomes maps rows to dicts
+    Given the session query returns 1 value bet outcome row
+    When I list value bet outcomes
+    Then 1 value bet outcome dict is returned
+
+  Scenario: summarize_value_bet_outcomes reports win rate
+    Given the session query counts 3 total and 2 won value bet outcomes
+    When I summarize value bet outcomes
+    Then the summary reports 3 total, 2 won, 1 lost
+
+  Scenario: find_team returns a dict when the row exists
+    Given the session get returns a team row
+    When I get the team
+    Then a team dict is returned
+
+  Scenario: find_team returns None when the row is missing
+    Given the session get returns no row
+    When I get the team
+    Then None is returned
+
+  Scenario: upsert_venue writes to the venues table
+    When I upsert a venue
+    Then the session executed a statement against "venues"
+
+  Scenario: find_venue returns a dict when the row exists
+    Given the session get returns a venue row
+    When I get the venue
+    Then a venue dict is returned
+
+  Scenario: upsert_referee writes to the referees table
+    When I upsert a referee
+    Then the session executed a statement against "referees"
+
+  Scenario: find_referee returns a dict when the row exists
+    Given the session get returns a referee row
+    When I get the referee
+    Then a referee dict is returned
+
+  Scenario: upsert_player_stats writes to the player_stats table
+    When I upsert player stats
+    Then the session executed a statement against "player_stats"
+
+  Scenario: find_player_stats returns a dict when the row exists
+    Given the session get returns a player stats row
+    When I get the player stats
+    Then a player stats dict is returned
+
+  Scenario: upsert_incidents writes to the incidents table
+    When I upsert incidents
+    Then the session executed a statement against "incidents"
+
+  Scenario: find_incidents returns a dict when the row exists
+    Given the session get returns an incidents row
+    When I get the incidents
+    Then an incidents dict is returned

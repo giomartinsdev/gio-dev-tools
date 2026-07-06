@@ -17,6 +17,7 @@ Feature: Domain event projection
   Scenario: MatchFinished projects into upsert_match_finished
     When a MatchFinished event is processed
     Then upsert_match_finished was called
+    And the value bet outcome resolver resolved the match
 
   Scenario: OddsSnapshotCaptured projects into insert_odds_snapshot
     When an OddsSnapshotCaptured event is processed
@@ -63,3 +64,25 @@ Feature: Domain event projection
   Scenario: An event type outside the known union is logged and skipped
     When an object of an unknown event type is projected directly
     Then no read-model method is called and no exception is raised
+
+  Scenario: VenueCaptured projects into upsert_venue
+    When a VenueCaptured event is processed
+    Then upsert_venue was called
+
+  Scenario: RefereeCaptured projects into upsert_referee
+    When a RefereeCaptured event is processed
+    Then upsert_referee was called
+
+  Scenario: PlayerStatsCaptured projects into upsert_player_stats
+    When a PlayerStatsCaptured event is processed
+    Then upsert_player_stats was called
+
+  Scenario: IncidentsCaptured projects into upsert_incidents
+    When an IncidentsCaptured event is processed
+    Then upsert_incidents was called
+
+  Scenario: A bug in outcome resolution does not poison an otherwise valid MatchFinished message
+    Given the value bet outcome resolver raises on resolve_match
+    When a MatchFinished event is processed
+    Then upsert_match_finished was called
+    And no exception escaped handle

@@ -11,14 +11,18 @@ from app.deps import _ready, get_client, get_publisher, get_translator
 from app.router import (
     poll_fixtures,
     poll_h2h,
+    poll_incidents,
     poll_lineups,
     poll_live,
     poll_odds,
     poll_odds_best,
     poll_odds_comparison,
+    poll_player_stats,
     poll_predictions,
+    poll_referees,
     poll_standings,
     poll_teams,
+    poll_venues,
     resync,
 )
 
@@ -145,6 +149,18 @@ class _FakeClient:
 
     def fetch_squad(self, team_ref_id: int) -> list[dict]:
         return []
+
+    def fetch_venue(self, venue_ref_id: int):
+        return None
+
+    def fetch_referee(self, referee_ref_id: int):
+        return None
+
+    def fetch_player_stats(self, event_ref_id: int):
+        return None
+
+    def fetch_incidents(self, event_ref_id: int):
+        return None
 
 
 class _FakeCheckpointRepository:
@@ -387,6 +403,74 @@ def step_call_poll_standings_error(context):
         context.error = e
 
 
+@when('I call the poll_venues endpoint')
+def step_call_poll_venues(context):
+    context.endpoint_result = asyncio.run(
+        poll_venues(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_venues endpoint expecting an error')
+def step_call_poll_venues_error(context):
+    try:
+        asyncio.run(
+            poll_venues(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
+
+
+@when('I call the poll_referees endpoint')
+def step_call_poll_referees(context):
+    context.endpoint_result = asyncio.run(
+        poll_referees(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_referees endpoint expecting an error')
+def step_call_poll_referees_error(context):
+    try:
+        asyncio.run(
+            poll_referees(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
+
+
+@when('I call the poll_player_stats endpoint')
+def step_call_poll_player_stats(context):
+    context.endpoint_result = asyncio.run(
+        poll_player_stats(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_player_stats endpoint expecting an error')
+def step_call_poll_player_stats_error(context):
+    try:
+        asyncio.run(
+            poll_player_stats(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
+
+
+@when('I call the poll_incidents endpoint')
+def step_call_poll_incidents(context):
+    context.endpoint_result = asyncio.run(
+        poll_incidents(client=context.client, translator=context.translator, publisher=context.publisher)
+    )
+
+
+@when('I call the poll_incidents endpoint expecting an error')
+def step_call_poll_incidents_error(context):
+    try:
+        asyncio.run(
+            poll_incidents(client=context.client, translator=context.translator, publisher=context.publisher)
+        )
+    except HTTPException as e:
+        context.error = e
+
+
 @when('I call the poll_teams endpoint')
 def step_call_poll_teams(context):
     context.endpoint_result = asyncio.run(
@@ -461,6 +545,7 @@ def step_assert_resync_feeds(context):
     assert set(resynced.keys()) == {
         "fixtures", "live", "odds", "odds_comparison", "odds_best", "lineups",
         "h2h", "standings", "predictions", "teams",
+        "venues", "referees", "player_stats", "incidents",
     }, resynced
 
 

@@ -123,11 +123,11 @@ def step_broker_raw_messages(context):
 def step_broker_domain_messages(context):
     context.projector = Mock()
 
-    def _handle(body):
+    async def _handle(body):
         if body == b"not-json-at-all":
             raise ValueError("poison message")
 
-    context.projector.handle.side_effect = _handle
+    context.projector.handle = AsyncMock(side_effect=_handle)
     channel = Mock()
     channel.set_qos = AsyncMock()
     good = _FakeMessage(_domain_event_json(True))
@@ -143,11 +143,11 @@ def step_broker_domain_messages(context):
 def step_broker_insight_messages(context):
     context.insight_handler = Mock()
 
-    def _handle(body):
+    async def _handle(body):
         if body == b"not-json-at-all":
             raise ValueError("poison message")
 
-    context.insight_handler.handle.side_effect = _handle
+    context.insight_handler.handle = AsyncMock(side_effect=_handle)
     channel = Mock()
     channel.set_qos = AsyncMock()
     good = _FakeMessage(_insight_json(True))

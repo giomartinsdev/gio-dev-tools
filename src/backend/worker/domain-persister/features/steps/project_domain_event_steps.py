@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 from behave import given, then, use_step_matcher, when
@@ -9,6 +10,7 @@ from behave import given, then, use_step_matcher, when
 from shared.events import (
     EventMeta,
     H2HCaptured,
+    IncidentsCaptured,
     LineupsCaptured,
     MatchFinished,
     MatchScheduled,
@@ -18,11 +20,14 @@ from shared.events import (
     OddsComparisonCaptured,
     OddsSelection,
     OddsSnapshotCaptured,
+    PlayerStatsCaptured,
     PolymarketSnapshotCaptured,
+    RefereeCaptured,
     StandingsCaptured,
     TeamUpdated,
     SquadMember,
     SquadUpdated,
+    VenueCaptured,
 )
 from src.application.project_domain_event import ProjectDomainEventHandler
 
@@ -36,8 +41,11 @@ def _meta() -> EventMeta:
 @given('a fresh persister with a mocked read model repository')
 def step_fresh_persister(context):
     context.read_models = Mock()
-    context.value_bet_detector = Mock()
-    context.projector = ProjectDomainEventHandler(context.read_models, context.value_bet_detector)
+    context.value_bet_detector = AsyncMock()
+    context.value_bet_outcome_resolver = Mock()
+    context.projector = ProjectDomainEventHandler(
+        context.read_models, context.value_bet_detector, context.value_bet_outcome_resolver,
+    )
 
 
 @when('a MatchScheduled event is processed')
@@ -46,19 +54,23 @@ def step_process_scheduled(context):
         meta=_meta(), match_id=uuid4(), competition_id=uuid4(), home_team_id=uuid4(),
         away_team_id=uuid4(), kickoff_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a MatchStatusChanged event is processed')
 def step_process_status(context):
     event = MatchStatusChanged(meta=_meta(), match_id=uuid4(), status=MatchStatus.LIVE, minute=5)
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a MatchFinished event is processed')
 def step_process_finished(context):
+    context.error = None
     event = MatchFinished(meta=_meta(), match_id=uuid4(), home_score=2, away_score=1, statistics={})
-    context.projector.handle(event.model_dump_json().encode())
+    try:
+        asyncio.run(context.projector.handle(event.model_dump_json().encode()))
+    except Exception as e:
+        context.error = e
 
 
 @when('an OddsSnapshotCaptured event is processed')
@@ -67,7 +79,7 @@ def step_process_odds(context):
         meta=_meta(), match_id=uuid4(), bookmaker="aggregate", market="1x2",
         selections=[OddsSelection(name="home", price="2.10")], captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a TeamUpdated event is processed')
@@ -75,7 +87,7 @@ def step_process_team(context):
     event = TeamUpdated(
         meta=_meta(), team_id=uuid4(), name="Team ABC", short_name="ABC", country="Brazil", venue_id=12
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a SquadUpdated event is processed')
@@ -88,7 +100,7 @@ def step_process_squad(context):
             )
         ]
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('an OddsComparisonCaptured event is processed')
@@ -98,7 +110,7 @@ def step_process_odds_comparison(context):
         markets={"1x2": {"HOME": {"best_odds": 2.1, "best_bookmaker_slug": "bet365", "bookmakers": {}}}},
         captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a PolymarketSnapshotCaptured event is processed')
@@ -107,7 +119,7 @@ def step_process_polymarket(context):
         meta=_meta(), match_id=uuid4(), markets={"1x2": {"HOME": 0.55}},
         captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('an OddsBestCaptured event is processed')
@@ -117,7 +129,7 @@ def step_process_odds_best(context):
         markets={"1x2": {"HOME": {"best_odds": 2.3, "best_bookmaker_slug": "pinnacle", "bookmakers": {}}}},
         captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a LineupsCaptured event is processed')
@@ -127,7 +139,7 @@ def step_process_lineups(context):
         lineups={"home": {"confidence": 0.8}, "away": {"confidence": 0.7}},
         captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a H2HCaptured event is processed')
@@ -136,7 +148,7 @@ def step_process_h2h(context):
         meta=_meta(), match_id=uuid4(), h2h={"total_matches": 0},
         captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
 
 
 @when('a StandingsCaptured event is processed')
@@ -145,14 +157,53 @@ def step_process_standings(context):
         meta=_meta(), competition_id=uuid4(), standings={"standings": []},
         captured_at=datetime.now(timezone.utc),
     )
-    context.projector.handle(event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
+
+
+@when('a VenueCaptured event is processed')
+def step_process_venue(context):
+    event = VenueCaptured(
+        meta=_meta(), venue_id="1", name="Maracana", city="Rio de Janeiro", country="Brazil",
+        capacity=78000, captured_at=datetime.now(timezone.utc),
+    )
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
+
+
+@when('a RefereeCaptured event is processed')
+def step_process_referee(context):
+    event = RefereeCaptured(
+        meta=_meta(), referee_id="1", name="Ref Name", country="Brazil",
+        details={"cards_per_game": 4.2}, captured_at=datetime.now(timezone.utc),
+    )
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
+
+
+@when('a PlayerStatsCaptured event is processed')
+def step_process_player_stats(context):
+    event = PlayerStatsCaptured(
+        meta=_meta(), match_id=uuid4(), stats={"players": []}, captured_at=datetime.now(timezone.utc),
+    )
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
+
+
+@when('an IncidentsCaptured event is processed')
+def step_process_incidents(context):
+    event = IncidentsCaptured(
+        meta=_meta(), match_id=uuid4(), incidents={"events": []}, captured_at=datetime.now(timezone.utc),
+    )
+    asyncio.run(context.projector.handle(event.model_dump_json().encode()))
+
+
+@given('the value bet outcome resolver raises on resolve_match')
+def step_resolver_raises(context):
+    context.value_bet_outcome_resolver.resolve_match.side_effect = RuntimeError("boom")
 
 
 @when('an object of an unknown event type is projected directly')
 def step_process_unknown(context):
     context.error = None
     try:
-        context.projector._project(object())
+        asyncio.run(context.projector._project(object()))
     except Exception as e:
         context.error = e
 
@@ -225,6 +276,36 @@ def step_assert_upsert_h2h(context):
 @then('upsert_standings was called')
 def step_assert_upsert_standings(context):
     context.read_models.upsert_standings.assert_called_once()
+
+
+@then('the value bet outcome resolver resolved the match')
+def step_assert_outcome_resolved(context):
+    context.value_bet_outcome_resolver.resolve_match.assert_called_once()
+
+
+@then('upsert_venue was called')
+def step_assert_upsert_venue(context):
+    context.read_models.upsert_venue.assert_called_once()
+
+
+@then('upsert_referee was called')
+def step_assert_upsert_referee(context):
+    context.read_models.upsert_referee.assert_called_once()
+
+
+@then('upsert_player_stats was called')
+def step_assert_upsert_player_stats(context):
+    context.read_models.upsert_player_stats.assert_called_once()
+
+
+@then('upsert_incidents was called')
+def step_assert_upsert_incidents(context):
+    context.read_models.upsert_incidents.assert_called_once()
+
+
+@then('no exception escaped handle')
+def step_assert_no_exception(context):
+    assert context.error is None
 
 
 @then('no read-model method is called and no exception is raised')

@@ -276,4 +276,36 @@ class BzzoiroClient:
             page = self._get(client, f"v2/leagues/{league_ref_id}/standings/", {}, None)
             return page if isinstance(page, dict) else None
 
+    def fetch_venue(self, venue_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/venues/{id}/ — venue detail (name/city/country/
+        capacity/geo). Confirmed live. Returns None on 404."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/venues/{venue_ref_id}/", {}, None)
+            return page if isinstance(page, dict) else None
+
+    def fetch_referee(self, referee_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/referees/{id}/ — referee detail plus career/season
+        card and foul tendency stats. Confirmed live. Returns None on 404."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/referees/{referee_ref_id}/", {}, None)
+            return page if isinstance(page, dict) else None
+
+    def fetch_player_stats(self, event_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/events/{id}/player-stats/ — per-player stat lines
+        for a match. Confirmed live shape: `{"event_id", "count",
+        "player_stats": [...]}`. Only populated post-kickoff; returns None
+        on 404."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/events/{event_ref_id}/player-stats/", {}, None)
+            return page if isinstance(page, dict) else None
+
+    def fetch_incidents(self, event_ref_id: int) -> Optional[dict]:
+        """GET /api/v2/events/{id}/incidents/ — goal/card/substitution
+        timeline for a match. Confirmed live shape: `{"event_id",
+        "incidents": [...]}`. Only populated once live/finished; returns
+        None on 404."""
+        with httpx.Client(base_url=self._base_url, headers=self._headers, timeout=self._timeout) as client:
+            page = self._get(client, f"v2/events/{event_ref_id}/incidents/", {}, None)
+            return page if isinstance(page, dict) else None
+
 

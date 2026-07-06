@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from behave import given, then, use_step_matcher, when
@@ -23,8 +25,17 @@ class _FakeReadModelRepository:
     def find_odds_comparison(self, match_id):
         return self.comparison
 
+    def find_value_bet(self, match_id, market, outcome):
+        return self.value_bets.get((str(match_id), market, outcome))
+
     def find_lineups(self, match_id):
         return self.lineups
+
+    def find_match(self, match_id):
+        return None
+
+    def find_team(self, team_id):
+        return None
 
     def upsert_value_bet(self, match_id, market, outcome, model_probability, bookmaker,
                           best_odds, implied_probability, edge, detected_at):
@@ -49,6 +60,27 @@ def step_fresh_detector(context):
     context.match_id = uuid4()
     context.read_models = _FakeReadModelRepository()
     context.detector = ValueBetDetector(context.read_models, edge_threshold=Decimal("0.05"))
+
+
+@given('a fresh value bet detector with a notifier')
+def step_fresh_detector_with_notifier(context):
+    context.match_id = uuid4()
+    context.read_models = _FakeReadModelRepository()
+    context.notifier = AsyncMock()
+    context.detector = ValueBetDetector(
+        context.read_models, edge_threshold=Decimal("0.05"), notifier=context.notifier,
+    )
+
+
+@given('a fresh value bet detector with a notifier that raises on notify')
+def step_fresh_detector_with_failing_notifier(context):
+    context.match_id = uuid4()
+    context.read_models = _FakeReadModelRepository()
+    context.notifier = AsyncMock()
+    context.notifier.notify.side_effect = RuntimeError("boom")
+    context.detector = ValueBetDetector(
+        context.read_models, edge_threshold=Decimal("0.05"), notifier=context.notifier,
+    )
 
 
 @given(r'an insight exists with match_result prob_home ([\d.]+)')
@@ -112,7 +144,7 @@ def step_lineup_per_side(context, home_confidence, away_confidence):
 
 @given('the detector already evaluated the match once')
 def step_already_evaluated(context):
-    context.detector.evaluate(context.match_id)
+    asyncio.run(context.detector.evaluate(context.match_id))
     assert context.read_models.value_bets, "expected a value bet to exist before the odds move"
 
 
@@ -123,7 +155,7 @@ def step_odds_move(context, best_odds, market, outcome):
 
 @when('the detector evaluates the match')
 def step_evaluate(context):
-    context.detector.evaluate(context.match_id)
+    asyncio.run(context.detector.evaluate(context.match_id))
 
 
 @then('no value bet is recorded')
@@ -143,3 +175,13 @@ def step_assert_value_bet(context, market, outcome, expected_edge):
     assert key in context.read_models.value_bets, context.read_models.value_bets
     edge = context.read_models.value_bets[key]["edge"]
     assert abs(edge - Decimal(expected_edge)) < Decimal("0.001"), f"expected ~{expected_edge}, got {edge}"
+
+
+@then('the notifier sent an alert')
+def step_assert_notifier_sent(context):
+    context.notifier.notify.assert_awaited_once()
+
+
+@then('the notifier was not called again')
+def step_assert_notifier_not_called_again(context):
+    assert context.notifier.notify.await_count == 1, context.notifier.notify.await_count

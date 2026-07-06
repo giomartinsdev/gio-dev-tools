@@ -506,3 +506,104 @@ def step_fetch_standings(context, league_id):
 def step_assert_standings_payload(context):
     assert context.error is None, f"unexpected error: {context.error}"
     assert len(context.result["standings"]) == 1, context.result
+
+
+@given(r'a bzzoiro API that returns a venue payload for venue (\d+)')
+def step_venue_payload(context, venue_id):
+    _setup(context)
+    payload = {
+        "id": int(venue_id), "name": "Estadio Municipal de Butarque", "city": "Leganes",
+        "country": "Spain", "capacity": 12454,
+    }
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch venue (\d+) from the client')
+def step_fetch_venue(context, venue_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_venue(int(venue_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the venue payload is returned')
+def step_assert_venue_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result["name"] == "Estadio Municipal de Butarque", context.result
+
+
+@given(r'a bzzoiro API that returns a referee payload for referee (\d+)')
+def step_referee_payload(context, referee_id):
+    _setup(context)
+    payload = {"id": int(referee_id), "name": "Alireza Faghani", "country": "Australia"}
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch referee (\d+) from the client')
+def step_fetch_referee(context, referee_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_referee(int(referee_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the referee payload is returned')
+def step_assert_referee_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result["name"] == "Alireza Faghani", context.result
+
+
+@given(r'a bzzoiro API that returns a player stats payload for event (\d+)')
+def step_player_stats_payload(context, event_id):
+    _setup(context)
+    payload = {
+        "event_id": int(event_id), "count": 1,
+        "player_stats": [{"id": 1, "player_id": 10, "team_id": 1, "minutes_played": 90}],
+    }
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch player stats for event (\d+) from the client')
+def step_fetch_player_stats(context, event_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_player_stats(int(event_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the player stats payload is returned')
+def step_assert_player_stats_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert context.result["count"] == 1, context.result
+
+
+@given(r'a bzzoiro API that returns an incidents payload for event (\d+)')
+def step_incidents_payload(context, event_id):
+    _setup(context)
+    payload = {
+        "event_id": int(event_id),
+        "incidents": [{"type": "period", "text": "FT", "minute": 90}],
+    }
+    resp = _response(200, payload)
+    context.get_patch = patch.object(httpx.Client, "get", side_effect=[resp])
+
+
+@when(r'I fetch incidents for event (\d+) from the client')
+def step_fetch_incidents(context, event_id):
+    with context.get_patch:
+        try:
+            context.result = context.client.fetch_incidents(int(event_id))
+        except Exception as e:
+            context.error = e
+
+
+@then('the incidents payload is returned')
+def step_assert_incidents_payload(context):
+    assert context.error is None, f"unexpected error: {context.error}"
+    assert len(context.result["incidents"]) == 1, context.result

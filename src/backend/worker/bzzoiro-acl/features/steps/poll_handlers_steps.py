@@ -7,14 +7,18 @@ from behave import given, then, use_step_matcher, when
 
 from src.application.commands.poll_fixtures import PollFixturesCommand, PollFixturesHandler
 from src.application.commands.poll_h2h import PollH2HCommand, PollH2HHandler
+from src.application.commands.poll_incidents import PollIncidentsCommand, PollIncidentsHandler
 from src.application.commands.poll_lineups import PollLineupsCommand, PollLineupsHandler
 from src.application.commands.poll_live import PollLiveCommand, PollLiveHandler
 from src.application.commands.poll_odds import PollOddsCommand, PollOddsHandler
 from src.application.commands.poll_odds_best import PollOddsBestCommand, PollOddsBestHandler
 from src.application.commands.poll_odds_comparison import PollOddsComparisonCommand, PollOddsComparisonHandler
+from src.application.commands.poll_player_stats import PollPlayerStatsCommand, PollPlayerStatsHandler
 from src.application.commands.poll_predictions import PollPredictionsCommand, PollPredictionsHandler
+from src.application.commands.poll_referees import PollRefereesCommand, PollRefereesHandler
 from src.application.commands.poll_standings import PollStandingsCommand, PollStandingsHandler
 from src.application.commands.poll_teams import PollTeamsCommand, PollTeamsHandler
+from src.application.commands.poll_venues import PollVenuesCommand, PollVenuesHandler
 from src.domain.repository import IdentityRepository
 from src.infrastructure.translator import BzzoiroTranslator
 
@@ -49,6 +53,10 @@ class _FakeClient:
         self.lineups_by_event: dict = {}
         self.h2h_by_event: dict = {}
         self.standings_by_league: dict = {}
+        self.venue_by_id: dict = {}
+        self.referee_by_id: dict = {}
+        self.player_stats_by_event: dict = {}
+        self.incidents_by_event: dict = {}
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -94,6 +102,18 @@ class _FakeClient:
 
     def fetch_standings(self, league_ref_id):
         return self.standings_by_league.get(league_ref_id)
+
+    def fetch_venue(self, venue_ref_id):
+        return self.venue_by_id.get(venue_ref_id)
+
+    def fetch_referee(self, referee_ref_id):
+        return self.referee_by_id.get(referee_ref_id)
+
+    def fetch_player_stats(self, event_ref_id):
+        return self.player_stats_by_event.get(event_ref_id)
+
+    def fetch_incidents(self, event_ref_id):
+        return self.incidents_by_event.get(event_ref_id)
 
 
 class _FakeCheckpointRepository:
@@ -253,6 +273,57 @@ def step_one_fixture_without_league_id(context):
     context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="941")]
 
 
+@given('the fake client returns 1 fixture in the date window with venue 735 detail')
+def step_one_fixture_with_venue(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="950", venue_id=735)]
+    context.client.venue_by_id[735] = {
+        "id": 735, "name": "Estadio Municipal de Butarque", "city": "Leganes",
+        "country": "Spain", "capacity": 12454,
+    }
+
+
+@given('the fake client returns 1 fixture in the date window with no venue_id')
+def step_one_fixture_without_venue_id(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="951")]
+
+
+@given('the fake client returns 1 fixture in the date window with referee 2535 detail')
+def step_one_fixture_with_referee(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="960", referee_id=2535)]
+    context.client.referee_by_id[2535] = {
+        "id": 2535, "name": "Alireza Faghani", "country": "Australia",
+        "avg_yellow_per_match": 3.31, "avg_red_per_match": 0.15,
+    }
+
+
+@given('the fake client returns 1 fixture in the date window with no referee_id')
+def step_one_fixture_without_referee_id(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="961")]
+
+
+@given('the fake client returns 1 finished fixture in the date window with player stats')
+def step_one_finished_fixture_with_player_stats(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="970", status="finished")]
+    context.client.player_stats_by_event["970"] = {
+        "event_id": "970", "count": 1,
+        "player_stats": [{"id": 1, "player_id": 10, "team_id": 1, "minutes_played": 90, "rating": 7.1}],
+    }
+
+
+@given('the fake client returns 1 fixture in the date window that has not kicked off')
+def step_one_fixture_not_kicked_off(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="971", status="notstarted")]
+
+
+@given('the fake client returns 1 finished fixture in the date window with incidents')
+def step_one_finished_fixture_with_incidents(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="980", status="finished")]
+    context.client.incidents_by_event["980"] = {
+        "event_id": "980",
+        "incidents": [{"type": "period", "text": "FT", "minute": 90, "home_score": 2, "away_score": 1}],
+    }
+
+
 @given('the fake client returns 1 prediction payload')
 def step_one_prediction(context):
     context.client.prediction_payloads = [{
@@ -374,6 +445,30 @@ def step_run_teams(context):
 def step_run_teams_force(context):
     handler = PollTeamsHandler(context.client, context.translator, context.publisher, context.checkpoints)
     context.polled_count = asyncio.run(handler.handle(PollTeamsCommand(force=True)))
+
+
+@when('I run the venues poll handler')
+def step_run_venues(context):
+    handler = PollVenuesHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollVenuesCommand()))
+
+
+@when('I run the referees poll handler')
+def step_run_referees(context):
+    handler = PollRefereesHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollRefereesCommand()))
+
+
+@when('I run the player stats poll handler')
+def step_run_player_stats(context):
+    handler = PollPlayerStatsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollPlayerStatsCommand()))
+
+
+@when('I run the incidents poll handler')
+def step_run_incidents(context):
+    handler = PollIncidentsHandler(context.client, context.translator, context.publisher)
+    context.polled_count = asyncio.run(handler.handle(PollIncidentsCommand()))
 
 
 @then(r'(\d+) events? (?:was|were) polled')

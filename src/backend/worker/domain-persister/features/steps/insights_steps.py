@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 from behave import given, then, use_step_matcher, when
@@ -9,6 +10,11 @@ from behave import given, then, use_step_matcher, when
 from shared.events import EventMeta, InsightGenerated
 from src.application.project_insight import ProjectInsightHandler
 from src.application.queries.list_insights import ListInsightsHandler, ListInsightsQuery
+from src.application.queries.list_value_bet_outcomes import (
+    ListValueBetOutcomesHandler,
+    ListValueBetOutcomesQuery,
+    SummarizeValueBetOutcomesHandler,
+)
 from src.application.queries.list_value_bets import ListValueBetsHandler, ListValueBetsQuery
 
 use_step_matcher("re")
@@ -17,7 +23,7 @@ use_step_matcher("re")
 @given('a fresh insight projector with a mocked read model repository')
 def step_fresh_insight_projector(context):
     context.read_models = Mock()
-    context.value_bet_detector = Mock()
+    context.value_bet_detector = AsyncMock()
     context.projector = ProjectInsightHandler(context.read_models, context.value_bet_detector)
     context.event = InsightGenerated(
         meta=EventMeta(occurred_at=datetime.now(timezone.utc), producer="acl.bzzoiro", correlation_id=uuid4()),
@@ -29,7 +35,7 @@ def step_fresh_insight_projector(context):
 
 @when('an InsightGenerated event is processed')
 def step_process_insight(context):
-    context.projector.handle(context.event.model_dump_json().encode())
+    asyncio.run(context.projector.handle(context.event.model_dump_json().encode()))
 
 
 @then("insert_insight was called with the event's fields")
@@ -86,3 +92,32 @@ def step_list_value_bets_paged(context, limit, offset):
 @then(r'find_value_bets was called with match_id None limit (\d+) and offset (\d+)')
 def step_assert_find_value_bets_called(context, limit, offset):
     context.repo.find_value_bets.assert_called_once_with(match_id=None, limit=int(limit), offset=int(offset))
+
+
+@given('a fake read model repository for value bet outcomes')
+def step_fake_repo_for_value_bet_outcomes(context):
+    context.repo = Mock()
+    context.repo.find_value_bet_outcomes.return_value = [{"match_id": "1"}]
+    context.repo.summarize_value_bet_outcomes.return_value = {"total": 1, "won": 1, "lost": 0, "win_rate": 1.0}
+
+
+@when(r'I list value bet outcomes with limit (\d+) and offset (\d+)')
+def step_list_value_bet_outcomes_paged(context, limit, offset):
+    context.result = ListValueBetOutcomesHandler(context.repo).handle(
+        ListValueBetOutcomesQuery(limit=int(limit), offset=int(offset))
+    )
+
+
+@then(r'find_value_bet_outcomes was called with match_id None limit (\d+) and offset (\d+)')
+def step_assert_find_value_bet_outcomes_called(context, limit, offset):
+    context.repo.find_value_bet_outcomes.assert_called_once_with(match_id=None, limit=int(limit), offset=int(offset))
+
+
+@when('I summarize value bet outcomes via the handler')
+def step_summarize_value_bet_outcomes_handler(context):
+    context.result = SummarizeValueBetOutcomesHandler(context.repo).handle()
+
+
+@then('summarize_value_bet_outcomes was called')
+def step_assert_summarize_called(context):
+    context.repo.summarize_value_bet_outcomes.assert_called_once()

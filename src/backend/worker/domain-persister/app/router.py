@@ -7,6 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.application.queries.get_match import GetMatchHandler, GetMatchQuery
 from src.application.queries.list_insights import ListInsightsHandler, ListInsightsQuery
 from src.application.queries.list_matches import ListMatchesHandler, ListMatchesQuery
+from src.application.queries.list_value_bet_outcomes import (
+    ListValueBetOutcomesHandler,
+    ListValueBetOutcomesQuery,
+    SummarizeValueBetOutcomesHandler,
+)
 from src.application.queries.list_value_bets import ListValueBetsHandler, ListValueBetsQuery
 from src.infrastructure.read_model_repository import ReadModelRepository
 
@@ -52,3 +57,24 @@ def list_value_bets(
     """Currently-detected edges (model probability vs. best market price)
     above VALUE_BET_EDGE_THRESHOLD, highest edge first."""
     return ListValueBetsHandler(repo).handle(ListValueBetsQuery(match_id=match_id, limit=limit, offset=offset))
+
+
+@router.get("/value-bets/outcomes")
+def list_value_bet_outcomes(
+    match_id: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    repo: ReadModelRepository = Depends(get_read_models),
+):
+    """Resolved value bets — whether the edge detected before a match
+    finished actually won, most recently resolved first."""
+    return ListValueBetOutcomesHandler(repo).handle(
+        ListValueBetOutcomesQuery(match_id=match_id, limit=limit, offset=offset)
+    )
+
+
+@router.get("/value-bets/outcomes/summary")
+def summarize_value_bet_outcomes(repo: ReadModelRepository = Depends(get_read_models)):
+    """Win rate across every resolved value bet — the number that actually
+    answers "does this strategy make money"."""
+    return SummarizeValueBetOutcomesHandler(repo).handle()

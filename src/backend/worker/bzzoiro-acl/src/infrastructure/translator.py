@@ -9,6 +9,7 @@ from shared.events import (
     DomainEvent,
     EventMeta,
     H2HCaptured,
+    IncidentsCaptured,
     InsightGenerated,
     LineupsCaptured,
     MatchFinished,
@@ -20,11 +21,14 @@ from shared.events import (
     OddsComparisonCaptured,
     OddsSelection,
     OddsSnapshotCaptured,
+    PlayerStatsCaptured,
     PolymarketSnapshotCaptured,
+    RefereeCaptured,
     StandingsCaptured,
     TeamUpdated,
     SquadMember,
     SquadUpdated,
+    VenueCaptured,
 )
 from shared.logger import get_logger
 
@@ -470,6 +474,108 @@ class BzzoiroTranslator:
             ),
             competition_id=competition_id,
             standings=payload,
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def resolve_venue_id(self, provider_ref: object) -> object:
+        """Public helper so poll handlers can correlate a raw.feed_received
+        record to the same canonical venue_id the translated event uses."""
+        return self._resolve("venue", provider_ref)
+
+    def resolve_referee_id(self, provider_ref: object) -> object:
+        """Public helper, same purpose as resolve_venue_id but for referees."""
+        return self._resolve("referee", provider_ref)
+
+    def translate_venue(self, venue_ref_id: object, payload: dict) -> Optional[VenueCaptured]:
+        """GET /api/v2/venues/{id}/ -> VenueCaptured.
+
+        Confirmed live: `id`, `name`, `city`, `country`, `capacity` (plus
+        pitch/geo fields this doesn't need). Exists so `MatchScheduled.venue`
+        can eventually carry a real name — the events feed only ever has
+        `venue_id`, never a name string."""
+        if not isinstance(payload, dict) or not payload.get("name"):
+            return None
+
+        venue_id = self._resolve("venue", venue_ref_id)
+        return VenueCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=venue_id,
+            ),
+            venue_id=str(venue_id),
+            name=payload["name"],
+            city=payload.get("city"),
+            country=payload.get("country"),
+            capacity=payload.get("capacity"),
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_referee(self, referee_ref_id: object, payload: dict) -> Optional[RefereeCaptured]:
+        """GET /api/v2/referees/{id}/ -> RefereeCaptured.
+
+        Confirmed live: `id`, `name`, `country`, plus career/season card and
+        foul tendency stats — kept verbatim in `details` since which of
+        those fields matter for a future "referee tendency" narrative isn't
+        settled yet."""
+        if not isinstance(payload, dict) or not payload.get("name"):
+            return None
+
+        referee_id = self._resolve("referee", referee_ref_id)
+        return RefereeCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=referee_id,
+            ),
+            referee_id=str(referee_id),
+            name=payload["name"],
+            country=payload.get("country"),
+            details=payload,
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_player_stats(self, event_ref_id: object, payload: dict) -> Optional[PlayerStatsCaptured]:
+        """GET /api/v2/events/{id}/player-stats/ -> PlayerStatsCaptured.
+
+        Confirmed live: `{"event_id", "count", "player_stats": [...]}`, one
+        entry per player who featured. Kept verbatim as one blob — only ever
+        populated post-kickoff, so this is review context, not pre-match
+        edge detection."""
+        if not isinstance(payload, dict) or "player_stats" not in payload:
+            return None
+
+        match_id = self._resolve("match", event_ref_id)
+        return PlayerStatsCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            stats=payload,
+            captured_at=datetime.now(timezone.utc),
+        )
+
+    def translate_incidents(self, event_ref_id: object, payload: dict) -> Optional[IncidentsCaptured]:
+        """GET /api/v2/events/{id}/incidents/ -> IncidentsCaptured.
+
+        Confirmed live: `{"event_id", "incidents": [...]}`, each entry a
+        goal/card/substitution/period-marker. An empty `incidents` list is
+        still a valid capture (a scoreless match with no cards/subs yet),
+        so this checks key presence, not truthiness."""
+        if not isinstance(payload, dict) or "incidents" not in payload:
+            return None
+
+        match_id = self._resolve("match", event_ref_id)
+        return IncidentsCaptured(
+            meta=EventMeta(
+                occurred_at=datetime.now(timezone.utc),
+                producer=_PRODUCER,
+                correlation_id=match_id,
+            ),
+            match_id=match_id,
+            incidents=payload,
             captured_at=datetime.now(timezone.utc),
         )
 

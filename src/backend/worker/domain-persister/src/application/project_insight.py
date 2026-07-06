@@ -18,7 +18,7 @@ class ProjectInsightHandler:
         self._read_models = read_models
         self._value_bet_detector = value_bet_detector
 
-    def handle(self, raw_body: bytes) -> None:
+    async def handle(self, raw_body: bytes) -> None:
         event = InsightGenerated.model_validate_json(raw_body)
         self._read_models.insert_insight(
             insight_id=event.insight_id,
@@ -32,7 +32,7 @@ class ProjectInsightHandler:
             generated_at=event.generated_at,
         )
         try:
-            self._value_bet_detector.evaluate(event.match_id)
+            await self._value_bet_detector.evaluate(event.match_id)
         except Exception as exc:
             # A bug in value-bet detection must never poison an otherwise
             # valid insight — insert_insight above already committed in its

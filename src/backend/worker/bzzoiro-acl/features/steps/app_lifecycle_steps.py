@@ -169,8 +169,9 @@ def step_run_background_success(context):
 def step_assert_connected_and_polling(context):
     assert context.fake_app.state.publisher is context.fake_publisher
     # fixtures, live, odds, odds_comparison, odds_best, lineups, h2h, standings,
-    # predictions, teams — all through the generic loop
-    assert context.fake_poll_loop.await_count == 10
+    # predictions, teams, venues, referees, player_stats, incidents — all
+    # through the generic loop
+    assert context.fake_poll_loop.await_count == 14
 
 
 @when('_run_background hits a connection error on its first attempt')

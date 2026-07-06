@@ -7,6 +7,7 @@ from typing import Optional
 from shared.logger import get_logger
 
 from ..infrastructure.read_model_repository import ReadModelRepository
+from ..infrastructure.whatsapp_notifier import WhatsAppNotifier
 
 logger = get_logger(__name__)
 
@@ -53,12 +54,14 @@ class ValueBetDetector:
         read_models: ReadModelRepository,
         edge_threshold: Decimal,
         lineup_confidence_threshold: Decimal = Decimal("0.6"),
+        notifier: Optional[WhatsAppNotifier] = None,
     ):
         self._read_models = read_models
         self._edge_threshold = edge_threshold
         self._lineup_confidence_threshold = lineup_confidence_threshold
+        self._notifier = notifier
 
-    def evaluate(self, match_id: object) -> None:
+    async def evaluate(self, match_id: object) -> None:
         match_id_str = str(match_id)
         insight = self._read_models.find_latest_insight(match_id_str)
         comparison = self._read_models.find_odds_comparison(match_id_str)
@@ -85,6 +88,7 @@ class ValueBetDetector:
             edge = model_prob - implied_probability
 
             if edge > self._edge_threshold and self._lineup_confidence_ok(lineup_confidence):
+                is_new = self._read_models.find_value_bet(match_id_str, odds_market, odds_outcome) is None
                 self._read_models.upsert_value_bet(
                     match_id=match_id,
                     market=odds_market,
@@ -100,6 +104,10 @@ class ValueBetDetector:
                     f"value bet: match={match_id_str} market={odds_market} outcome={odds_outcome} "
                     f"edge={edge:.4f} bookmaker={best_bookmaker} odds={best_odds}"
                 )
+                if is_new and self._notifier is not None:
+                    await self._notify_new_value_bet(
+                        match_id_str, odds_market, odds_outcome, edge, best_bookmaker, best_odds,
+                    )
             else:
                 if edge > self._edge_threshold:
                     logger.info(
@@ -109,6 +117,38 @@ class ValueBetDetector:
                         f"team news may not be priced in yet"
                     )
                 self._read_models.delete_value_bet(match_id, odds_market, odds_outcome)
+
+    async def _notify_new_value_bet(
+        self,
+        match_id_str: str,
+        market: str,
+        outcome: str,
+        edge: Decimal,
+        bookmaker: str,
+        best_odds: Decimal,
+    ) -> None:
+        matchup = self._describe_matchup(match_id_str)
+        text = (
+            f"\U0001F3AF Value bet detected\n"
+            f"{matchup}\n"
+            f"Market: {market} / {outcome}\n"
+            f"Edge: {edge:.1%}\n"
+            f"Best odds: {best_odds} @ {bookmaker}"
+        )
+        try:
+            await self._notifier.notify(text)
+        except Exception as exc:
+            logger.error(f"failed to send value bet alert for match {match_id_str}: {exc}", exc_info=True)
+
+    def _describe_matchup(self, match_id_str: str) -> str:
+        match = self._read_models.find_match(match_id_str)
+        if not match:
+            return f"Match {match_id_str}"
+        home = self._read_models.find_team(match["home_team_id"]) if match.get("home_team_id") else None
+        away = self._read_models.find_team(match["away_team_id"]) if match.get("away_team_id") else None
+        home_name = home["name"] if home else (match.get("home_team_id") or "?")
+        away_name = away["name"] if away else (match.get("away_team_id") or "?")
+        return f"{home_name} vs {away_name}"
 
     def _lineup_confidence_ok(self, lineup_confidence: Optional[Decimal]) -> bool:
         if lineup_confidence is None:

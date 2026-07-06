@@ -156,3 +156,59 @@ Feature: Poll command handlers
     When I run the standings poll handler
     Then 0 events were polled
     And the publisher recorded no raw publish
+
+  # ── Venues ────────────────────────────────────────────────────────────────────
+
+  Scenario: Polling venues publishes venue detail for venues active in the window
+    Given the fake client returns 1 fixture in the date window with venue 735 detail
+    When I run the venues poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "venue"
+
+  Scenario: Polling venues skips events with no venue_id
+    Given the fake client returns 1 fixture in the date window with no venue_id
+    When I run the venues poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish
+
+  # ── Referees ──────────────────────────────────────────────────────────────────
+
+  Scenario: Polling referees publishes referee detail for referees assigned in the window
+    Given the fake client returns 1 fixture in the date window with referee 2535 detail
+    When I run the referees poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "referee"
+
+  Scenario: Polling referees skips events with no referee_id
+    Given the fake client returns 1 fixture in the date window with no referee_id
+    When I run the referees poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish
+
+  # ── Player stats ──────────────────────────────────────────────────────────────
+
+  Scenario: Polling player stats publishes stat lines for a kicked-off event
+    Given the fake client returns 1 finished fixture in the date window with player stats
+    When I run the player stats poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "player_stats"
+
+  Scenario: Polling player stats skips fixtures that have not kicked off
+    Given the fake client returns 1 fixture in the date window that has not kicked off
+    When I run the player stats poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish
+
+  # ── Incidents ─────────────────────────────────────────────────────────────────
+
+  Scenario: Polling incidents publishes the timeline for a kicked-off event
+    Given the fake client returns 1 finished fixture in the date window with incidents
+    When I run the incidents poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "incidents"
+
+  Scenario: Polling incidents skips fixtures that have not kicked off
+    Given the fake client returns 1 fixture in the date window that has not kicked off
+    When I run the incidents poll handler
+    Then 0 events were polled
+    And the publisher recorded no raw publish

@@ -362,3 +362,233 @@ def step_assert_match_dict(context):
 @then('None is returned')
 def step_assert_none(context):
     assert context.result is None
+
+
+def _fake_value_bet_row_for_get():
+    return SimpleNamespace(
+        match_id=str(uuid4()), market="1x2", outcome="HOME", model_probability=Decimal("0.60"),
+        bookmaker="bet365", best_odds=Decimal("2.20"), implied_probability=Decimal("0.4545"),
+        edge=Decimal("0.1455"), detected_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a value bet row')
+def step_get_returns_value_bet_row(context):
+    context.session.get.return_value = _fake_value_bet_row_for_get()
+
+
+@when('I get the value bet')
+def step_get_value_bet(context):
+    context.result = context.repo.find_value_bet("some-id", "1x2", "HOME")
+
+
+@then('a value bet dict is returned')
+def step_assert_value_bet_dict(context):
+    assert context.result is not None
+    assert "edge" in context.result
+
+
+@when('I insert a value bet outcome')
+def step_insert_value_bet_outcome(context):
+    context.repo.insert_value_bet_outcome(
+        match_id=uuid4(), market="1x2", outcome="HOME", model_probability=Decimal("0.60"),
+        bookmaker="bet365", best_odds=Decimal("2.20"), implied_probability=Decimal("0.4545"),
+        edge=Decimal("0.1455"), detected_at=datetime.now(timezone.utc),
+        resolved_at=datetime.now(timezone.utc), won=True, home_score=2, away_score=0,
+    )
+
+
+@then('a value_bet_outcomes row was added to the session')
+def step_assert_value_bet_outcome_added(context):
+    context.session.add.assert_called_once()
+    added = context.session.add.call_args[0][0]
+    assert added.__tablename__ == "value_bet_outcomes", added.__tablename__
+
+
+def _fake_value_bet_outcome_row():
+    return SimpleNamespace(
+        id=1, match_id=str(uuid4()), market="1x2", outcome="HOME", model_probability=Decimal("0.60"),
+        bookmaker="bet365", best_odds=Decimal("2.20"), implied_probability=Decimal("0.4545"),
+        edge=Decimal("0.1455"), detected_at=datetime.now(timezone.utc),
+        resolved_at=datetime.now(timezone.utc), won=True, home_score=2, away_score=0,
+    )
+
+
+@given('the session query returns 1 value bet outcome row')
+def step_query_returns_value_bet_outcome_row(context):
+    row = _fake_value_bet_outcome_row()
+    context.session.query.return_value.order_by.return_value.limit.return_value.offset.return_value.all.return_value = [row]
+
+
+@when('I list value bet outcomes')
+def step_list_value_bet_outcomes(context):
+    context.result = context.repo.find_value_bet_outcomes()
+
+
+@then(r'(\d+) value bet outcome dicts? (?:is|are) returned')
+def step_assert_n_value_bet_outcomes(context, count):
+    assert len(context.result) == int(count)
+
+
+@given('the session query counts 3 total and 2 won value bet outcomes')
+def step_query_counts_outcomes(context):
+    context.session.query.return_value.count.return_value = 3
+    context.session.query.return_value.filter.return_value.count.return_value = 2
+
+
+@when('I summarize value bet outcomes')
+def step_summarize_value_bet_outcomes(context):
+    context.result = context.repo.summarize_value_bet_outcomes()
+
+
+@then(r'the summary reports (\d+) total, (\d+) won, (\d+) lost')
+def step_assert_summary(context, total, won, lost):
+    assert context.result == {
+        "total": int(total), "won": int(won), "lost": int(lost),
+        "win_rate": context.result["win_rate"],
+    }
+    assert context.result["total"] == int(total)
+    assert context.result["won"] == int(won)
+    assert context.result["lost"] == int(lost)
+
+
+def _fake_team_row():
+    return SimpleNamespace(
+        team_id=str(uuid4()), name="Team ABC", short_name="ABC", country="Brazil", venue_id=12,
+    )
+
+
+@given('the session get returns a team row')
+def step_get_returns_team_row(context):
+    context.session.get.return_value = _fake_team_row()
+
+
+@when('I get the team')
+def step_get_team(context):
+    context.result = context.repo.find_team("some-id")
+
+
+@then('a team dict is returned')
+def step_assert_team_dict(context):
+    assert context.result is not None
+    assert "name" in context.result
+
+
+@when('I upsert a venue')
+def step_upsert_venue(context):
+    context.repo.upsert_venue(
+        venue_id="1", name="Maracana", city="Rio de Janeiro", country="Brazil",
+        capacity=78000, captured_at=datetime.now(timezone.utc),
+    )
+
+
+def _fake_venue_row():
+    return SimpleNamespace(
+        venue_id="1", name="Maracana", city="Rio de Janeiro", country="Brazil",
+        capacity=78000, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a venue row')
+def step_get_returns_venue_row(context):
+    context.session.get.return_value = _fake_venue_row()
+
+
+@when('I get the venue')
+def step_get_venue(context):
+    context.result = context.repo.find_venue("some-id")
+
+
+@then('a venue dict is returned')
+def step_assert_venue_dict(context):
+    assert context.result is not None
+    assert "name" in context.result
+
+
+@when('I upsert a referee')
+def step_upsert_referee(context):
+    context.repo.upsert_referee(
+        referee_id="1", name="Ref Name", country="Brazil", details={"cards_per_game": 4.2},
+        captured_at=datetime.now(timezone.utc),
+    )
+
+
+def _fake_referee_row():
+    return SimpleNamespace(
+        referee_id="1", name="Ref Name", country="Brazil", details={"cards_per_game": 4.2},
+        captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a referee row')
+def step_get_returns_referee_row(context):
+    context.session.get.return_value = _fake_referee_row()
+
+
+@when('I get the referee')
+def step_get_referee(context):
+    context.result = context.repo.find_referee("some-id")
+
+
+@then('a referee dict is returned')
+def step_assert_referee_dict(context):
+    assert context.result is not None
+    assert "name" in context.result
+
+
+@when('I upsert player stats')
+def step_upsert_player_stats(context):
+    context.repo.upsert_player_stats(
+        match_id=uuid4(), stats={"players": []}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+def _fake_player_stats_row():
+    return SimpleNamespace(
+        match_id=str(uuid4()), stats={"players": []}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns a player stats row')
+def step_get_returns_player_stats_row(context):
+    context.session.get.return_value = _fake_player_stats_row()
+
+
+@when('I get the player stats')
+def step_get_player_stats(context):
+    context.result = context.repo.find_player_stats("some-id")
+
+
+@then('a player stats dict is returned')
+def step_assert_player_stats_dict(context):
+    assert context.result is not None
+    assert "stats" in context.result
+
+
+@when('I upsert incidents')
+def step_upsert_incidents(context):
+    context.repo.upsert_incidents(
+        match_id=uuid4(), incidents={"events": []}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+def _fake_incidents_row():
+    return SimpleNamespace(
+        match_id=str(uuid4()), incidents={"events": []}, captured_at=datetime.now(timezone.utc),
+    )
+
+
+@given('the session get returns an incidents row')
+def step_get_returns_incidents_row(context):
+    context.session.get.return_value = _fake_incidents_row()
+
+
+@when('I get the incidents')
+def step_get_incidents(context):
+    context.result = context.repo.find_incidents("some-id")
+
+
+@then('an incidents dict is returned')
+def step_assert_incidents_dict(context):
+    assert context.result is not None
+    assert "incidents" in context.result

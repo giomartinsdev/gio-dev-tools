@@ -3,8 +3,9 @@
 Anti-corruption layer over the [bzzoiro](https://sports.bzzoiro.com/docs/)
 football API (the only free sport bzzoiro offers). Polls fixtures, live
 scores, v2 odds (comparison + a cheap 1x2-only feed), v2 predictions,
-teams/squads, AI-predicted lineups, head-to-head records, and league
-standings, translates them into canonical domain events, resolves
+teams/squads, AI-predicted lineups, head-to-head records, league
+standings, venues, referees, per-player match stats, and match incident
+timelines, translates them into canonical domain events, resolves
 bzzoiro's own ids to internal canonical UUIDs, and publishes both the raw
 payload and the translated events to RabbitMQ. Nothing downstream ever
 sees a bzzoiro id or status string.
@@ -32,6 +33,10 @@ Plain env vars (no secret needed):
 | `BZZOIRO_LINEUPS_POLL_SECONDS` | `300` | Interval between per-event predicted-lineup polls |
 | `BZZOIRO_H2H_POLL_SECONDS` | `3600` | Interval between per-event head-to-head polls |
 | `BZZOIRO_STANDINGS_POLL_SECONDS` | `3600` | Interval between per-league standings polls |
+| `BZZOIRO_VENUES_POLL_SECONDS` | `86400` | Interval between per-venue detail polls (venue attributes barely change) |
+| `BZZOIRO_REFEREES_POLL_SECONDS` | `86400` | Interval between per-referee detail polls (career stats barely change) |
+| `BZZOIRO_PLAYER_STATS_POLL_SECONDS` | `600` | Interval between per-event player-stats polls (only fixtures that have kicked off are polled) |
+| `BZZOIRO_INCIDENTS_POLL_SECONDS` | `120` | Interval between per-event incident-timeline polls (only fixtures that have kicked off are polled) |
 
 ## Running locally
 
@@ -50,16 +55,17 @@ the env vars above set directly (bypassing Infisical) for local runs.
 - `GET /ready` — 503 until secrets/DB are loaded and RabbitMQ is connected.
 - `POST /poll/fixtures`, `POST /poll/live`, `POST /poll/odds-comparison`,
   `POST /poll/odds-best`, `POST /poll/lineups`, `POST /poll/h2h`,
-  `POST /poll/standings`, `POST /poll/predictions` — manual trigger, on top
-  of the ten background poll loops that run continuously once the service
-  is ready.
+  `POST /poll/standings`, `POST /poll/predictions`, `POST /poll/venues`,
+  `POST /poll/referees`, `POST /poll/player-stats`, `POST /poll/incidents`
+  — manual trigger, on top of the fourteen background poll loops that run
+  continuously once the service is ready.
 - `POST /poll/odds?force=true`, `POST /poll/teams?force=true` — same, but
   these two also read/write a sync checkpoint (see below); `force=true`
   ignores it and does a full resync for that feed only.
-- `POST /resync` — forces a full resync of **all ten** feeds in one call
-  (odds and teams with `force=True`, the rest just run once). Use this after
-  a schema change, a suspected gap, or whenever you want a clean slate
-  without waiting for the natural poll interval.
+- `POST /resync` — forces a full resync of **all fourteen** feeds in one
+  call (odds and teams with `force=True`, the rest just run once). Use this
+  after a schema change, a suspected gap, or whenever you want a clean
+  slate without waiting for the natural poll interval.
 
 ## Odds comparison, Polymarket, and value-bet detection
 
@@ -125,6 +131,40 @@ pattern as odds comparison):
   scoped to leagues actually active in the current fixtures date window
   (extracted from each event's `league_id`, not a full league catalogue
   crawl). Pure context, same "why" dashboard role as h2h.
+
+## Venues, referees, player stats, and match incidents
+
+Four more polls, all pure context (none feed edge detection), each scoped
+to the current fixtures date window rather than a full catalogue crawl —
+same independent-resilience pattern as the rest:
+
+- **`POST /poll/venues`** — `GET /api/v2/venues/{id}/`, scoped to
+  `venue_id`s seen on fixtures in the window. Confirmed live shape:
+  `{id, name, city, country, capacity, ...}` (plus pitch/geo fields not
+  captured). Translated into `VenueCaptured`. This is what finally lets
+  `MatchScheduled.venue` carry a real name instead of always `None` — the
+  events feed only ever has `venue_id`, never a name string — though
+  wiring that join up on the domain-persister side is still a follow-up
+  (see its README's "Known gaps").
+- **`POST /poll/referees`** — `GET /api/v2/referees/{id}/`, scoped to
+  `referee_id`s seen on fixtures in the window (often `null` for
+  not-yet-assigned fixtures, confirmed live, so those are naturally
+  skipped). Confirmed live shape: `{id, name, country, avg_yellow_per_match,
+  avg_red_per_match, career_games, ...}`. Translated into `RefereeCaptured`,
+  full payload kept verbatim in `details`.
+- **`POST /poll/player-stats`** — `GET /api/v2/events/{id}/player-stats/`,
+  only for fixtures whose `status` isn't `notstarted`/`postponed`/
+  `cancelled` (bzzoiro only populates this once a match has kicked off).
+  Confirmed live shape: `{event_id, count, player_stats: [...]}`, one entry
+  per player who featured (rating, touches, shots, passes, cards, etc.).
+  Translated into `PlayerStatsCaptured`, kept verbatim as one blob per
+  match.
+- **`POST /poll/incidents`** — `GET /api/v2/events/{id}/incidents/`, same
+  kicked-off-only filter as player stats. Confirmed live shape:
+  `{event_id, incidents: [...]}`, each entry a goal/card/substitution/
+  period marker. Translated into `IncidentsCaptured`; an empty list is
+  still a valid capture (nothing's happened yet in a live 0-0), so this is
+  checked by key presence, not truthiness.
 
 ## Sync checkpoints (why restarts don't re-fetch everything)
 

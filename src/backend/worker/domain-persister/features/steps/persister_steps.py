@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import Mock
 from uuid import NAMESPACE_DNS, uuid4, uuid5
@@ -62,7 +63,7 @@ class InMemoryEventStoreRepository:
 def _setup(context):
     context.read_models = InMemoryReadModelRepository()
     context.event_store = InMemoryEventStoreRepository()
-    context.projector = ProjectDomainEventHandler(context.read_models, Mock())
+    context.projector = ProjectDomainEventHandler(context.read_models, Mock(), Mock())
     context.event_json = None
     context.match_id = None
 
@@ -88,12 +89,12 @@ def step_score_event(context, match_name, home_score, away_score, minute):
 
 @when('the persister processes that event')
 def step_process_once(context):
-    context.projector.handle(context.event_json.encode())
+    asyncio.run(context.projector.handle(context.event_json.encode()))
 
 
 @when(r'the persister processes that event again \(redelivery\)')
 def step_process_again(context):
-    context.projector.handle(context.event_json.encode())
+    asyncio.run(context.projector.handle(context.event_json.encode()))
 
 
 @then(r'the match read model shows score (\d+)-(\d+)')

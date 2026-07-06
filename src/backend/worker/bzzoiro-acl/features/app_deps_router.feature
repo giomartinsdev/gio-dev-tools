@@ -113,6 +113,46 @@ Feature: FastAPI deps and router wiring
     When I call the poll_standings endpoint expecting an error
     Then a 500 HTTPException is raised
 
+  Scenario: POST /poll/venues returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_venues endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/venues surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_venues endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/referees returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_referees endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/referees surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_referees endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/player-stats returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_player_stats endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/player-stats surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_player_stats endpoint expecting an error
+    Then a 500 HTTPException is raised
+
+  Scenario: POST /poll/incidents returns the polled count
+    Given fake poll dependencies with 1 fixture payload
+    When I call the poll_incidents endpoint
+    Then the endpoint returns polled count 0
+
+  Scenario: POST /poll/incidents surfaces handler errors as a 500
+    Given a poll handler that raises an error
+    When I call the poll_incidents endpoint expecting an error
+    Then a 500 HTTPException is raised
+
   Scenario: POST /resync runs every poller and reports all ten feeds
     Given fake poll dependencies with 1 fixture payload
     When I call the resync endpoint

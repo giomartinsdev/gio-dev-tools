@@ -11,16 +11,21 @@ from shared.transaction_manager import TransactionManager
 
 from .models import (
     H2HModel,
+    IncidentsModel,
     InsightModel,
     LineupsModel,
     MatchModel,
     OddsComparisonModel,
     OddsSnapshotModel,
+    PlayerStatsModel,
     PolymarketSnapshotModel,
+    RefereeModel,
     SquadMemberModel,
     StandingsModel,
     TeamModel,
     ValueBetModel,
+    ValueBetOutcomeModel,
+    VenueModel,
 )
 
 
@@ -393,6 +398,67 @@ class ReadModelRepository:
             rows = q.order_by(ValueBetModel.edge.desc()).limit(limit).offset(offset).all()
             return [_value_bet_to_dict(r) for r in rows]
 
+    def find_value_bet(self, match_id: str, market: str, outcome: str) -> Optional[dict]:
+        """Single-key lookup, used to tell a brand-new value bet (worth
+        alerting on) apart from re-confirming one already known."""
+        with TransactionManager.get().read_only() as s:
+            row = s.get(ValueBetModel, (match_id, market, outcome))
+            return _value_bet_to_dict(row) if row else None
+
+    def insert_value_bet_outcome(
+        self,
+        match_id: UUID,
+        market: str,
+        outcome: str,
+        model_probability: Decimal,
+        bookmaker: str,
+        best_odds: Decimal,
+        implied_probability: Decimal,
+        edge: Decimal,
+        detected_at: datetime,
+        resolved_at: datetime,
+        won: bool,
+        home_score: int,
+        away_score: int,
+    ) -> None:
+        with TransactionManager.get().session() as s:
+            s.add(ValueBetOutcomeModel(
+                match_id=str(match_id),
+                market=market,
+                outcome=outcome,
+                model_probability=model_probability,
+                bookmaker=bookmaker,
+                best_odds=best_odds,
+                implied_probability=implied_probability,
+                edge=edge,
+                detected_at=detected_at,
+                resolved_at=resolved_at,
+                won=won,
+                home_score=home_score,
+                away_score=away_score,
+            ))
+
+    def find_value_bet_outcomes(
+        self, match_id: Optional[str] = None, limit: int = 50, offset: int = 0,
+    ) -> list[dict]:
+        with TransactionManager.get().read_only() as s:
+            q = s.query(ValueBetOutcomeModel)
+            if match_id is not None:
+                q = q.filter(ValueBetOutcomeModel.match_id == match_id)
+            rows = q.order_by(ValueBetOutcomeModel.resolved_at.desc()).limit(limit).offset(offset).all()
+            return [_value_bet_outcome_to_dict(r) for r in rows]
+
+    def summarize_value_bet_outcomes(self) -> dict:
+        with TransactionManager.get().read_only() as s:
+            total = s.query(ValueBetOutcomeModel).count()
+            won = s.query(ValueBetOutcomeModel).filter(ValueBetOutcomeModel.won.is_(True)).count()
+        return {
+            "total": total,
+            "won": won,
+            "lost": total - won,
+            "win_rate": (won / total) if total else None,
+        }
+
     def find_insights(self, match_id: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict]:
         with TransactionManager.get().read_only() as s:
             q = s.query(InsightModel)
@@ -416,6 +482,97 @@ class ReadModelRepository:
         with TransactionManager.get().read_only() as s:
             row = s.get(MatchModel, match_id)
             return _match_to_dict(row) if row else None
+
+    def find_team(self, team_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(TeamModel, team_id)
+            return _team_to_dict(row) if row else None
+
+    def upsert_venue(
+        self,
+        venue_id: str,
+        name: str,
+        city: Optional[str],
+        country: Optional[str],
+        capacity: Optional[int],
+        captured_at: datetime,
+    ) -> None:
+        stmt = pg_insert(VenueModel).values(
+            venue_id=venue_id, name=name, city=city, country=country,
+            capacity=capacity, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["venue_id"],
+            set_={
+                "name": stmt.excluded.name,
+                "city": stmt.excluded.city,
+                "country": stmt.excluded.country,
+                "capacity": stmt.excluded.capacity,
+                "captured_at": stmt.excluded.captured_at,
+            },
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_venue(self, venue_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(VenueModel, venue_id)
+            return _venue_to_dict(row) if row else None
+
+    def upsert_referee(
+        self, referee_id: str, name: str, country: Optional[str], details: dict, captured_at: datetime,
+    ) -> None:
+        stmt = pg_insert(RefereeModel).values(
+            referee_id=referee_id, name=name, country=country, details=details, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["referee_id"],
+            set_={
+                "name": stmt.excluded.name,
+                "country": stmt.excluded.country,
+                "details": stmt.excluded.details,
+                "captured_at": stmt.excluded.captured_at,
+            },
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_referee(self, referee_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(RefereeModel, referee_id)
+            return _referee_to_dict(row) if row else None
+
+    def upsert_player_stats(self, match_id: UUID, stats: dict, captured_at: datetime) -> None:
+        stmt = pg_insert(PlayerStatsModel).values(
+            match_id=str(match_id), stats=stats, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={"stats": stmt.excluded.stats, "captured_at": stmt.excluded.captured_at},
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_player_stats(self, match_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(PlayerStatsModel, match_id)
+            return _player_stats_to_dict(row) if row else None
+
+    def upsert_incidents(self, match_id: UUID, incidents: dict, captured_at: datetime) -> None:
+        stmt = pg_insert(IncidentsModel).values(
+            match_id=str(match_id), incidents=incidents, captured_at=captured_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["match_id"],
+            set_={"incidents": stmt.excluded.incidents, "captured_at": stmt.excluded.captured_at},
+        )
+        with TransactionManager.get().session() as s:
+            s.execute(stmt)
+
+    def find_incidents(self, match_id: str) -> Optional[dict]:
+        with TransactionManager.get().read_only() as s:
+            row = s.get(IncidentsModel, match_id)
+            return _incidents_to_dict(row) if row else None
 
 
 def _match_to_dict(row: MatchModel) -> dict:
@@ -493,5 +650,71 @@ def _standings_to_dict(row: StandingsModel) -> dict:
     return {
         "competition_id": row.competition_id,
         "standings": row.standings,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _team_to_dict(row: TeamModel) -> dict:
+    return {
+        "team_id": row.team_id,
+        "name": row.name,
+        "short_name": row.short_name,
+        "country": row.country,
+        "venue_id": row.venue_id,
+    }
+
+
+def _value_bet_outcome_to_dict(row: ValueBetOutcomeModel) -> dict:
+    return {
+        "id": row.id,
+        "match_id": row.match_id,
+        "market": row.market,
+        "outcome": row.outcome,
+        "model_probability": str(row.model_probability),
+        "bookmaker": row.bookmaker,
+        "best_odds": str(row.best_odds),
+        "implied_probability": str(row.implied_probability),
+        "edge": str(row.edge),
+        "detected_at": row.detected_at.isoformat() if row.detected_at else None,
+        "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
+        "won": row.won,
+        "home_score": row.home_score,
+        "away_score": row.away_score,
+    }
+
+
+def _venue_to_dict(row: VenueModel) -> dict:
+    return {
+        "venue_id": row.venue_id,
+        "name": row.name,
+        "city": row.city,
+        "country": row.country,
+        "capacity": row.capacity,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _referee_to_dict(row: RefereeModel) -> dict:
+    return {
+        "referee_id": row.referee_id,
+        "name": row.name,
+        "country": row.country,
+        "details": row.details,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _player_stats_to_dict(row: PlayerStatsModel) -> dict:
+    return {
+        "match_id": row.match_id,
+        "stats": row.stats,
+        "captured_at": row.captured_at.isoformat() if row.captured_at else None,
+    }
+
+
+def _incidents_to_dict(row: IncidentsModel) -> dict:
+    return {
+        "match_id": row.match_id,
+        "incidents": row.incidents,
         "captured_at": row.captured_at.isoformat() if row.captured_at else None,
     }

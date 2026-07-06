@@ -13,10 +13,12 @@ from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.project_domain_event import ProjectDomainEventHandler
 from src.application.project_insight import ProjectInsightHandler
 from src.application.value_bet_detector import ValueBetDetector
+from src.application.value_bet_outcome_resolver import ValueBetOutcomeResolver
 from src.infrastructure.event_store_repository import EventStoreRepository
 from src.infrastructure.models import create_all
 from src.infrastructure.rabbitmq_consumer import run_consumers
 from src.infrastructure.read_model_repository import ReadModelRepository
+from src.infrastructure.whatsapp_notifier import WhatsAppNotifier
 
 from .deps import _ready
 from .router import router
@@ -28,6 +30,27 @@ VALUE_BET_EDGE_THRESHOLD = Decimal(os.environ.get("VALUE_BET_EDGE_THRESHOLD", "0
 LINEUP_CONFIDENCE_THRESHOLD = Decimal(os.environ.get("LINEUP_CONFIDENCE_THRESHOLD", "0.6"))
 
 
+def _build_notifier(sm: SecretManager, rabbitmq_uri: str) -> WhatsAppNotifier | None:
+    """Optional: alerts are only enabled once VALUE_BET_ALERT_NUMBER is
+    configured (via Infisical, same as every other secret in this repo).
+    Missing/unconfigured is a normal, supported state — not every
+    deployment wants a WhatsApp alert wired up — so failures here never
+    block startup, just disable alerting."""
+    try:
+        number = sm.get_secret("VALUE_BET_ALERT_NUMBER")
+    except Exception:
+        logger.info("VALUE_BET_ALERT_NUMBER not configured — value bet WhatsApp alerts disabled")
+        return None
+    if not number:
+        return None
+    instance = None
+    try:
+        instance = sm.get_secret("VALUE_BET_ALERT_INSTANCE")
+    except Exception:
+        pass
+    return WhatsAppNotifier(rabbitmq_uri, number, instance)
+
+
 def _init(app: FastAPI) -> None:
     try:
         sm = SecretManager()
@@ -37,9 +60,11 @@ def _init(app: FastAPI) -> None:
 
         app.state.read_models = ReadModelRepository()
         app.state.event_store = EventStoreRepository()
+        notifier = _build_notifier(sm, rabbitmq_uri)
         app.state.value_bet_detector = ValueBetDetector(
-            app.state.read_models, VALUE_BET_EDGE_THRESHOLD, LINEUP_CONFIDENCE_THRESHOLD,
+            app.state.read_models, VALUE_BET_EDGE_THRESHOLD, LINEUP_CONFIDENCE_THRESHOLD, notifier,
         )
+        app.state.value_bet_outcome_resolver = ValueBetOutcomeResolver(app.state.read_models)
         app.state.rabbitmq_uri = rabbitmq_uri
     except Exception as e:
         app.state._init_error = e
@@ -52,7 +77,9 @@ async def _run_background(app: FastAPI) -> None:
     await asyncio.to_thread(app.state._init_done.wait)
     if app.state._init_error is not None:
         return
-    projector = ProjectDomainEventHandler(app.state.read_models, app.state.value_bet_detector)
+    projector = ProjectDomainEventHandler(
+        app.state.read_models, app.state.value_bet_detector, app.state.value_bet_outcome_resolver,
+    )
     insight_handler = ProjectInsightHandler(app.state.read_models, app.state.value_bet_detector)
     await run_consumers(app.state.rabbitmq_uri, app.state.event_store, projector, insight_handler)
 
@@ -64,6 +91,7 @@ async def lifespan(app: FastAPI):
     app.state.read_models = None
     app.state.event_store = None
     app.state.value_bet_detector = None
+    app.state.value_bet_outcome_resolver = None
     threading.Thread(target=_init, args=(app,), daemon=True).start()
 
     supervisor = asyncio.create_task(_run_background(app))
