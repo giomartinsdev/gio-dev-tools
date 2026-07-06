@@ -40,6 +40,7 @@ class _FakeClient:
         self.odds_page_calls: list[tuple] = []
         self.odds_comparison_by_event: dict = {}
         self.polymarket_by_event: dict = {}
+        self.raise_on_comparison_for: set = set()
 
     def fetch_events(self, date_from=None, date_to=None, status=None):
         return self.events_payloads
@@ -67,6 +68,8 @@ class _FakeClient:
         return self.squad_payloads
 
     def fetch_odds_comparison(self, event_ref_id):
+        if event_ref_id in self.raise_on_comparison_for:
+            raise TimeoutError("simulated transient network failure")
         return self.odds_comparison_by_event.get(event_ref_id)
 
     def fetch_polymarket(self, event_ref_id):
@@ -172,6 +175,17 @@ def step_one_fixture_with_comparison(context):
 @given('the fake client returns 1 fixture in the date window with no odds comparison or polymarket data')
 def step_one_fixture_without_comparison(context):
     context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="901")]
+
+
+@given('the fake client returns 2 fixtures in the date window, one of which always raises on odds comparison')
+def step_two_fixtures_one_raising(context):
+    context.client.events_payloads = [dict(_SAMPLE_PAYLOAD, id="902"), dict(_SAMPLE_PAYLOAD, id="903")]
+    context.client.raise_on_comparison_for = {"902"}
+    context.client.odds_comparison_by_event["903"] = {
+        "event_id": "903", "bookmakers_count": 3, "total_odds": 10,
+        "markets": {"1x2": {"HOME": {"best_odds": 2.1, "best_bookmaker_slug": "bet365", "bookmakers": {}}}},
+    }
+    context.client.polymarket_by_event["903"] = {"markets": {"1x2": {"HOME": 0.55}}}
 
 
 @given('the fake client returns 1 prediction payload')

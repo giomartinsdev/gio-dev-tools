@@ -106,3 +106,9 @@ Feature: Poll command handlers
     When I run the odds comparison poll handler
     Then 0 events were polled
     And the publisher recorded no raw publish
+
+  Scenario: A transient failure on one event does not abort the rest of the odds comparison poll
+    Given the fake client returns 2 fixtures in the date window, one of which always raises on odds comparison
+    When I run the odds comparison poll handler
+    Then 1 event was polled
+    And the publisher recorded a raw publish for "odds_comparison" and a raw publish for "polymarket"

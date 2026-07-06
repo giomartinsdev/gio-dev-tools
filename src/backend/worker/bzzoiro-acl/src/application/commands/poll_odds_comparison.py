@@ -43,26 +43,42 @@ class PollOddsComparisonHandler:
 
         with_odds = 0
         for event_ref_id in event_ids:
-            match_id = self._translator.resolve_match_id(event_ref_id)
-
-            comparison = await asyncio.to_thread(self._client.fetch_odds_comparison, event_ref_id)
-            if comparison is not None:
-                await self._publisher.publish_raw(
-                    "odds_comparison", str(event_ref_id), comparison, correlation_id=match_id,
-                )
-                await self._publisher.publish_domain_event(
-                    self._translator.translate_odds_comparison(comparison)
-                )
-                with_odds += 1
-
-            polymarket = await asyncio.to_thread(self._client.fetch_polymarket, event_ref_id)
-            if polymarket is not None:
-                await self._publisher.publish_raw(
-                    "polymarket", str(event_ref_id), polymarket, correlation_id=match_id,
-                )
-                poly_event = self._translator.translate_polymarket(event_ref_id, polymarket)
-                if poly_event is not None:
-                    await self._publisher.publish_domain_event(poly_event)
+            try:
+                with_odds += await self._poll_one_event(event_ref_id)
+            except Exception as exc:
+                logger.warning(f"failed to poll odds comparison for event {event_ref_id}: {exc}")
 
         logger.info(f"polled odds comparison: {with_odds}/{len(event_ids)} events had odds")
         return with_odds
+
+    async def _poll_one_event(self, event_ref_id: object) -> int:
+        """Returns 1 if the event had odds comparison data, 0 otherwise.
+
+        Each event is fetched (and failed) independently — with ~70+ events
+        per poll and two sequential HTTP calls each, a single transient
+        timeout used to abort the whole cycle and discard every event
+        already fetched before it (see PollTeamsHandler's per-team try/
+        except for the same pattern applied to squads)."""
+        match_id = self._translator.resolve_match_id(event_ref_id)
+        had_odds = 0
+
+        comparison = await asyncio.to_thread(self._client.fetch_odds_comparison, event_ref_id)
+        if comparison is not None:
+            await self._publisher.publish_raw(
+                "odds_comparison", str(event_ref_id), comparison, correlation_id=match_id,
+            )
+            await self._publisher.publish_domain_event(
+                self._translator.translate_odds_comparison(comparison)
+            )
+            had_odds = 1
+
+        polymarket = await asyncio.to_thread(self._client.fetch_polymarket, event_ref_id)
+        if polymarket is not None:
+            await self._publisher.publish_raw(
+                "polymarket", str(event_ref_id), polymarket, correlation_id=match_id,
+            )
+            poly_event = self._translator.translate_polymarket(event_ref_id, polymarket)
+            if poly_event is not None:
+                await self._publisher.publish_domain_event(poly_event)
+
+        return had_odds
