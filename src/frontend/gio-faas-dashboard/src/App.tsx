@@ -5,8 +5,9 @@ import { FinanceModule, financeMeta } from '@/modules/finance/FinanceModule'
 import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioModule'
 import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
 import { DomainInsightsModule, domainInsightsMeta } from '@/modules/domain-insights/DomainInsightsModule'
+import { ValueBetsReportModule, valueBetsReportMeta } from '@/modules/value-bets-report/ValueBetsReportModule'
 
-const modules = [financeMeta, portfolioMeta, whatsappMeta, domainInsightsMeta]
+const modules = [financeMeta, portfolioMeta, whatsappMeta, domainInsightsMeta, valueBetsReportMeta]
 
 type ModuleId = (typeof modules)[number]['id']
 
@@ -68,6 +69,7 @@ export default function App() {
           {activeId === 'portfolio' && <PortfolioModule />}
           {activeId === 'whatsapp' && <WhatsappModule />}
           {activeId === 'domain-insights' && <DomainInsightsModule />}
+          {activeId === 'value-bets-report' && <ValueBetsReportModule />}
         </main>
       </div>
     </div>

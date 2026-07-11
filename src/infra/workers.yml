@@ -41,6 +41,24 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
 
+  value-bets-report:
+    image: re.giomartins.dev/value_bets_report:latest
+    container_name: value-bets-report
+    restart: unless-stopped
+    networks:
+      - persistence
+      - apis
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+      OTEL_SERVICE_NAME: value-bets-report
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+
 networks:
   persistence:
+    external: true
+  apis:
     external: true
