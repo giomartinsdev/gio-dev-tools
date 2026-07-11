@@ -14,7 +14,6 @@ from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.generate_report import ReportGenerator
 from src.application.scheduler import DailyScheduler
 from src.infrastructure.config_repository import ConfigRepository
-from src.infrastructure.db_bootstrap import ensure_db
 from src.infrastructure.models import create_all
 from src.infrastructure.recipients_repository import RecipientsRepository
 from src.infrastructure.trigger_queue import TriggerPublisher, consume_triggers
@@ -31,9 +30,8 @@ def _init(app: FastAPI) -> None:
     try:
         sm = SecretManager()
         rabbitmq_uri = sm.get_secret("RABBITMQ_URI")
-        database_url = sm.get_secret("VALUE_BETS_REPORT_DATABASE_URL")
+        database_url = sm.get_secret("DATABASE_URL")
 
-        asyncio.run(ensure_db(database_url))
         TransactionManager.configure(TransactionConfig(url=database_url))
         create_all(TransactionManager.get().engine)
 

@@ -16,7 +16,7 @@ class ReportConfigModel(Base):
     """Single-row config table — id is always 1. No multi-report-type
     generalization: this worker only ever sends one report."""
 
-    __tablename__ = "report_config"
+    __tablename__ = "value_bets_report_config"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     send_time: Mapped[str] = mapped_column(String, nullable=False, default="00:00")

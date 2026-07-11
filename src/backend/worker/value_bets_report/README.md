@@ -15,7 +15,7 @@ Report data comes from the read-only `domain-data-insights` API
 | Var | Purpose |
 |---|---|
 | `if_id`, `if_secret`, `if_project_id`, `if_env` | Infisical universal-auth client |
-| `VALUE_BETS_REPORT_DATABASE_URL` | Postgres DSN for this worker's own dedicated database (config + recipients) — deliberately not `DATABASE_URL`, which is already used by `domain-persister`/`bzzoiro-acl` for `bzzoiro_data` in the same Infisical project |
+| `DATABASE_URL` | Same secret `domain-persister`/`bzzoiro-acl` already use — its DSN points at the shared instance's default database; those workers just carve out their own `bzzoiro_data` schema inside it. This worker's tables (`value_bets_report_config`, `recipients`) live in that same database's default `public` schema instead — no new secret, no new database |
 | `RABBITMQ_URI` | amqp:// URI to consume `value-bets-report-trigger` and to publish to `whatsapp-send` |
 
 Plain env vars:

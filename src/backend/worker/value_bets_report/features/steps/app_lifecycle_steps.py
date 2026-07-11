@@ -29,7 +29,6 @@ def step_init_success(context):
     fake_tm_instance = Mock(engine=Mock())
 
     with patch.object(main_module, "SecretManager", return_value=fake_sm), \
-         patch.object(main_module, "ensure_db", AsyncMock()), \
          patch.object(main_module.TransactionManager, "configure"), \
          patch.object(main_module.TransactionManager, "get", return_value=fake_tm_instance), \
          patch.object(main_module, "create_all"), \
