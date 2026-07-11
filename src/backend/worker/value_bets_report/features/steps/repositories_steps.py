@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from behave import given, then, use_step_matcher, when
 
 from src.infrastructure.config_repository import ConfigRepository
+from src.infrastructure.realtime_alert_log_repository import RealtimeAlertLogRepository
 from src.infrastructure.recipients_repository import RecipientsRepository
 
 use_step_matcher("re")
@@ -26,7 +28,10 @@ class _FakeTransactionManager:
 
 @given('a fake transaction manager returning a config row')
 def step_fake_tm_config(context):
-    context.row = Mock(send_time="00:00", reference_day_offset=1, enabled=True)
+    context.row = Mock(
+        send_time="00:00", reference_day_offset=1, enabled=True,
+        realtime_alerts_enabled=True, realtime_edge_threshold=Decimal("0.2000"),
+    )
     context.session = Mock()
     context.session.get.return_value = context.row
     context.repo = ConfigRepository()
@@ -45,7 +50,9 @@ def step_get_config(context):
 
 @when(r'I update the config to send_time "([^"]+)", offset (\d+), enabled (true|false)')
 def step_update_config(context, send_time, offset, enabled):
-    context.result = context.repo.update(send_time, int(offset), enabled == "true")
+    context.result = context.repo.update(
+        send_time, int(offset), enabled == "true", True, Decimal("0.2000"),
+    )
 
 
 @then('the config has send_time "([^"]+)"')
@@ -155,3 +162,71 @@ def step_assert_delete_issued(context, recipient_id):
 @then('the result is empty')
 def step_assert_result_empty(context):
     assert context.result is None, context.result
+
+
+@when(r'I set realtime alerts for recipient (\d+) to (true|false)')
+def step_set_realtime_alerts(context, recipient_id, enabled):
+    context.result = context.repo.set_realtime_alerts(int(recipient_id), enabled == "true")
+
+
+@given('a fake transaction manager with no alert log row')
+def step_fake_tm_alert_log_missing(context):
+    context.session = Mock()
+    context.session.get.return_value = None
+    context.repo = RealtimeAlertLogRepository()
+    fake_tm = _FakeTransactionManager(context.session)
+    tm_patch = patch(
+        "src.infrastructure.realtime_alert_log_repository.TransactionManager.get", return_value=fake_tm,
+    )
+    tm_patch.start()
+    context.add_cleanup(tm_patch.stop)
+
+
+@given('a fake transaction manager with an existing alert log row')
+def step_fake_tm_alert_log_present(context):
+    context.session = Mock()
+    context.session.get.return_value = Mock()
+    context.repo = RealtimeAlertLogRepository()
+    fake_tm = _FakeTransactionManager(context.session)
+    tm_patch = patch(
+        "src.infrastructure.realtime_alert_log_repository.TransactionManager.get", return_value=fake_tm,
+    )
+    tm_patch.start()
+    context.add_cleanup(tm_patch.stop)
+
+
+@given('a fake transaction manager for the alert log')
+def step_fake_tm_alert_log(context):
+    context.session = Mock()
+    context.repo = RealtimeAlertLogRepository()
+    fake_tm = _FakeTransactionManager(context.session)
+    tm_patch = patch(
+        "src.infrastructure.realtime_alert_log_repository.TransactionManager.get", return_value=fake_tm,
+    )
+    tm_patch.start()
+    context.add_cleanup(tm_patch.stop)
+
+
+@when('I check if the value bet was alerted')
+def step_check_alerted(context):
+    context.result = context.repo.is_alerted("m1", "1x2", "HOME")
+
+
+@when('I mark the value bet as alerted')
+def step_mark_alerted(context):
+    context.repo.mark_alerted("m1", "1x2", "HOME")
+
+
+@then('it reports not alerted')
+def step_assert_not_alerted(context):
+    assert context.result is False, context.result
+
+
+@then('it reports alerted')
+def step_assert_is_alerted(context):
+    assert context.result is True, context.result
+
+
+@then('an alert log insert was executed')
+def step_assert_alert_log_insert(context):
+    context.session.execute.assert_called_once()

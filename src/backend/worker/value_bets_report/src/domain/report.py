@@ -41,6 +41,17 @@ def filter_by_reference_day(value_bets: list[dict], reference_date: date) -> lis
     return [vb for vb in value_bets if _kickoff_date(vb) == reference_date]
 
 
+def resolved_date(outcome: dict) -> date | None:
+    resolved_at = outcome.get("resolved_at")
+    if not resolved_at:
+        return None
+    return datetime.fromisoformat(resolved_at).astimezone(REPORT_TIMEZONE).date()
+
+
+def filter_outcomes_by_day(outcomes: list[dict], day: date) -> list[dict]:
+    return [o for o in outcomes if resolved_date(o) == day]
+
+
 def group_value_bets_by_match(value_bets: list[dict]) -> dict[str, list[dict]]:
     groups: dict[str, list[dict]] = {}
     for vb in value_bets:
@@ -75,3 +86,42 @@ def format_report(value_bets: list[dict], reference_date: date) -> str:
         lines.append("")
 
     return "\n".join(lines).rstrip()
+
+
+def format_recap(outcomes: list[dict], recap_date: date) -> str:
+    date_label = recap_date.strftime("%d/%m/%Y")
+    if not outcomes:
+        return f"📋 Resultados de {date_label}\n\nNenhuma aposta resolvida."
+
+    won = sum(1 for o in outcomes if o["won"])
+    total = len(outcomes)
+    lines = [f"📋 Resultados de {date_label}: {won}/{total} acertos", ""]
+    for o in outcomes:
+        market = MARKET_LABELS.get(o["market"], o["market"])
+        outcome_label = OUTCOME_LABELS.get(o["outcome"], o["outcome"])
+        icon = "✅" if o["won"] else "❌"
+        home = o.get("home_team_name") or "?"
+        away = o.get("away_team_name") or "?"
+        lines.append(
+            f"{icon} {home} {o['home_score']}-{o['away_score']} {away} — {market} {outcome_label}"
+        )
+
+    return "\n".join(lines).rstrip()
+
+
+def format_realtime_alert(value_bet: dict) -> str:
+    market = MARKET_LABELS.get(value_bet["market"], value_bet["market"])
+    outcome = OUTCOME_LABELS.get(value_bet["outcome"], value_bet["outcome"])
+    edge_pct = float(value_bet["edge"]) * 100
+    home = value_bet.get("home_team_name") or "?"
+    away = value_bet.get("away_team_name") or "?"
+    kickoff_label = ""
+    if value_bet.get("kickoff_at"):
+        kickoff_label = (
+            f" ({datetime.fromisoformat(value_bet['kickoff_at']).astimezone(REPORT_TIMEZONE).strftime('%d/%m %H:%M')})"
+        )
+    return (
+        f"🚨 Value bet de alto edge!\n"
+        f"⚽ {home} vs {away}{kickoff_label}\n"
+        f"{market} — {outcome} | edge {edge_pct:.1f}% | {value_bet['bookmaker']} @ {value_bet['best_odds']}"
+    )

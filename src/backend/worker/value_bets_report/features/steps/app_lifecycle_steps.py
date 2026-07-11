@@ -36,6 +36,8 @@ def step_init_success(context):
          patch.object(main_module, "RecipientsRepository", return_value=Mock()), \
          patch.object(main_module, "TriggerPublisher", return_value=Mock()), \
          patch.object(main_module, "ReportGenerator", return_value=Mock()), \
+         patch.object(main_module, "RealtimeAlertChecker", return_value=Mock()), \
+         patch.object(main_module, "RealtimeAlertLogRepository", return_value=Mock()), \
          patch.object(main_module, "ValueBetsClient", return_value=Mock()), \
          patch.object(main_module, "WhatsAppPublisher", return_value=Mock()):
         main_module._init(fake_app)
@@ -63,6 +65,7 @@ def step_assert_init_ok(context):
     assert context.fake_app.state.recipients_repo is not None
     assert context.fake_app.state.trigger_publisher is not None
     assert context.fake_app.state.report_generator is not None
+    assert context.fake_app.state.realtime_alert_checker is not None
 
 
 @then('app state has an init error and init_done is set')
@@ -80,6 +83,8 @@ def _fake_app_for_background(init_error=None):
     fake_app.state.recipients_repo = Mock()
     fake_app.state.trigger_publisher = Mock()
     fake_app.state.report_generator = Mock()
+    fake_app.state.realtime_alert_checker = Mock()
+    fake_app.state.realtime_alert_checker.run = AsyncMock()
     fake_app.state.rabbitmq_uri = "amqp://fake"
     return fake_app
 
@@ -91,6 +96,7 @@ def step_run_background_init_error(context):
          patch.object(main_module, "DailyScheduler") as fake_scheduler_cls:
         fake_scheduler_cls.return_value.run = AsyncMock()
         asyncio.run(main_module._run_background(fake_app))
+    context.fake_app = fake_app
     context.fake_consume = fake_consume
     context.fake_scheduler_cls = fake_scheduler_cls
 
@@ -99,6 +105,7 @@ def step_run_background_init_error(context):
 def step_assert_neither_started(context):
     context.fake_consume.assert_not_awaited()
     context.fake_scheduler_cls.return_value.run.assert_not_awaited()
+    context.fake_app.state.realtime_alert_checker.run.assert_not_awaited()
 
 
 @when('_run_background runs with init already done successfully')
@@ -108,6 +115,7 @@ def step_run_background_success(context):
          patch.object(main_module, "DailyScheduler") as fake_scheduler_cls:
         fake_scheduler_cls.return_value.run = AsyncMock()
         asyncio.run(main_module._run_background(fake_app))
+    context.fake_app = fake_app
     context.fake_consume = fake_consume
     context.fake_scheduler_cls = fake_scheduler_cls
 
@@ -116,6 +124,7 @@ def step_run_background_success(context):
 def step_assert_both_started(context):
     context.fake_consume.assert_awaited_once()
     context.fake_scheduler_cls.return_value.run.assert_awaited_once()
+    context.fake_app.state.realtime_alert_checker.run.assert_awaited_once()
 
 
 @when('the lifespan context runs a full startup and shutdown cycle')

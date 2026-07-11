@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Loader2, Trash2, CalendarClock } from 'lucide-react'
+import { Send, Loader2, Trash2, CalendarClock, Zap } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,8 @@ interface Config {
   send_time: string
   reference_day_offset: number
   enabled: boolean
+  realtime_alerts_enabled: boolean
+  realtime_edge_threshold: number
 }
 
 interface Recipient {
@@ -19,6 +21,7 @@ interface Recipient {
   phone_number: string
   name: string | null
   active: boolean
+  realtime_alerts: boolean
 }
 
 function referenceDayLabel(offset: number) {
@@ -36,6 +39,7 @@ export function ValueBetsReportModule() {
   const [loadingRecipients, setLoadingRecipients] = useState(true)
   const [newPhone, setNewPhone] = useState('')
   const [newName, setNewName] = useState('')
+  const [newRealtimeAlerts, setNewRealtimeAlerts] = useState(false)
   const [addingRecipient, setAddingRecipient] = useState(false)
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -82,12 +86,13 @@ export function ValueBetsReportModule() {
       const res = await fetch(`${GATEWAY}/value-bets-report/recipients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: newPhone, name: newName || null }),
+        body: JSON.stringify({ phone_number: newPhone, name: newName || null, realtime_alerts: newRealtimeAlerts }),
       })
       if (res.ok) {
         await fetchRecipients()
         setNewPhone('')
         setNewName('')
+        setNewRealtimeAlerts(false)
       }
     } finally {
       setAddingRecipient(false)
@@ -101,6 +106,20 @@ export function ValueBetsReportModule() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !recipient.active }),
+      })
+      if (res.ok) await fetchRecipients()
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  async function toggleRealtimeAlerts(recipient: Recipient) {
+    setTogglingId(recipient.id)
+    try {
+      const res = await fetch(`${GATEWAY}/value-bets-report/recipients/${recipient.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ realtime_alerts: !recipient.realtime_alerts }),
       })
       if (res.ok) await fetchRecipients()
     } finally {
@@ -190,6 +209,27 @@ export function ValueBetsReportModule() {
                 />
                 <p className="text-xs text-muted-foreground">0 = hoje, 1 = amanhã</p>
               </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <Label htmlFor="vbr-realtime-enabled">Alertas em tempo real</Label>
+                <Switch
+                  id="vbr-realtime-enabled"
+                  checked={config.realtime_alerts_enabled}
+                  onCheckedChange={checked => setConfig(c => c && { ...c, realtime_alerts_enabled: checked })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="vbr-realtime-threshold">Edge mínimo para alerta instantâneo (%)</Label>
+                <Input
+                  id="vbr-realtime-threshold"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={(config.realtime_edge_threshold * 100).toFixed(1)}
+                  onChange={e => setConfig(c => c && { ...c, realtime_edge_threshold: (parseFloat(e.target.value) || 0) / 100 })}
+                  className="w-32"
+                />
+              </div>
               <Button onClick={saveConfig} disabled={savingConfig} size="sm" className="w-fit">
                 {savingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Salvar
@@ -216,7 +256,15 @@ export function ValueBetsReportModule() {
                   <p className="text-sm font-medium">{r.name || r.phone_number}</p>
                   {r.name && <p className="text-xs text-muted-foreground">{r.phone_number}</p>}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5" title="Alertas em tempo real">
+                    <Zap className={r.realtime_alerts ? 'h-3.5 w-3.5 text-amber-500' : 'h-3.5 w-3.5 text-muted-foreground/40'} />
+                    <Switch
+                      checked={r.realtime_alerts}
+                      disabled={togglingId === r.id}
+                      onCheckedChange={() => toggleRealtimeAlerts(r)}
+                    />
+                  </div>
                   <Switch
                     checked={r.active}
                     disabled={togglingId === r.id}
@@ -251,6 +299,10 @@ export function ValueBetsReportModule() {
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
                 />
+              </div>
+              <div className="flex items-center gap-1.5 pb-2" title="Alertas em tempo real">
+                <Zap className={newRealtimeAlerts ? 'h-3.5 w-3.5 text-amber-500' : 'h-3.5 w-3.5 text-muted-foreground/40'} />
+                <Switch checked={newRealtimeAlerts} onCheckedChange={setNewRealtimeAlerts} />
               </div>
               <Button onClick={addRecipient} disabled={addingRecipient || !newPhone} size="sm">
                 {addingRecipient ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Adicionar'}

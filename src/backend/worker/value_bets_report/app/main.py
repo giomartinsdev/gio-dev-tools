@@ -12,9 +12,11 @@ from shared.logger import get_logger
 from shared.secret_manager import SecretManager
 from shared.transaction_manager import TransactionConfig, TransactionManager
 from src.application.generate_report import ReportGenerator
+from src.application.realtime_alerts import RealtimeAlertChecker
 from src.application.scheduler import DailyScheduler
 from src.infrastructure.config_repository import ConfigRepository
 from src.infrastructure.models import create_all
+from src.infrastructure.realtime_alert_log_repository import RealtimeAlertLogRepository
 from src.infrastructure.recipients_repository import RecipientsRepository
 from src.infrastructure.trigger_queue import TriggerPublisher, consume_triggers
 from src.infrastructure.value_bets_client import ValueBetsClient
@@ -35,14 +37,24 @@ def _init(app: FastAPI) -> None:
         TransactionManager.configure(TransactionConfig(url=database_url))
         create_all(TransactionManager.get().engine)
 
+        value_bets_client = ValueBetsClient()
+        whatsapp_publisher = WhatsAppPublisher(rabbitmq_uri)
+
         app.state.config_repo = ConfigRepository()
         app.state.recipients_repo = RecipientsRepository()
         app.state.trigger_publisher = TriggerPublisher(rabbitmq_uri)
         app.state.report_generator = ReportGenerator(
-            value_bets_client=ValueBetsClient(),
+            value_bets_client=value_bets_client,
             config_repo=app.state.config_repo,
             recipients_repo=app.state.recipients_repo,
-            whatsapp_publisher=WhatsAppPublisher(rabbitmq_uri),
+            whatsapp_publisher=whatsapp_publisher,
+        )
+        app.state.realtime_alert_checker = RealtimeAlertChecker(
+            value_bets_client=value_bets_client,
+            config_repo=app.state.config_repo,
+            recipients_repo=app.state.recipients_repo,
+            alert_log_repo=RealtimeAlertLogRepository(),
+            whatsapp_publisher=whatsapp_publisher,
         )
         app.state.rabbitmq_uri = rabbitmq_uri
     except Exception as e:
@@ -65,6 +77,7 @@ async def _run_background(app: FastAPI) -> None:
     await asyncio.gather(
         consume_triggers(app.state.rabbitmq_uri, on_trigger),
         scheduler.run(),
+        app.state.realtime_alert_checker.run(),
     )
 
 
@@ -76,6 +89,7 @@ async def lifespan(app: FastAPI):
     app.state.recipients_repo = None
     app.state.trigger_publisher = None
     app.state.report_generator = None
+    app.state.realtime_alert_checker = None
     threading.Thread(target=_init, args=(app,), daemon=True).start()
 
     supervisor = asyncio.create_task(_run_background(app))

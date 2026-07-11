@@ -20,3 +20,10 @@ Feature: Report generation
     And 1 active recipient
     When the report generator runs
     Then a whatsapp message was published to each active recipient
+
+  Scenario: prepends yesterday's recap to the report
+    Given the value bets client returns 1 bet for tomorrow
+    And the value bets client also returns 1 won outcome for yesterday
+    And 1 active recipient
+    When the report generator runs
+    Then the published text includes yesterday's recap

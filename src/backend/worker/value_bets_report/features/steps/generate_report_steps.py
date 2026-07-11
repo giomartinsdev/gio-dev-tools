@@ -35,10 +35,22 @@ def _value_bet_for_offset(days: int) -> dict:
     }
 
 
+def _outcome_for_offset(days: int, won: bool = True) -> dict:
+    resolved = datetime.now(REPORT_TIMEZONE) + timedelta(days=days)
+    resolved = resolved.replace(hour=18, minute=0, second=0, microsecond=0)
+    return {
+        "match_id": "m1", "market": "1x2", "outcome": "HOME", "edge": "0.15",
+        "bookmaker": "pinnacle", "best_odds": "2.5", "resolved_at": resolved.isoformat(),
+        "won": won, "home_score": 2, "away_score": 1,
+        "home_team_name": "Team A", "away_team_name": "Team B",
+    }
+
+
 def _setup(context):
     context.config_repo = Mock()
     context.config_repo.get.return_value = Mock(reference_day_offset=_REFERENCE_DAY_OFFSET)
     context.value_bets_client = Mock()
+    context.value_bets_client.fetch_outcomes = AsyncMock(return_value=[])
     context.recipients_repo = Mock()
     context.whatsapp_publisher = Mock()
     context.whatsapp_publisher.publish = AsyncMock()
@@ -60,6 +72,11 @@ def step_value_bets_tomorrow(context):
 def step_value_bets_day_after(context):
     _setup(context)
     context.value_bets_client.fetch = AsyncMock(return_value=[_value_bet_for_offset(_REFERENCE_DAY_OFFSET + 1)])
+
+
+@given('the value bets client also returns 1 won outcome for yesterday')
+def step_outcomes_yesterday(context):
+    context.value_bets_client.fetch_outcomes = AsyncMock(return_value=[_outcome_for_offset(-1)])
 
 
 @given(r'(\d+) active recipients? and (\d+) inactive recipients?')
@@ -102,3 +119,10 @@ def step_assert_published_to_each(context):
 @then('no whatsapp message was published')
 def step_assert_none_published(context):
     context.whatsapp_publisher.publish.assert_not_awaited()
+
+
+@then('the published text includes yesterday\'s recap')
+def step_assert_recap_included(context):
+    text = context.whatsapp_publisher.publish.await_args.args[1]
+    assert "Resultados de" in text, text
+    assert "1/1 acertos" in text, text

@@ -37,3 +37,23 @@ Feature: Config and recipients repositories
     Given a fake transaction manager with no matching recipient row
     When I set active for recipient 99
     Then the result is empty
+
+  Scenario: RecipientsRepository.set_realtime_alerts toggles the flag
+    Given a fake transaction manager for recipients
+    When I set realtime alerts for recipient 1 to true
+    Then the returned recipient has realtime alerts enabled
+
+  Scenario: RealtimeAlertLogRepository.is_alerted reports false when absent
+    Given a fake transaction manager with no alert log row
+    When I check if the value bet was alerted
+    Then it reports not alerted
+
+  Scenario: RealtimeAlertLogRepository.is_alerted reports true when present
+    Given a fake transaction manager with an existing alert log row
+    When I check if the value bet was alerted
+    Then it reports alerted
+
+  Scenario: RealtimeAlertLogRepository.mark_alerted inserts a row
+    Given a fake transaction manager for the alert log
+    When I mark the value bet as alerted
+    Then an alert log insert was executed

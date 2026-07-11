@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from unittest.mock import Mock
 
 from behave import given, then, use_step_matcher, when
@@ -13,13 +14,19 @@ use_step_matcher("re")
 @given(r'a config repository returning send_time "([^"]+)", offset (\d+), enabled')
 def step_repo_returning(context, send_time, offset):
     context.repo = Mock()
-    context.repo.get.return_value = ReportConfig(send_time=send_time, reference_day_offset=int(offset), enabled=True)
+    context.repo.get.return_value = ReportConfig(
+        send_time=send_time, reference_day_offset=int(offset), enabled=True,
+        realtime_alerts_enabled=True, realtime_edge_threshold=Decimal("0.2000"),
+    )
 
 
 @given('a config repository')
 def step_repo(context):
     context.repo = Mock()
-    context.repo.update.return_value = ReportConfig(send_time="08:30", reference_day_offset=0, enabled=False)
+    context.repo.update.return_value = ReportConfig(
+        send_time="08:30", reference_day_offset=0, enabled=False,
+        realtime_alerts_enabled=False, realtime_edge_threshold=Decimal("0.2500"),
+    )
 
 
 @when('I call the get_config endpoint')
@@ -29,7 +36,10 @@ def step_call_get(context):
 
 @when(r'I call the put_config endpoint with send_time "([^"]+)", offset (\d+), enabled (true|false)')
 def step_call_put(context, send_time, offset, enabled):
-    body = ConfigUpdate(send_time=send_time, reference_day_offset=int(offset), enabled=(enabled == "true"))
+    body = ConfigUpdate(
+        send_time=send_time, reference_day_offset=int(offset), enabled=(enabled == "true"),
+        realtime_alerts_enabled=False, realtime_edge_threshold=Decimal("0.2500"),
+    )
     context.result = put_config(body, repo=context.repo)
 
 
@@ -42,4 +52,5 @@ def step_assert_send_time(context, send_time):
 def step_assert_updated(context, send_time, offset, enabled):
     context.repo.update.assert_called_once_with(
         send_time=send_time, reference_day_offset=int(offset), enabled=(enabled == "true"),
+        realtime_alerts_enabled=False, realtime_edge_threshold=Decimal("0.2500"),
     )

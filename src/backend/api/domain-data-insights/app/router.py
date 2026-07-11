@@ -34,6 +34,15 @@ def list_value_bets(
     return repo.find_value_bets(limit=limit, offset=offset)
 
 
+@router.get("/value-bets/outcomes")
+def list_value_bet_outcomes(
+    limit: int = 50,
+    offset: int = 0,
+    repo: ReadOnlyRepository = Depends(get_repo),
+):
+    return repo.find_value_bet_outcomes(limit=limit, offset=offset)
+
+
 @router.get("/value-bets/outcomes/summary")
 def summarize_value_bet_outcomes(repo: ReadOnlyRepository = Depends(get_repo)):
     return repo.summarize_value_bet_outcomes()

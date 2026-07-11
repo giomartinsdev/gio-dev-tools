@@ -18,6 +18,11 @@ Feature: Recipients routes
     When I call the update_recipient endpoint for id 1 with active false
     Then the returned recipient is inactive
 
+  Scenario: PATCH /recipients/{id} toggles realtime alerts
+    Given a recipients repository that can toggle realtime alerts for recipient 1
+    When I call the update_recipient endpoint for id 1 with realtime_alerts true
+    Then the returned recipient has realtime alerts enabled
+
   Scenario: PATCH /recipients/{id} 404s when not found
     Given a recipients repository with no matching recipient
     When I call the update_recipient endpoint for id 99 with active false expecting an error

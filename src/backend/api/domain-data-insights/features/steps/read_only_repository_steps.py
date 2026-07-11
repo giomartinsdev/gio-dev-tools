@@ -83,6 +83,18 @@ def step_one_value_bet_row(context):
     _patch_transaction_manager(context, results)
 
 
+@given('a fake transaction manager returning 1 outcome row')
+def step_one_outcome_row(context):
+    row = {
+        "match_id": "m1", "market": "1x2", "outcome": "HOME", "edge": "0.1455",
+        "bookmaker": "bet365", "best_odds": "2.20", "resolved_at": datetime.now(timezone.utc),
+        "won": True, "home_score": 2, "away_score": 1,
+        "home_team_name": "Team A", "away_team_name": "Team B",
+    }
+    results = [_mock_result_for_mappings([row])]
+    _patch_transaction_manager(context, results)
+
+
 @given('a fake transaction manager returning 3 total and 2 won outcomes')
 def step_summary_rows(context):
     results = [_mock_result_for_one(total=3, won=2)]
@@ -117,6 +129,12 @@ def step_list_matches(context, limit, offset):
 def step_list_value_bets(context, limit, offset):
     with context.tm_patch:
         context.result = context.repo.find_value_bets(limit=int(limit), offset=int(offset))
+
+
+@when(r'I list value bet outcomes with limit (\d+) and offset (\d+)')
+def step_list_value_bet_outcomes(context, limit, offset):
+    with context.tm_patch:
+        context.result = context.repo.find_value_bet_outcomes(limit=int(limit), offset=int(offset))
 
 
 @when('I summarize value bet outcomes')
@@ -157,6 +175,18 @@ def step_assert_match_team_names(context):
 @then(r'(\d+) value bet dicts? (?:is|are) returned')
 def step_assert_value_bet_count(context, count):
     assert len(context.result) == int(count), len(context.result)
+
+
+@then(r'(\d+) outcome dicts? (?:is|are) returned')
+def step_assert_outcome_count(context, count):
+    assert len(context.result) == int(count), len(context.result)
+
+
+@then('the outcome dict has home and away team names')
+def step_assert_outcome_team_names(context):
+    row = context.result[0]
+    assert row["home_team_name"] == "Team A", row
+    assert row["away_team_name"] == "Team B", row
 
 
 @then(r'the summary reports (\d+) total, (\d+) won, (\d+) lost')

@@ -3,7 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from shared.logger import get_logger
-from src.domain.report import REPORT_TIMEZONE, filter_by_reference_day, format_report
+from src.domain.report import (
+    REPORT_TIMEZONE,
+    filter_by_reference_day,
+    filter_outcomes_by_day,
+    format_recap,
+    format_report,
+)
 
 logger = get_logger(__name__)
 
@@ -17,11 +23,17 @@ class ReportGenerator:
 
     async def run(self) -> None:
         config = self._config_repo.get()
-        reference_date = (datetime.now(REPORT_TIMEZONE) + timedelta(days=config.reference_day_offset)).date()
+        now = datetime.now(REPORT_TIMEZONE)
+        reference_date = (now + timedelta(days=config.reference_day_offset)).date()
+        recap_date = (now - timedelta(days=1)).date()
 
         value_bets = await self._value_bets_client.fetch()
         todays_bets = filter_by_reference_day(value_bets, reference_date)
-        text = format_report(todays_bets, reference_date)
+
+        outcomes = await self._value_bets_client.fetch_outcomes(recap_date)
+        yesterdays_outcomes = filter_outcomes_by_day(outcomes, recap_date)
+
+        text = format_recap(yesterdays_outcomes, recap_date) + "\n\n" + format_report(todays_bets, reference_date)
 
         recipients = self._recipients_repo.list_active()
         if not recipients:

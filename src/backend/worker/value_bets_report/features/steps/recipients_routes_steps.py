@@ -28,7 +28,8 @@ def step_repo(context):
 def step_repo_list(context, count):
     context.repo = Mock()
     context.repo.list_all.return_value = [
-        Recipient(id=i, phone_number=f"55119999999{i:02d}", name=None, active=True) for i in range(int(count))
+        Recipient(id=i, phone_number=f"55119999999{i:02d}", name=None, active=True, realtime_alerts=False)
+        for i in range(int(count))
     ]
 
 
@@ -37,15 +38,26 @@ def step_repo_toggle(context, recipient_id):
     context.repo = Mock()
 
     def _set_active(rid, active):
-        return Recipient(id=rid, phone_number="5511999999999", name=None, active=active)
+        return Recipient(id=rid, phone_number="5511999999999", name=None, active=active, realtime_alerts=False)
 
     context.repo.set_active.side_effect = _set_active
+
+
+@given(r'a recipients repository that can toggle realtime alerts for recipient (\d+)')
+def step_repo_toggle_realtime(context, recipient_id):
+    context.repo = Mock()
+
+    def _set_realtime(rid, enabled):
+        return Recipient(id=rid, phone_number="5511999999999", name=None, active=True, realtime_alerts=enabled)
+
+    context.repo.set_realtime_alerts.side_effect = _set_realtime
 
 
 @given('a recipients repository with no matching recipient')
 def step_repo_missing(context):
     context.repo = Mock()
     context.repo.set_active.return_value = None
+    context.repo.set_realtime_alerts.return_value = None
     context.error = None
 
 
@@ -64,6 +76,13 @@ def step_call_update(context, recipient_id, active):
     context.result = update_recipient(int(recipient_id), RecipientUpdate(active=(active == "true")), repo=context.repo)
 
 
+@when(r'I call the update_recipient endpoint for id (\d+) with realtime_alerts (true|false)')
+def step_call_update_realtime(context, recipient_id, realtime_alerts):
+    context.result = update_recipient(
+        int(recipient_id), RecipientUpdate(realtime_alerts=(realtime_alerts == "true")), repo=context.repo,
+    )
+
+
 @when(r'I call the update_recipient endpoint for id (\d+) with active (true|false) expecting an error')
 def step_call_update_error(context, recipient_id, active):
     try:
@@ -79,7 +98,7 @@ def step_call_delete(context, recipient_id):
 
 @then(r'the repository created a recipient with phone "([^"]+)" and name "([^"]+)"')
 def step_assert_created(context, phone, name):
-    context.repo.create.assert_called_once_with(phone_number=phone, name=name)
+    context.repo.create.assert_called_once_with(phone_number=phone, name=name, realtime_alerts=False)
 
 
 @then(r'(\d+) recipients? are returned')
@@ -90,6 +109,11 @@ def step_assert_count(context, count):
 @then('the returned recipient is inactive')
 def step_assert_inactive(context):
     assert context.result.active is False, context.result
+
+
+@then('the returned recipient has realtime alerts enabled')
+def step_assert_realtime_enabled(context):
+    assert context.result.realtime_alerts is True, context.result
 
 
 @then('a 404 HTTPException is raised')

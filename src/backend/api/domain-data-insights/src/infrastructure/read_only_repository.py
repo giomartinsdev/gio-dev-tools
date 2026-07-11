@@ -87,6 +87,26 @@ class ReadOnlyRepository:
             """), {"limit": limit, "offset": offset}).mappings().all()
         return [dict(r) for r in rows]
 
+    def find_value_bet_outcomes(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Most recently resolved first, so a caller paginating for "what
+        resolved on day X" (value_bets_report's recap) can stop as soon as
+        it sees a row older than the day it cares about."""
+        with TransactionManager.get().read_only() as s:
+            rows = s.execute(text("""
+                SELECT
+                    vbo.match_id, vbo.market, vbo.outcome, vbo.edge,
+                    vbo.bookmaker, vbo.best_odds, vbo.resolved_at, vbo.won,
+                    vbo.home_score, vbo.away_score,
+                    ht.name AS home_team_name, at.name AS away_team_name
+                FROM bzzoiro_data.value_bet_outcomes vbo
+                LEFT JOIN bzzoiro_data.matches m ON m.match_id = vbo.match_id
+                LEFT JOIN bzzoiro_data.teams ht ON ht.team_id = m.home_team_id
+                LEFT JOIN bzzoiro_data.teams at ON at.team_id = m.away_team_id
+                ORDER BY vbo.resolved_at DESC
+                LIMIT :limit OFFSET :offset
+            """), {"limit": limit, "offset": offset}).mappings().all()
+        return [dict(r) for r in rows]
+
     def summarize_value_bet_outcomes(self) -> dict:
         with TransactionManager.get().read_only() as s:
             result = s.execute(text("""

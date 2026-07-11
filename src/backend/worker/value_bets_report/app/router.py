@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,15 +19,19 @@ class ConfigUpdate(BaseModel):
     send_time: str
     reference_day_offset: int
     enabled: bool
+    realtime_alerts_enabled: bool
+    realtime_edge_threshold: Decimal
 
 
 class RecipientCreate(BaseModel):
     phone_number: str
     name: Optional[str] = None
+    realtime_alerts: bool = False
 
 
 class RecipientUpdate(BaseModel):
-    active: bool
+    active: Optional[bool] = None
+    realtime_alerts: Optional[bool] = None
 
 
 @router.get("/config")
@@ -40,6 +45,8 @@ def put_config(body: ConfigUpdate, repo: ConfigRepository = Depends(get_config_r
         send_time=body.send_time,
         reference_day_offset=body.reference_day_offset,
         enabled=body.enabled,
+        realtime_alerts_enabled=body.realtime_alerts_enabled,
+        realtime_edge_threshold=body.realtime_edge_threshold,
     )
 
 
@@ -50,7 +57,7 @@ def list_recipients(repo: RecipientsRepository = Depends(get_recipients_repo)):
 
 @router.post("/recipients")
 def create_recipient(body: RecipientCreate, repo: RecipientsRepository = Depends(get_recipients_repo)):
-    return repo.create(phone_number=body.phone_number, name=body.name)
+    return repo.create(phone_number=body.phone_number, name=body.name, realtime_alerts=body.realtime_alerts)
 
 
 @router.delete("/recipients/{recipient_id}")
@@ -63,7 +70,15 @@ def delete_recipient(recipient_id: int, repo: RecipientsRepository = Depends(get
 def update_recipient(
     recipient_id: int, body: RecipientUpdate, repo: RecipientsRepository = Depends(get_recipients_repo),
 ):
-    result = repo.set_active(recipient_id, body.active)
+    result = None
+    if body.active is not None:
+        result = repo.set_active(recipient_id, body.active)
+        if result is None:
+            raise HTTPException(status_code=404, detail="recipient not found")
+    if body.realtime_alerts is not None:
+        result = repo.set_realtime_alerts(recipient_id, body.realtime_alerts)
+        if result is None:
+            raise HTTPException(status_code=404, detail="recipient not found")
     if result is None:
         raise HTTPException(status_code=404, detail="recipient not found")
     return result

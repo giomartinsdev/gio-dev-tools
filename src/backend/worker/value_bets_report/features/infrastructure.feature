@@ -23,6 +23,11 @@ Feature: Infrastructure publishers
     When I fetch value bets
     Then all pages were combined into the result
 
+  Scenario: value bets outcomes client stops paginating once it passes the cutoff day
+    Given an outcomes client returning pages older than the cutoff after the first page
+    When I fetch outcomes with cutoff "2026-07-11"
+    Then only the first page of outcomes is in the result
+
   Scenario: consume_triggers acks a good message and nacks a poison one
     Given a fake broker with one good trigger message and one poison trigger message
     When the trigger consumer runs one connection cycle

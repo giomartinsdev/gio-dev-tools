@@ -25,3 +25,25 @@ Feature: Report domain logic
     Given no value bets
     When I format the report for "2026-07-12"
     Then the report contains "Nenhuma oportunidade"
+
+  Scenario: filters outcomes to only the given day
+    Given outcomes resolved on "2026-07-10" and "2026-07-11"
+    When I filter outcomes by day "2026-07-11"
+    Then only the "2026-07-11" outcomes remain
+
+  Scenario: formats a recap with win/loss counts and scores
+    Given 1 won outcome for match "m1" with market "1x2", outcome "HOME"
+    When I format the recap for "2026-07-11"
+    Then the recap contains "1/1 acertos"
+    And the recap contains "✅"
+
+  Scenario: formats an empty recap when nothing resolved
+    Given no outcomes
+    When I format the recap for "2026-07-11"
+    Then the recap contains "Nenhuma aposta resolvida"
+
+  Scenario: formats a realtime alert for a single value bet
+    Given 1 value bet for match "m1" with market "1x2", outcome "HOME", edge "0.25"
+    When I format a realtime alert for the first value bet
+    Then the realtime alert contains "alto edge"
+    And the realtime alert contains "25.0%"

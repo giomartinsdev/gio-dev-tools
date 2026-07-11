@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date
 from unittest.mock import AsyncMock, Mock, patch
 
 from behave import given, then, use_step_matcher, when
@@ -123,6 +124,44 @@ def step_value_bets_client_pages(context):
 def step_fetch_value_bets(context):
     with context.client_patch:
         context.result = asyncio.run(context.value_bets_client.fetch())
+
+
+@given('an outcomes client returning pages older than the cutoff after the first page')
+def step_outcomes_client_cutoff(context):
+    # 49 rows resolved on the cutoff day, last row resolved the day before —
+    # since pages are ordered most-recent-first, seeing that last row should
+    # stop pagination before a second page is ever requested. Only one
+    # response is registered on the fake client, so a bug that fetches a
+    # second page fails loudly (StopIteration) instead of silently passing.
+    page = [
+        {"match_id": f"m{i}", "resolved_at": "2026-07-11T12:00:00+00:00"} for i in range(49)
+    ] + [{"match_id": "m49", "resolved_at": "2026-07-10T12:00:00+00:00"}]
+
+    response = Mock()
+    response.json.return_value = page
+    response.raise_for_status = Mock()
+
+    fake_http_client = AsyncMock()
+    fake_http_client.get = AsyncMock(side_effect=[response])
+    fake_http_client.__aenter__ = AsyncMock(return_value=fake_http_client)
+    fake_http_client.__aexit__ = AsyncMock(return_value=False)
+
+    context.expected_first_page_size = len(page)
+    context.client_patch = patch.object(
+        value_bets_client_module.httpx, "AsyncClient", Mock(return_value=fake_http_client),
+    )
+    context.value_bets_client = ValueBetsClient()
+
+
+@when('I fetch outcomes with cutoff "([^"]+)"')
+def step_fetch_outcomes(context, cutoff):
+    with context.client_patch:
+        context.result = asyncio.run(context.value_bets_client.fetch_outcomes(date.fromisoformat(cutoff)))
+
+
+@then('only the first page of outcomes is in the result')
+def step_assert_first_page_only(context):
+    assert len(context.result) == context.expected_first_page_size, len(context.result)
 
 
 @then('all pages were combined into the result')

@@ -21,6 +21,12 @@ Feature: Read-only view over bzzoiro_data
     When I list value bets with limit 10 and offset 0
     Then 1 value bet dict is returned
 
+  Scenario: find_value_bet_outcomes returns outcomes joined with team names
+    Given a fake transaction manager returning 1 outcome row
+    When I list value bet outcomes with limit 10 and offset 0
+    Then 1 outcome dict is returned
+    And the outcome dict has home and away team names
+
   Scenario: summarize_value_bet_outcomes reports win rate
     Given a fake transaction manager returning 3 total and 2 won outcomes
     When I summarize value bet outcomes
