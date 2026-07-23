@@ -14,12 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect changed frontends
         id: changes
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD \
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            BASE="HEAD~1"
+          fi
+          CHANGED=$(git diff --name-only "$BASE" HEAD \
             | grep '^src/frontend/' \
             | cut -d'/' -f3 \
             | sort -u \

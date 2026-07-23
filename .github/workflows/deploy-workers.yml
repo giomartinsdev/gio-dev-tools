@@ -15,19 +15,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect changed workers
         id: changes
         run: |
-          SHARED_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -c '^src/backend/shared/' || true)
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            BASE="HEAD~1"
+          fi
+          SHARED_CHANGED=$(git diff --name-only "$BASE" HEAD | grep -c '^src/backend/shared/' || true)
           if [ "$SHARED_CHANGED" -gt 0 ]; then
             CHANGED=$(find src/backend/worker -maxdepth 1 -mindepth 1 -type d \
               | sed 's|src/backend/worker/||' \
               | sort -u \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD \
+            CHANGED=$(git diff --name-only "$BASE" HEAD \
               | grep '^src/backend/worker/' \
               | cut -d'/' -f4 \
               | sort -u \
