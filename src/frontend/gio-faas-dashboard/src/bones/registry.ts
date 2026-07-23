@@ -5,6 +5,8 @@ import { configureBoneyard } from 'boneyard-js/react'
 
 import _home_kpis from './home-kpis.bones.json'
 import _home_activity from './home-activity.bones.json'
+import _whatsapp_chats from './whatsapp-chats.bones.json'
+import _vbr_recipients from './vbr-recipients.bones.json'
 import _settings_list from './settings-list.bones.json'
 
 configureBoneyard({"color":"#eceef4","darkColor":"#1f2129","animate":"shimmer","shimmerColor":"#f5f6fa","darkShimmerColor":"#2a2c36","speed":"1.6s","stagger":70,"transition":350})
@@ -12,5 +14,7 @@ configureBoneyard({"color":"#eceef4","darkColor":"#1f2129","animate":"shimmer","
 registerBones({
   "home-kpis": _home_kpis,
   "home-activity": _home_activity,
+  "whatsapp-chats": _whatsapp_chats,
+  "vbr-recipients": _vbr_recipients,
   "settings-list": _settings_list,
 })

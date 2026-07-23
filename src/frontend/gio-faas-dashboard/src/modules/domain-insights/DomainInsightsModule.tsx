@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Trophy, Loader2, RefreshCw, Database, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ValueBetsReportModule } from '@/modules/value-bets-report/ValueBetsReportModule'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 
@@ -91,13 +92,13 @@ interface Insight {
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   notstarted: { label: 'Agendado', className: 'text-muted-foreground' },
-  inprogress: { label: 'Ao vivo', className: 'text-green-600 dark:text-green-400' },
-  '1st_half': { label: '1º tempo', className: 'text-green-600 dark:text-green-400' },
-  '2nd_half': { label: '2º tempo', className: 'text-green-600 dark:text-green-400' },
-  halftime: { label: 'Intervalo', className: 'text-amber-600 dark:text-amber-400' },
+  inprogress: { label: 'Ao vivo', className: 'text-success' },
+  '1st_half': { label: '1º tempo', className: 'text-success' },
+  '2nd_half': { label: '2º tempo', className: 'text-success' },
+  halftime: { label: 'Intervalo', className: 'text-warning' },
   finished: { label: 'Encerrado', className: 'text-muted-foreground' },
-  postponed: { label: 'Adiado', className: 'text-red-500 dark:text-red-400' },
-  cancelled: { label: 'Cancelado', className: 'text-red-500 dark:text-red-400' },
+  postponed: { label: 'Adiado', className: 'text-destructive' },
+  cancelled: { label: 'Cancelado', className: 'text-destructive' },
 }
 
 function statusBadge(status: string | null) {
@@ -217,7 +218,7 @@ export function DomainInsightsModule() {
     <div className="flex flex-col gap-6">
 
       {/* Header + win rate card */}
-      <div className="rounded-lg border bg-card px-5 py-4 flex items-center justify-between">
+      <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] px-5 py-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value bets resolvidos</p>
           <div className="flex items-baseline gap-2 mt-0.5">
@@ -238,7 +239,7 @@ export function DomainInsightsModule() {
       </div>
 
       {/* Overview grid */}
-      <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+      <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] p-4 flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
           <Database className="h-3.5 w-3.5" /> bzzoiro_data — visão geral
         </p>
@@ -266,11 +267,11 @@ export function DomainInsightsModule() {
           Value bets por partida{valueBetsByMatch.length > 0 && ` (${valueBetsByMatch.length})`}
         </p>
         {loading ? (
-          <div className="rounded-lg border bg-card py-10">
+          <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] py-10">
             <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
           </div>
         ) : valueBetsByMatch.length === 0 ? (
-          <div className="rounded-lg border bg-card py-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] py-8 text-center text-sm text-muted-foreground">
             Nenhum value bet em aberto no momento.
           </div>
         ) : (
@@ -278,7 +279,7 @@ export function DomainInsightsModule() {
             {valueBetsByMatch.map(group => {
               const badge = statusBadge(group.status)
               return (
-                <div key={group.match_id} className="rounded-lg border bg-card overflow-hidden">
+                <div key={group.match_id} className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] overflow-hidden">
                   <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{teamNames(group.home_team_name, group.away_team_name)}</p>
@@ -301,7 +302,7 @@ export function DomainInsightsModule() {
                         <tr key={`${vb.market}-${vb.outcome}-${i}`} className="border-b last:border-0">
                           <Td className="text-xs" title={vb.market}>{translateMarket(vb.market)}</Td>
                           <Td className="text-xs" title={vb.outcome}>{translateOutcome(vb.outcome)}</Td>
-                          <Td className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
+                          <Td className="text-right tabular-nums font-semibold text-success">
                             <span className="inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" />{formatEdge(vb.edge)}</span>
                           </Td>
                           <Td className="text-muted-foreground text-xs">{vb.bookmaker}</Td>
@@ -319,7 +320,7 @@ export function DomainInsightsModule() {
 
       {/* Matches + Insights side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-lg border bg-card overflow-auto">
+        <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] overflow-auto">
           <div className="px-4 py-2.5 border-b bg-muted/30">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partidas recentes</p>
           </div>
@@ -354,7 +355,7 @@ export function DomainInsightsModule() {
           </table>
         </div>
 
-        <div className="rounded-lg border bg-card overflow-auto">
+        <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] overflow-auto">
           <div className="px-4 py-2.5 border-b bg-muted/30">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Insights recentes (ML)</p>
           </div>
@@ -383,6 +384,16 @@ export function DomainInsightsModule() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Relatório diário de value bets no WhatsApp — folded in here since
+          it's the same domain (bzzoiro value bets), just a delivery channel
+          for it rather than a separate top-level app. */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Relatório no WhatsApp
+        </p>
+        <ValueBetsReportModule />
       </div>
     </div>
   )

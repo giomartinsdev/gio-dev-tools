@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { Skeleton } from 'boneyard-js/react'
 import { cn } from '@/lib/utils'
 
 const GW = import.meta.env.VITE_GATEWAY_URL
@@ -131,7 +132,7 @@ export function WhatsappModule() {
   const selectedChat = chats.find(c => c.remote_jid === selectedJid)
 
   return (
-    <div className="flex h-full rounded-lg border overflow-hidden">
+    <div className="flex h-full rounded-[14px] border shadow-[var(--shadow-card)] overflow-hidden">
       {/* Chat list */}
       <aside className="w-72 shrink-0 border-r flex flex-col bg-sidebar">
         <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -145,41 +146,60 @@ export function WhatsappModule() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {!loadingChats && chats.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground py-8">
-              <MessageSquare className="h-8 w-8 opacity-20" />
-              <p className="text-sm">Sem conversas</p>
-            </div>
-          ) : (
-            chats.map(chat => (
-              <button
-                key={chat.remote_jid}
-                onClick={() => setSelectedJid(chat.remote_jid)}
-                className={cn(
-                  'w-full flex flex-col gap-0.5 px-4 py-3 border-b text-left transition-colors',
-                  selectedJid === chat.remote_jid
-                    ? 'bg-sidebar-accent'
-                    : 'hover:bg-sidebar-accent/50'
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium truncate text-sidebar-foreground">
-                    {displayName(chat)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {fmtDate(chat.last_message_at)}
-                  </span>
+        <Skeleton
+          name="whatsapp-chats"
+          loading={loadingChats}
+          className="flex-1 overflow-y-auto"
+          fixture={
+            <div>
+              {['Fulano', 'Ciclana', 'Suporte'].map(name => (
+                <div key={name} className="flex flex-col gap-0.5 px-4 py-3 border-b text-left">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{name}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">12:00</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground truncate">Última mensagem de exemplo</span>
                 </div>
-                {chat.last_message_text && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    {chat.last_message_text}
-                  </span>
-                )}
-              </button>
-            ))
-          )}
-        </div>
+              ))}
+            </div>
+          }
+        >
+          <div className="flex-1 overflow-y-auto">
+            {chats.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground py-8">
+                <MessageSquare className="h-8 w-8 opacity-20" />
+                <p className="text-sm">Sem conversas</p>
+              </div>
+            ) : (
+              chats.map(chat => (
+                <button
+                  key={chat.remote_jid}
+                  onClick={() => setSelectedJid(chat.remote_jid)}
+                  className={cn(
+                    'w-full flex flex-col gap-0.5 px-4 py-3 border-b text-left transition-colors',
+                    selectedJid === chat.remote_jid
+                      ? 'bg-sidebar-accent'
+                      : 'hover:bg-sidebar-accent/50'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate text-sidebar-foreground">
+                      {displayName(chat)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {fmtDate(chat.last_message_at)}
+                    </span>
+                  </div>
+                  {chat.last_message_text && (
+                    <span className="text-xs text-muted-foreground truncate">
+                      {chat.last_message_text}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </Skeleton>
       </aside>
 
       {/* Message area */}

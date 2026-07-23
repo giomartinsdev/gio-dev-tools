@@ -37,7 +37,7 @@ createRoot(document.getElementById('root')!).render(
           <Route
             path="whatsapp"
             element={
-              <ModulePage title={whatsappMeta.label} description={whatsappMeta.description} icon={whatsappMeta.icon}>
+              <ModulePage title={whatsappMeta.label} description={whatsappMeta.description} icon={whatsappMeta.icon} fullHeight>
                 <WhatsappModule />
               </ModulePage>
             }

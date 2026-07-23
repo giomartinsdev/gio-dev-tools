@@ -218,7 +218,7 @@ export function PortfolioModule() {
     <div className="flex flex-col gap-6">
 
       {/* Total card */}
-      <div className="rounded-lg border bg-card px-5 py-4 flex items-center justify-between">
+      <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] px-5 py-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Portfolio</p>
           <p className="text-2xl font-bold tabular-nums text-foreground mt-0.5">{formatBRL(total)}</p>
@@ -226,8 +226,8 @@ export function PortfolioModule() {
             {hasQuotes && <p className="text-xs text-muted-foreground">com cotação atualizada</p>}
             {syncResult && (
               <p className="text-xs text-muted-foreground">
-                {syncResult.updated.length > 0 && <span className="text-green-600 dark:text-green-400">{syncResult.updated.length} atualizados</span>}
-                {syncResult.failed.length > 0 && <span className="text-red-500 dark:text-red-400 ml-1">{syncResult.failed.length} falhou</span>}
+                {syncResult.updated.length > 0 && <span className="text-success">{syncResult.updated.length} atualizados</span>}
+                {syncResult.failed.length > 0 && <span className="text-destructive ml-1">{syncResult.failed.length} falhou</span>}
               </p>
             )}
           </div>
@@ -255,7 +255,7 @@ export function PortfolioModule() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-auto">
+      <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] overflow-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
@@ -280,7 +280,7 @@ export function PortfolioModule() {
               const isEditing = editingId === asset.id
               if (isEditing && editDraft) {
                 return (
-                  <tr key={asset.id} className="border-b bg-amber-50/40 dark:bg-amber-950/20">
+                  <tr key={asset.id} className="border-b bg-warning/10">
                     <td className="px-1.5 py-1.5">
                       <input type="text" value={editDraft.name} onChange={e => setEdit('name', e.target.value)} onKeyDown={onEditKeyDown} placeholder="Nome..." className={cellInput} />
                     </td>
@@ -349,7 +349,7 @@ export function PortfolioModule() {
                       <div className="flex flex-col items-end gap-0.5">
                         <span className="tabular-nums font-medium">{formatBRL(parseFloat(q.price))}</span>
                         {changePct !== null && (
-                          <span className={cn('text-xs tabular-nums flex items-center gap-0.5', changePct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+                          <span className={cn('text-xs tabular-nums flex items-center gap-0.5', changePct >= 0 ? 'text-success' : 'text-destructive')}>
                             {changePct >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                             {formatPct(q.daily_change_pct)}
                           </span>
@@ -365,10 +365,10 @@ export function PortfolioModule() {
                   <Td className="text-right">
                     {gainLoss !== null && gainLossPct !== null ? (
                       <div className="flex flex-col items-end gap-0.5">
-                        <span className={cn('tabular-nums font-medium text-sm', gainLoss >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+                        <span className={cn('tabular-nums font-medium text-sm', gainLoss >= 0 ? 'text-success' : 'text-destructive')}>
                           {gainLoss >= 0 ? '+' : ''}{formatBRL(gainLoss)}
                         </span>
-                        <span className={cn('text-xs tabular-nums', gainLossPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+                        <span className={cn('text-xs tabular-nums', gainLossPct >= 0 ? 'text-success' : 'text-destructive')}>
                           {formatPct(q!.gain_loss_pct)}
                         </span>
                       </div>
@@ -391,7 +391,7 @@ export function PortfolioModule() {
             })}
 
             {/* Input row */}
-            <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
+            <tr className="border-b bg-primary/5">
               <td className="px-1.5 py-1.5">
                 <input type="text" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} onKeyDown={onKeyDown} placeholder="Nome..." className={cellInput} />
               </td>
@@ -429,12 +429,12 @@ export function PortfolioModule() {
 
       {/* Rendimentos section */}
       {fiiWithDividend.length > 0 && (
-        <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+        <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rendimentos</p>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Renda mensal estimada:</span>
-              <span className="text-sm font-bold text-green-600 dark:text-green-400 tabular-nums">{formatBRL(monthlyIncome)}</span>
+              <span className="text-sm font-bold text-success tabular-nums">{formatBRL(monthlyIncome)}</span>
             </div>
           </div>
           <table className="w-full text-sm">
@@ -461,7 +461,7 @@ export function PortfolioModule() {
                     <Td className="font-medium">{a.name}</Td>
                     <Td><span className="font-mono text-xs font-semibold">{a.ticker}</span></Td>
                     <Td className="text-right tabular-nums">{formatBRL(price)}</Td>
-                    <Td className="text-right tabular-nums text-green-600 dark:text-green-400 font-medium">
+                    <Td className="text-right tabular-nums text-success font-medium">
                       {formatBRL(dividend)}
                     </Td>
                     <Td className="text-right text-muted-foreground text-xs">
@@ -470,7 +470,7 @@ export function PortfolioModule() {
                     <Td className="text-right tabular-nums text-xs font-medium">
                       {yieldPct.toFixed(2)}%
                     </Td>
-                    <Td className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
+                    <Td className="text-right tabular-nums font-semibold text-success">
                       {formatBRL(income)}
                     </Td>
                   </tr>
@@ -484,7 +484,7 @@ export function PortfolioModule() {
       {/* Charts */}
       {assets.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+          <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] p-4 flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuição por Tipo</p>
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
@@ -498,7 +498,7 @@ export function PortfolioModule() {
             </ResponsiveContainer>
           </div>
 
-          <div className="rounded-lg border bg-card p-4 flex flex-col gap-3">
+          <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] p-4 flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuição por Instituição</p>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={byInstitution} layout="vertical" margin={{ left: 8, right: 16 }}>

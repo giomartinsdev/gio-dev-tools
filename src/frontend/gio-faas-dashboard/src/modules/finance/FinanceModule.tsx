@@ -335,7 +335,7 @@ export function FinanceModule() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-auto">
+      <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] overflow-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
@@ -360,7 +360,7 @@ export function FinanceModule() {
 
                 if (isEditing && editDraft) {
                   return (
-                    <tr key={tx.id} className="border-b bg-amber-50/40 dark:bg-amber-950/20">
+                    <tr key={tx.id} className="border-b bg-warning/10">
                       <td className="px-1.5 py-1.5">
                         <input type="date" value={editDraft.date} onChange={e => setEdit('date', e.target.value)} onKeyDown={onEditKeyDown} className={cellInput} />
                       </td>
@@ -376,8 +376,8 @@ export function FinanceModule() {
                         <button type="button" onClick={toggleEditType} className={cn(
                           'w-full rounded px-2 py-1 text-xs font-medium border transition-colors',
                           editDraft.type === 'income'
-                            ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
-                            : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
+                            ? 'border-success/40 bg-success/10 text-success'
+                            : 'border-destructive/40 bg-destructive/10 text-destructive'
                         )}>
                           {editDraft.type === 'income' ? 'Income' : 'Expense'}
                         </button>
@@ -406,7 +406,7 @@ export function FinanceModule() {
                     <Td className={cn(
                       'text-right font-semibold tabular-nums',
                       isReversal ? 'text-muted-foreground'
-                        : tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                        : tx.type === 'income' ? 'text-success' : 'text-destructive'
                     )}>
                       {isReversal
                         ? `(${formatBRL(Math.abs(rawAmt))})`
@@ -430,7 +430,7 @@ export function FinanceModule() {
             )}
 
             {/* Input row */}
-            <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
+            <tr className="border-b bg-primary/5">
               <td className="px-1.5 py-1.5">
                 <input ref={dateRef} type="date" value={draft.date} onChange={e => set('date', e.target.value)} onKeyDown={onKeyDown} className={cellInput} />
               </td>
@@ -446,8 +446,8 @@ export function FinanceModule() {
                 <button type="button" onClick={toggleType} className={cn(
                   'w-full rounded px-2 py-1 text-xs font-medium border transition-colors',
                   draft.type === 'income'
-                    ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300'
-                    : 'border-red-500 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
+                    ? 'border-success/40 bg-success/10 text-success'
+                    : 'border-destructive/40 bg-destructive/10 text-destructive'
                 )}>
                   {draft.type === 'income' ? 'Income' : 'Expense'}
                 </button>
@@ -466,7 +466,7 @@ export function FinanceModule() {
       </div>
 
       {/* Charts section */}
-      <div className="rounded-lg border bg-card p-4 flex flex-col gap-4">
+      <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] p-4 flex flex-col gap-4">
         {/* Period tabs */}
         <div className="flex items-center gap-1 self-start rounded-lg bg-muted p-1">
           {(['month', '6m', '1y'] as ChartPeriod[]).map(p => (
@@ -628,11 +628,11 @@ function RangeCharts({ data }: { data: MonthData[] }) {
 
 function TotalCard({ label, value, color }: { label: string; value: number; color: 'green' | 'red' }) {
   return (
-    <div className="rounded-lg border bg-card px-4 py-3 space-y-1">
+    <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] px-4 py-3 space-y-1">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn(
         'text-lg font-bold tabular-nums',
-        color === 'green' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+        color === 'green' ? 'text-success' : 'text-destructive'
       )}>
         {formatBRL(value)}
       </p>
@@ -666,8 +666,8 @@ function TypePill({ type }: { type: TransactionType }) {
     <span className={cn(
       'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
       type === 'income'
-        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-        : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+        ? 'bg-success/15 text-success'
+        : 'bg-destructive/15 text-destructive'
     )}>
       {type === 'income' ? 'Income' : 'Expense'}
     </span>

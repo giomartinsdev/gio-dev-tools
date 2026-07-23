@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Send, Loader2, Trash2, CalendarClock, Zap } from 'lucide-react'
+import { Skeleton } from 'boneyard-js/react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -155,7 +156,7 @@ export function ValueBetsReportModule() {
             {config ? `Envio diário às ${config.send_time} com as value bets de ${referenceDayLabel(config.reference_day_offset)}` : ''}
           </p>
           {sentAt && (
-            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+            <p className="text-xs text-success mt-0.5">
               Enviado às {sentAt.toLocaleTimeString('pt-BR')}
             </p>
           )}
@@ -246,40 +247,60 @@ export function ValueBetsReportModule() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-            {loadingRecipients ? (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            ) : recipients.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum destinatário cadastrado.</p>
-            ) : recipients.map(r => (
-              <div key={r.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">{r.name || r.phone_number}</p>
-                  {r.name && <p className="text-xs text-muted-foreground">{r.phone_number}</p>}
+            <Skeleton
+              name="vbr-recipients"
+              loading={loadingRecipients}
+              fixture={
+                <div className="flex flex-col gap-2">
+                  {['Gio', '5511999999999'].map(name => (
+                    <div key={name} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <p className="text-sm font-medium">{name}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="h-5 w-9 rounded-full bg-muted" />
+                        <div className="h-5 w-9 rounded-full bg-muted" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5" title="Alertas em tempo real">
-                    <Zap className={r.realtime_alerts ? 'h-3.5 w-3.5 text-amber-500' : 'h-3.5 w-3.5 text-muted-foreground/40'} />
-                    <Switch
-                      checked={r.realtime_alerts}
-                      disabled={togglingId === r.id}
-                      onCheckedChange={() => toggleRealtimeAlerts(r)}
-                    />
-                  </div>
-                  <Switch
-                    checked={r.active}
-                    disabled={togglingId === r.id}
-                    onCheckedChange={() => toggleRecipient(r)}
-                  />
-                  <button
-                    onClick={() => removeRecipient(r.id)}
-                    disabled={deletingId === r.id}
-                    className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
-                  >
-                    {deletingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
+              }
+            >
+              {recipients.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum destinatário cadastrado.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {recipients.map(r => (
+                    <div key={r.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium">{r.name || r.phone_number}</p>
+                        {r.name && <p className="text-xs text-muted-foreground">{r.phone_number}</p>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5" title="Alertas em tempo real">
+                          <Zap className={r.realtime_alerts ? 'h-3.5 w-3.5 text-warning' : 'h-3.5 w-3.5 text-muted-foreground/40'} />
+                          <Switch
+                            checked={r.realtime_alerts}
+                            disabled={togglingId === r.id}
+                            onCheckedChange={() => toggleRealtimeAlerts(r)}
+                          />
+                        </div>
+                        <Switch
+                          checked={r.active}
+                          disabled={togglingId === r.id}
+                          onCheckedChange={() => toggleRecipient(r)}
+                        />
+                        <button
+                          onClick={() => removeRecipient(r.id)}
+                          disabled={deletingId === r.id}
+                          className="rounded p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
+                        >
+                          {deletingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              )}
+            </Skeleton>
 
             <div className="flex items-end gap-2 mt-2">
               <div className="flex flex-col gap-1.5 flex-1">
@@ -301,7 +322,7 @@ export function ValueBetsReportModule() {
                 />
               </div>
               <div className="flex items-center gap-1.5 pb-2" title="Alertas em tempo real">
-                <Zap className={newRealtimeAlerts ? 'h-3.5 w-3.5 text-amber-500' : 'h-3.5 w-3.5 text-muted-foreground/40'} />
+                <Zap className={newRealtimeAlerts ? 'h-3.5 w-3.5 text-warning' : 'h-3.5 w-3.5 text-muted-foreground/40'} />
                 <Switch checked={newRealtimeAlerts} onCheckedChange={setNewRealtimeAlerts} />
               </div>
               <Button onClick={addRecipient} disabled={addingRecipient || !newPhone} size="sm">
