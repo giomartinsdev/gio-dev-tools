@@ -30,6 +30,15 @@ services:
     networks:
       - persistence
 
+  contact:
+    image: re.giomartins.dev/contact:latest
+    container_name: contact
+    ports:
+      - "8078:80"
+    restart: unless-stopped
+    networks:
+      - persistence
+
   infisical-migration:
     image: infisical/infisical:latest-postgres
     container_name: infisical-migration

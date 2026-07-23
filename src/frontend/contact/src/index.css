@@ -1,0 +1,278 @@
+@font-face { font-family: 'Fraunces'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/fraunces-400.woff2') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/fraunces-500.woff2') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/fraunces-600.woff2') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-weight: 900; font-style: normal; font-display: swap; src: url('/fonts/fraunces-900.woff2') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-weight: 400; font-style: italic; font-display: swap; src: url('/fonts/fraunces-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-weight: 500; font-style: italic; font-display: swap; src: url('/fonts/fraunces-500-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-weight: 300; font-style: normal; font-display: swap; src: url('/fonts/archivo-300.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/archivo-400.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/archivo-500.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/archivo-600.woff2') format('woff2'); }
+
+:root {
+  --ink: #120A18;
+  --ink-2: #1B1024;
+  --line: rgba(241, 236, 245, 0.14);
+  --paper: #EDE9F3;
+  --cyan: #35E0C7;
+  --magenta: #FF3E7F;
+  --violet: #6C3FD1;
+  --text: #F1ECF5;
+  --text-dim: #ADA0C2;
+  --text-faint: #6C5F87;
+  --ink-text: #1C1024;
+  --ink-dim: #5B4E73;
+}
+
+* { box-sizing: border-box; }
+::selection { background: var(--magenta); color: var(--ink); }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family: 'Archivo', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+a { color: inherit; }
+
+.eyebrow {
+  font-family: 'Archivo', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+/* ---------- page shell: nav / stage / strip, no scroll ---------- */
+.page {
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 5vw;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.nav .mark {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--text);
+  font-size: 16px;
+}
+
+/* ---------- stage: generative field + name ---------- */
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: clamp(16px, 3vh, 40px) 5vw;
+}
+#field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- magnetic name: letters nudge away from the cursor ---------- */
+/* No decorative shape at all — the interaction is with the content itself.
+   Only cost per frame is a transform on a handful of letter spans. */
+.hero-name .letter {
+  display: inline-block;
+  transition: transform 0.15s ease-out;
+  will-change: transform;
+}
+
+.stage-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 6vw;
+  align-items: center;
+}
+.hero-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: clamp(34px, 5vw + 2.4vh, 92px);
+  line-height: 0.94;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.hero-name em {
+  font-style: italic;
+  font-weight: 400;
+}
+/* Each letter is its own element (for the magnetic effect), so the gradient
+   has to be clipped per-letter too — background-size/position are set in JS
+   from each letter's real offset, so it still reads as one continuous sweep
+   across the word instead of repeating per letter. */
+.hero-name em .letter {
+  background-image: linear-gradient(100deg, var(--cyan), var(--magenta) 75%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-sub {
+  margin: clamp(8px, 1.6vh, 18px) 0 0;
+  max-width: 40ch;
+  font-size: clamp(12.5px, 1vw + 0.5vh, 16px);
+  line-height: 1.5;
+  color: var(--text-dim);
+  font-weight: 300;
+}
+
+/* ---------- side projects: fills the blank space next to the name ---------- */
+.side-projects {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1vh, 12px);
+}
+.side-projects .eyebrow { margin-bottom: 2px; }
+.side-card {
+  display: block;
+  padding: clamp(8px, 1.2vh, 13px) 0;
+  border-top: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--text);
+}
+.side-card:first-of-type { border-top: none; }
+.side-card:hover .side-title { color: var(--cyan); }
+.side-title {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(17px, 1.1vw + 0.7vh, 20px);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  transition: color 0.15s ease;
+}
+.side-title .arrow { font-family: 'Archivo', sans-serif; font-style: normal; font-size: 14px; color: var(--magenta); }
+.side-desc {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  font-weight: 300;
+  max-width: 40ch;
+}
+.side-lang {
+  margin-top: 7px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.side-points {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.side-points li {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  font-weight: 300;
+  padding-left: 15px;
+  position: relative;
+}
+.side-points li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--magenta);
+}
+.side-lang::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dot, var(--cyan)); }
+
+/* ---------- bottom strip: everything else, dense ---------- */
+.strip {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--line);
+  background: var(--ink);
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 28px;
+  padding: clamp(14px, 2.2vh, 24px) 5vw clamp(16px, 2.6vh, 26px);
+}
+.strip-col h2 {
+  margin: 0 0 10px;
+}
+.strip-col p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  font-weight: 300;
+  max-width: 58ch;
+}
+.strip-col strong { color: var(--text); font-weight: 500; }
+
+.chip-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  color: var(--text-faint);
+}
+
+.contact-list { display: flex; flex-direction: column; gap: 4px; }
+.contact-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 14px;
+}
+.contact-item .go { color: var(--magenta); }
+.contact-item.disabled { color: var(--text-faint); cursor: default; }
+.contact-item.disabled .go { color: var(--text-faint); }
+.contact-item:hover:not(.disabled) { color: var(--cyan); }
+
+@media (max-width: 760px) {
+  html, body { overflow: auto; height: auto; }
+  .page { height: auto; min-height: 100svh; }
+  .stage { padding: 40px 6vw; }
+  .stage-content { grid-template-columns: 1fr; gap: 32px; }
+  .strip { grid-template-columns: 1fr; gap: 22px; padding: 20px 6vw 32px; }
+  .hero-name { font-size: clamp(38px, 14vw, 84px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
