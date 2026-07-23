@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Trophy, Loader2, RefreshCw, Database, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ValueBetsReportModule } from '@/modules/value-bets-report/ValueBetsReportModule'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 
@@ -222,7 +221,7 @@ export function DomainInsightsModule() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value bets resolvidos</p>
           <div className="flex items-baseline gap-2 mt-0.5">
-            <p className="text-2xl font-bold tabular-nums text-foreground">{formatPct(winRate)}</p>
+            <p className="font-mono text-2xl font-bold tabular-nums text-foreground">{formatPct(winRate)}</p>
             <p className="text-xs text-muted-foreground">
               {summary ? `${summary.won}/${summary.total} ganhos` : '—'}
             </p>
@@ -250,7 +249,7 @@ export function DomainInsightsModule() {
             {overview.map(row => (
               <div key={row.table} className="rounded-md border px-2.5 py-2 flex flex-col gap-0.5">
                 <span className="text-xs font-medium truncate" title={row.table}>{row.table}</span>
-                <span className="text-lg font-bold tabular-nums">{row.rows}</span>
+                <span className="font-mono text-lg font-bold tabular-nums">{row.rows}</span>
                 <span className="text-[10px] text-muted-foreground">{timeAgo(row.most_recent)}</span>
               </div>
             ))}
@@ -384,16 +383,6 @@ export function DomainInsightsModule() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Relatório diário de value bets no WhatsApp — folded in here since
-          it's the same domain (bzzoiro value bets), just a delivery channel
-          for it rather than a separate top-level app. */}
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
-          Relatório no WhatsApp
-        </p>
-        <ValueBetsReportModule />
       </div>
     </div>
   )

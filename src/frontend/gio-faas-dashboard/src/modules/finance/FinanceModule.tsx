@@ -328,10 +328,10 @@ export function FinanceModule() {
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-3 gap-4">
-        <TotalCard label="Income" value={totals.income} color="green" />
-        <TotalCard label="Expenses" value={Math.abs(totals.expenses)} color="red" />
-        <TotalCard label="Balance" value={totals.balance} color={totals.balance >= 0 ? 'green' : 'red'} />
+      <div className="grid grid-cols-3 gap-0 rounded-[14px] border bg-card shadow-[var(--shadow-card)] px-5 py-4">
+        <Kpi label="Income" value={formatBRL(totals.income)} tone="green" first />
+        <Kpi label="Expenses" value={formatBRL(Math.abs(totals.expenses))} tone="red" />
+        <Kpi label="Balance" value={formatBRL(totals.balance)} tone={totals.balance >= 0 ? 'green' : 'red'} />
       </div>
 
       {/* Table */}
@@ -626,16 +626,13 @@ function RangeCharts({ data }: { data: MonthData[] }) {
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
-function TotalCard({ label, value, color }: { label: string; value: number; color: 'green' | 'red' }) {
+function Kpi({ label, value, tone, first }: { label: string; value: string; tone: 'green' | 'red'; first?: boolean }) {
   return (
-    <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] px-4 py-3 space-y-1">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn(
-        'text-lg font-bold tabular-nums',
-        color === 'green' ? 'text-success' : 'text-destructive'
-      )}>
-        {formatBRL(value)}
-      </p>
+    <div className={cn('flex flex-col-reverse gap-1 border-l px-5', first && 'border-l-0 pl-0')}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn('font-mono text-xl font-semibold tabular-nums', tone === 'green' ? 'text-success' : 'text-destructive')}>
+        {value}
+      </div>
     </div>
   )
 }

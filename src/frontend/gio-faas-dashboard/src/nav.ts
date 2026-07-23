@@ -17,7 +17,7 @@ export const appsNav: NavItem[] = [
   { path: '/portfolio', label: 'Portfolio', description: 'Track your investments and assets', icon: Landmark, live: true },
   { path: '/whatsapp', label: 'WhatsApp', description: 'Conversas e mensagens do WhatsApp', icon: MessageSquare, live: true },
   { path: '/sports-data', label: 'Sports Data', description: 'bzzoiro pipeline — matches, value bets and ML insights', icon: Trophy, live: true },
-  { path: '/settings', label: 'Configuração', description: 'Cadastro de credenciais e integrações por serviço', icon: Settings, live: false },
+  { path: '/settings', label: 'Configuração', description: 'Números, periodicidade e envio dos relatórios e serviços', icon: Settings, live: false },
 ]
 
 export const allNav: NavItem[] = [...overviewNav, ...appsNav]

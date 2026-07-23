@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { ValueBetsReportModule } from '@/modules/value-bets-report/ValueBetsReportModule'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 
@@ -144,24 +145,28 @@ export default function SettingsModule() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <SettingsIcon className="h-5 w-5 text-muted-foreground" />
-            Configuração
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cadastro de credenciais e integrações por serviço. As credenciais em si ficam no Infisical —
-            aqui você registra só a referência.
-          </p>
-        </div>
-        {!creating && (
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <SettingsIcon className="h-5 w-5 text-muted-foreground" />
+          Configuração
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Os números, a periodicidade e os destinatários das coisas que rodam sozinhas — a começar
+          pelo relatório de value bets.
+        </p>
+      </div>
+
+      <SectionHeader title="Relatório de value bets" />
+      <ValueBetsReportModule />
+
+      <SectionHeader title="Serviços" action={
+        !creating && (
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
             Novo serviço
           </Button>
-        )}
-      </div>
+        )
+      } />
 
       {error && (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -297,9 +302,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
+  return (
+    <div className="mb-3 mt-9 flex items-baseline justify-between first:mt-0">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+      {action}
+    </div>
+  )
+}
+
 export const settingsMeta = {
   id: 'settings' as const,
   label: 'Configuração',
-  description: 'Cadastro de credenciais e integrações por serviço',
+  description: 'Números, periodicidade e envio dos relatórios e serviços',
   icon: SettingsIcon,
 }

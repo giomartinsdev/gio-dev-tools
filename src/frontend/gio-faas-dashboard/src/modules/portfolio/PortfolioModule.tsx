@@ -221,7 +221,7 @@ export function PortfolioModule() {
       <div className="rounded-[14px] border bg-card shadow-[var(--shadow-card)] px-5 py-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Portfolio</p>
-          <p className="text-2xl font-bold tabular-nums text-foreground mt-0.5">{formatBRL(total)}</p>
+          <p className="font-mono text-2xl font-bold tabular-nums text-foreground mt-0.5">{formatBRL(total)}</p>
           <div className="flex items-center gap-2 mt-0.5">
             {hasQuotes && <p className="text-xs text-muted-foreground">com cotação atualizada</p>}
             {syncResult && (
