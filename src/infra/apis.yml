@@ -77,6 +77,19 @@ services:
       - apis
       - persistence
 
+  settings:
+    image: re.giomartins.dev/settings:latest
+    container_name: settings
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    networks:
+      - apis
+      - persistence
+
 networks:
   apis:
     name: apis

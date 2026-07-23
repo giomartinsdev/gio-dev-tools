@@ -14,6 +14,7 @@ services:
       PORTFOLIO_URL: http://portfolio:8000
       WHATSAPP_URL: http://whatsapp:8000
       DOMAIN_DATA_INSIGHTS_URL: http://domain-data-insights:8000
+      SETTINGS_URL: http://settings:8000
       PORT: 3000
     restart: unless-stopped
     networks:

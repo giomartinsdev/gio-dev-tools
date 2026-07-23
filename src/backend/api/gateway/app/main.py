@@ -18,6 +18,7 @@ PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "http://portfolio:8000")
 WHATSAPP_URL = os.environ.get("WHATSAPP_URL", "http://whatsapp:8000")
 DOMAIN_DATA_INSIGHTS_URL = os.environ.get("DOMAIN_DATA_INSIGHTS_URL", "http://domain-data-insights:8000")
 VALUE_BETS_REPORT_URL = os.environ.get("VALUE_BETS_REPORT_URL", "http://value-bets-report:8000")
+SETTINGS_URL = os.environ.get("SETTINGS_URL", "http://settings:8000")
 
 _HOP_BY_HOP = {
     "connection", "keep-alive", "transfer-encoding",
@@ -126,6 +127,13 @@ async def proxy_value_bets_report(request: Request, path: str = ""):
     return await _forward_internal(request, target)
 
 
+@app.api_route("/settings", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@app.api_route("/settings/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_settings(request: Request, path: str = ""):
+    target = f"{SETTINGS_URL}/{path}" if path else SETTINGS_URL
+    return await _forward_internal(request, target)
+
+
 async def _forward_stream(request: Request, target: str) -> StreamingResponse:
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
 
@@ -184,4 +192,5 @@ def health():
         "whatsapp_url": WHATSAPP_URL,
         "domain_data_insights_url": DOMAIN_DATA_INSIGHTS_URL,
         "value_bets_report_url": VALUE_BETS_REPORT_URL,
+        "settings_url": SETTINGS_URL,
     }
