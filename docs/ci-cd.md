@@ -1,40 +1,48 @@
 # CI/CD
 
-## Functions — `deploy.yml`
+Three workflows, one per part of the stack, all triggered on push to `main`:
 
-Triggers on push to `main` when any file under `functions/**` changes.
+| Workflow | Watches | Builds |
+|---|---|---|
+| `.github/workflows/deploy-api.yml` | `src/backend/api/**`, `src/backend/shared/**` | Each changed service under `src/backend/api/` |
+| `.github/workflows/deploy-workers.yml` | `src/backend/worker/**`, `src/backend/shared/**` | Each changed service under `src/backend/worker/` |
+| `.github/workflows/deploy-frontends.yml` | `src/frontend/**` | Each changed app under `src/frontend/` |
 
-### Steps
+## How change detection works
 
-1. **Detect changes** — diffs `HEAD~1..HEAD` to find which function directories changed (excludes `shared/`)
-2. **Build** — builds the Docker image for each changed function using the shared `Dockerfile` at repo root (or a function-local `Dockerfile` if present), tagged as `re.giomartins.dev/{function}:latest` and `:{sha}`
-3. **Deploy** — SSHs into the server via Cloudflare Access tunnel and runs `faas-cli deploy` with the new image and environment variables
+Each workflow's `detect-changes` job diffs `${{ github.event.before }}..HEAD` (the
+full push, not just the last commit — a push with multiple commits used to lose
+everything before the last one when this diffed `HEAD~1..HEAD` instead) to find
+which service directories changed, and outputs that list as a JSON array consumed
+by the `build` job's matrix.
 
-### Function-specific env vars
+If `src/backend/shared/**` changed, **every** API or worker is rebuilt (a shared-lib
+change can affect all of them, and there's no reliable way to know which ones
+without rebuilding).
 
-Injected conditionally in the deploy step. Currently:
+## Build steps (per changed service)
 
-| Function | Variables |
-|---|---|
-| `wp-message` | `EVOLUTION_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_NAME` |
+1. If `features/` exists, install `requirements.txt` + `requirements-dev.txt` and
+   run `python -m behave --no-capture` (workers additionally gate on **90% branch
+   coverage** via `coverage run -m behave` + `coverage report`)
+2. Build the Docker image (`docker/build-push-action`), tagged `:latest` and
+   `:{sha}`, pushed to the private registry `re.giomartins.dev`
+3. Cache: `type=gha`, scoped per service — layers are reused across runs
 
-All functions receive the shared OTEL variables (`OTEL_EXPORTER_OTLP_ENDPOINT`, etc.).
+## Deploy step
 
-### Adding env vars for a new function
+Every workflow's `deploy` job POSTs to a Dockhand webhook
+(`secrets.DOCKHAND_WEBHOOK`) with Cloudflare Access headers. Dockhand pulls the
+stack's compose file from this repo and redeploys the containers with the newly
+pushed image.
 
-See [Adding a function](adding-a-function.md#4-add-environment-variables-if-needed).
+> Changes to `src/infra/*.yml` alone (no service code change) aren't watched by any
+> workflow — if you only add/edit a compose file, trigger the Dockhand redeploy for
+> that stack manually until this is wired up.
 
----
+## Adding a new service to CI
 
-## Gateway — `gateway-deploy.yml`
-
-Triggers on push to `main` when any file under `gateway/**` changes.
-
-### Steps
-
-1. **Build** — builds `gateway/Dockerfile`, pushes `re.giomartins.dev/gateway:latest` and `:{sha}`
-2. **Deploy** — POSTs to the Dockhand webhook (`DOCKHAND_GATEWAY_WEBHOOK` secret), which pulls the new image and recreates the container
-
-### Image cache
-
-Both workflows use GitHub Actions cache (`type=gha`) scoped per function/service to speed up layer reuse.
+Nothing to configure — the workflows auto-discover services by directory presence
+under `src/backend/api/`, `src/backend/worker/`, or `src/frontend/`. Push a change
+inside a new service's directory and it's picked up automatically. See
+[Adding a service](adding-a-service.md).

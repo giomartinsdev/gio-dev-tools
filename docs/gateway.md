@@ -1,54 +1,74 @@
 # Gateway
 
+`src/backend/api/gateway` — the only backend service the frontend talks to directly.
+A thin FastAPI reverse proxy: no business logic, no database.
+
 ## Routing
 
-All requests follow the pattern:
+Every internal service gets a path prefix that maps 1:1 to its container:
 
 ```
-{METHOD} /fn/{function_name}[/{path}]
+{METHOD} /{service}[/{path}]  →  http://{service}:8000/{path}
 ```
 
-The gateway strips hop-by-hop headers, injects Cloudflare Access credentials, and forwards the request — including body, query params, and remaining headers — to:
+e.g. `GET /portfolio/assets` → `http://portfolio:8000/assets`. Hop-by-hop headers
+are stripped before forwarding; everything else (method, body, query params,
+remaining headers) passes through as-is, and the upstream response is forwarded
+back unchanged.
 
-```
-https://of.giomartins.dev/function/{function_name}[/{path}]
-```
+Two special cases:
+- `GET /whatsapp/events` — proxied as a streamed `text/event-stream` (SSE), not
+  buffered like the rest
+- `/fn/{function}` and `/fn-async/{function}` — legacy passthrough to an external
+  OpenFaaS gateway (`FAAS_GATEWAY_URL`), predates the current service-per-domain
+  architecture, kept for whatever still depends on it
 
-The response (status code, headers, body) is forwarded back as-is.
+## Environment variables
+
+| Variable | Default | Points to |
+|---|---|---|
+| `FINANCE_URL` | `http://finance:8000` | finance API |
+| `FINANCE_OCR_URL` | `http://finance-ocr:8000` | finance-ocr API |
+| `ASSET_QUOTES_URL` | `http://asset-quotes:8000` | asset-quotes API |
+| `PORTFOLIO_URL` | `http://portfolio:8000` | portfolio API |
+| `WHATSAPP_URL` | `http://whatsapp:8000` | whatsapp API |
+| `DOMAIN_DATA_INSIGHTS_URL` | `http://domain-data-insights:8000` | domain-data-insights API |
+| `VALUE_BETS_REPORT_URL` | `http://value-bets-report:8000` | value_bets_report worker's HTTP surface |
+| `SETTINGS_URL` | `http://settings:8000` | settings API |
+| `FAAS_GATEWAY_URL` | `https://of.giomartins.dev` | legacy OpenFaaS passthrough |
+| `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | — | only used for the legacy `/fn/*` passthrough |
+| `PORT` | `3000` | listen port |
+
+All the `{SERVICE}_URL` defaults already match the container names in
+`src/infra/apis.yml` / `workers.yml` — you only need to override them for local dev
+against a different host.
 
 ## Health check
 
 ```
 GET /health
-→ { "status": "OK", "faas_gateway_url": "https://of.giomartins.dev" }
+→ { "status": "OK", "finance_url": "...", "portfolio_url": "...", ... }
 ```
 
-## Environment variables
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `FAAS_GATEWAY_URL` | No | `https://of.giomartins.dev` | OpenFaaS gateway base URL |
-| `CF_ACCESS_CLIENT_ID` | Yes | — | Cloudflare Access service token ID |
-| `CF_ACCESS_CLIENT_SECRET` | Yes | — | Cloudflare Access service token secret |
-| `PORT` | No | `3000` | Port the gateway listens on |
+Echoes every resolved upstream URL — useful for confirming env vars actually landed
+before chasing a 502 somewhere else.
 
 ## Running locally
 
 ```bash
-cd gateway
-CF_ACCESS_CLIENT_ID=xxx CF_ACCESS_CLIENT_SECRET=yyy uvicorn app.main:app --port 3000
+cd src/backend/api/gateway
+pip install -r requirements.txt
+CF_ACCESS_CLIENT_ID=x CF_ACCESS_CLIENT_SECRET=y uvicorn app.main:app --port 3000
 ```
 
-## Dockhand stack
+Point the frontend's `VITE_GATEWAY_URL` at `http://localhost:3000`, or run against
+individual services directly for a tighter local loop.
 
-The gateway runs as a Docker container managed by Dockhand. The stack is defined in `gateway/docker-compose.yml` and deployed from this repo via webhook.
+## Adding a new service
 
-`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` must be set as environment variable overrides in Dockhand (not committed to the compose file).
-
-To trigger a manual redeploy, use the Dockhand UI or call the webhook directly:
-
-```bash
-curl -X POST "<DOCKHAND_WEBHOOK_URL>" \
-  -H "CF-Access-Client-Id: <id>" \
-  -H "CF-Access-Client-Secret: <secret>"
-```
+1. Add `{SERVICE}_URL = os.environ.get("{SERVICE}_URL", "http://{service}:8000")`
+2. Add a pair of `@app.api_route` handlers for `/{service}` and `/{service}/{path}`
+   mirroring an existing one (e.g. `proxy_settings`)
+3. Add the URL to the `/health` response
+4. Set `{SERVICE}_URL` as an env override on the `gateway` service in
+   `src/infra/utils.yml`

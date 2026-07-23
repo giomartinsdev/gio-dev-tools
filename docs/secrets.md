@@ -1,36 +1,49 @@
 # Secrets reference
 
-All secrets are stored in **GitHub → Settings → Secrets and variables → Actions**.
+Two separate systems, for two separate concerns — don't mix them up.
 
-## Shared
+## GitHub Actions secrets (CI-time only)
 
-| Secret | Used by | Description |
-|---|---|---|
-| `REGISTRY_USER` | both workflows | Private registry username (`re.giomartins.dev`) |
-| `REGISTRY_PASSWORD` | both workflows | Private registry password |
-| `CF_ACCESS_CLIENT_ID` | `deploy.yml`, `gateway-deploy.yml` | Cloudflare Access service token ID |
-| `CF_ACCESS_CLIENT_SECRET` | `deploy.yml`, `gateway-deploy.yml` | Cloudflare Access service token secret |
-
-## Functions only
+**GitHub → Settings → Secrets and variables → Actions.** Used to build and deploy;
+never reach a running container.
 
 | Secret | Used by | Description |
 |---|---|---|
-| `SSH_PRIVATE_KEY` | `deploy.yml` | SSH key to access the server via Cloudflare tunnel |
-| `SSH_HOST` | `deploy.yml` | Server hostname (Cloudflare tunnel DNS) |
-| `SSH_USER` | `deploy.yml` | SSH user on the server |
+| `REGISTRY_USER` / `REGISTRY_PASSWORD` | all deploy workflows | Private registry creds (`re.giomartins.dev`) |
+| `DOCKHAND_WEBHOOK` | all deploy workflows | Webhook URL that tells Dockhand to redeploy after a push |
+| `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | all deploy workflows | Cloudflare Access headers required to call the Dockhand webhook |
 
-## wp-message function
+## Infisical (runtime secrets)
 
-| Secret | Description |
-|---|---|
-| `EVOLUTION_URL` | Evolution API base URL (`https://evo.giomartins.dev`) |
-| `EVOLUTION_API_KEY` | Evolution API key |
-| `EVOLUTION_INSTANCE_NAME` | Evolution instance name (`giomartinsdev`) |
+Every backend service (API or worker) resolves its actual runtime secrets — DB
+connection string, API keys, tokens — from **Infisical** at boot, via
+`shared.secret_manager.SecretManager`. The container only needs the credentials to
+*reach* Infisical:
 
-## Gateway only
+```yaml
+environment:
+  if_id: ${IF_ID}
+  if_secret: ${IF_SECRET}
+  if_project_id: ${IF_PROJECT_ID}
+  if_env: prod
+```
 
-| Secret | Description |
-|---|---|
-| `DOCKHAND_GATEWAY_WEBHOOK` | Dockhand webhook URL to trigger gateway redeploy |
+These four are the only "secrets" that exist in the compose files
+(`src/infra/*.yml`), sourced from a `.env` on the host — never hardcoded, never
+committed. Everything else (`DATABASE_URL`, `BRAPI_TOKEN`, `RABBITMQ_URI`,
+`EVOLUTION_API_KEY`, `BZZOIRO_API_KEY`, ...) is fetched from Infisical by name
+inside `_init()`/`main()` at process startup — grep any service's `app/main.py` for
+`sm.get_secret(...)` to see exactly which keys it needs.
 
-> `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` for the gateway container itself are set as environment variable overrides directly in Dockhand, not in GitHub Secrets.
+The [Configuração](../src/frontend/gio-faas-dashboard/src/modules/settings) screen
+in the frontend tracks *which* service uses *which* Infisical key (`secret_ref`) —
+it's a pointer for humans, not a copy of the value. The `settings` service's
+database never stores an actual secret.
+
+## Adding a new secret
+
+1. Add the key/value in Infisical under the shared project
+2. Call `sm.get_secret("YOUR_KEY")` wherever the service needs it (see any
+   `app/main.py`'s `_init()` for the pattern)
+3. Optionally register it in Configuração (`secret_ref`) so it shows up in the
+   service registry
