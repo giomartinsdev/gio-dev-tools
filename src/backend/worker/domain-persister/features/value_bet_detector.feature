@@ -43,14 +43,14 @@ Feature: Value bet detection
     And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME"
     When the detector evaluates the match
     Then a value bet is recorded for "1x2" "HOME" with edge close to 0.1455
-    And no value bet is recorded for "over_under_25" "over"
+    And no value bet is recorded for "over_under_25" "over@2.5"
 
   Scenario: Multiple markets are evaluated independently in one pass
     Given an insight exists with match_result prob_home 60 and over_under prob_over_25 70
-    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME" and best odds 1.65 on "over_under_25" "over"
+    And odds comparison data exists for the match with best odds 2.20 on "1x2" "HOME" and best odds 1.65 on "over_under_25" "over@2.5"
     When the detector evaluates the match
     Then a value bet is recorded for "1x2" "HOME" with edge close to 0.1455
-    And a value bet is recorded for "over_under_25" "over" with edge close to 0.0939
+    And a value bet is recorded for "over_under_25" "over@2.5" with edge close to 0.0939
 
   Scenario: A low-confidence predicted lineup suppresses an otherwise-valid edge
     Given an insight exists with match_result prob_home 60

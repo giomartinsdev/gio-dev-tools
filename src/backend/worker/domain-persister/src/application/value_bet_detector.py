@@ -19,9 +19,15 @@ _MARKET_MAP: list[tuple[tuple[str, str], str, str]] = [
     (("match_result", "prob_home"), "1x2", "HOME"),
     (("match_result", "prob_draw"), "1x2", "DRAW"),
     (("match_result", "prob_away"), "1x2", "AWAY"),
-    (("over_under", "prob_over_15"), "over_under_15", "over"),
-    (("over_under", "prob_over_25"), "over_under_25", "over"),
-    (("over_under", "prob_over_35"), "over_under_35", "over"),
+    # odds_comparisons' over_under_XX markets key each outcome as
+    # "over@<line>"/"under@<line>" (bzzoiro embeds the line in the outcome
+    # key itself, e.g. "over@2.5") — not the bare "over" this used to look
+    # up, which meant .get(odds_outcome) always missed and every over/under
+    # evaluation silently fell into the "no odds" delete branch, never
+    # producing a value bet or even a suppressed-log line.
+    (("over_under", "prob_over_15"), "over_under_15", "over@1.5"),
+    (("over_under", "prob_over_25"), "over_under_25", "over@2.5"),
+    (("over_under", "prob_over_35"), "over_under_35", "over@3.5"),
     (("btts", "prob_yes"), "btts", "yes"),
 ]
 
