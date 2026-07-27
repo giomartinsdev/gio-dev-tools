@@ -1,17 +1,44 @@
+from typing import Optional
+
 from behave import given, then, use_step_matcher, when
 
 from src.application.commands.create_tracked_line import CreateTrackedLineCommand, CreateTrackedLineHandler
 from src.application.commands.delete_tracked_line import DeleteTrackedLineCommand, DeleteTrackedLineHandler
 from src.application.commands.update_tracked_line import UpdateTrackedLineCommand, UpdateTrackedLineHandler
 from src.domain.events import TrackedLineCreated, TrackedLineDeleted, TrackedLineUpdated
+from src.domain.repository import TrackedLineRepository
+from src.domain.tracked_line import TrackedLine
 from src.infrastructure.event_bus import EventBus
-from src.infrastructure.tracked_line_repository import PostgresTrackedLineRepository
 
 use_step_matcher("re")
 
 
+class InMemoryTrackedLineRepository(TrackedLineRepository):
+    def __init__(self):
+        self._store: dict[str, TrackedLine] = {}
+
+    def save(self, line: TrackedLine) -> None:
+        self._store[line.id] = line
+
+    def update(self, line: TrackedLine) -> None:
+        if line.id in self._store:
+            self._store[line.id] = line
+
+    def delete(self, line_id: str) -> bool:
+        if line_id in self._store:
+            del self._store[line_id]
+            return True
+        return False
+
+    def find_all(self) -> list[TrackedLine]:
+        return list(self._store.values())
+
+    def find_by_id(self, line_id: str) -> Optional[TrackedLine]:
+        return self._store.get(line_id)
+
+
 def _setup(context):
-    context.repo = PostgresTrackedLineRepository()
+    context.repo = InMemoryTrackedLineRepository()
     context.bus = EventBus()
     context.published_events = []
     for event_type in (TrackedLineCreated, TrackedLineUpdated, TrackedLineDeleted):

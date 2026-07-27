@@ -1,12 +1,9 @@
 import asyncio
-import uuid
 from datetime import datetime, timezone
 
 from behave import given, then, use_step_matcher, when
 
-from shared.transaction_manager import TransactionManager
 from src.application.commands.poll_positions import PollPositionsCommand, PollPositionsHandler
-from src.infrastructure.tracked_lines_read_repository import TrackedLineModel, TrackedLinesReadRepository
 
 use_step_matcher("re")
 
@@ -27,23 +24,28 @@ class FakePublisher:
         self.published.append(event)
 
 
-def _insert_line(line_code: str, active: bool) -> None:
-    now = datetime.now(timezone.utc)
-    with TransactionManager.get().session() as s:
-        s.add(TrackedLineModel(
-            id=str(uuid.uuid4()),
-            line_code=line_code,
-            label=None,
-            active=active,
-            created_at=now,
-            updated_at=now,
-        ))
+class FakeTrackedLinesReadRepository:
+    """Mirrors TrackedLinesReadRepository's public surface without touching
+    Postgres — same in-memory-fake-in-steps-file pattern used across every
+    other service's BDD suite (see settings' InMemoryServiceRepository)."""
+
+    def __init__(self):
+        self._active_codes: set[str] = set()
+
+    def add(self, line_code: str, active: bool) -> None:
+        if active:
+            self._active_codes.add(line_code)
+        else:
+            self._active_codes.discard(line_code)
+
+    def find_active_line_codes(self) -> set[str]:
+        return set(self._active_codes)
 
 
 def _setup(context):
     context.rows = []
     context.publisher = FakePublisher()
-    context.tracked_lines = TrackedLinesReadRepository()
+    context.tracked_lines = FakeTrackedLinesReadRepository()
 
 
 @given("no tracked lines exist")
@@ -55,14 +57,14 @@ def step_no_lines(context):
 def step_line_active(context, line_code):
     if not hasattr(context, "publisher"):
         _setup(context)
-    _insert_line(line_code, active=True)
+    context.tracked_lines.add(line_code, active=True)
 
 
 @given(r'tracked line "([^"]+)" is inactive')
 def step_line_inactive(context, line_code):
     if not hasattr(context, "publisher"):
         _setup(context)
-    _insert_line(line_code, active=False)
+    context.tracked_lines.add(line_code, active=False)
 
 
 def _sppo_row(line_code: str, ordem: str) -> dict:
