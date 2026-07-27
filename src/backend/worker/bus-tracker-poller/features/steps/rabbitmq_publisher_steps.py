@@ -57,7 +57,7 @@ def step_publish_domain_event(context):
     now = datetime.now(timezone.utc)
     event = BusPositionCaptured(
         meta=EventMeta(occurred_at=now, producer="test", correlation_id=uuid4()),
-        line_code="483", vehicle_id="B12345",
+        mode="sppo", line_code="483", vehicle_id="B12345",
         latitude=-22.9, longitude=-43.2, speed_kmh=30.0, captured_at=now,
     )
     asyncio.run(context.publisher.publish_domain_event(event))

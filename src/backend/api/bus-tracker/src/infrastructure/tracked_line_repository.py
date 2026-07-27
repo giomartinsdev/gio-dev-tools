@@ -4,7 +4,7 @@ from shared.timezone_handler import TimezoneAware
 from shared.transaction_manager import TransactionManager
 
 from ..domain.repository import TrackedLineRepository
-from ..domain.tracked_line import TrackedLine
+from ..domain.tracked_line import TrackedLine, TransitMode
 from .models import TrackedLineModel
 
 _SP = TimezoneAware("America/Sao_Paulo")
@@ -16,6 +16,7 @@ class PostgresTrackedLineRepository(TrackedLineRepository):
             s.add(TrackedLineModel(
                 id=line.id,
                 line_code=line.line_code,
+                mode=line.mode.value,
                 label=line.label,
                 active=line.active,
             ))
@@ -26,6 +27,7 @@ class PostgresTrackedLineRepository(TrackedLineRepository):
             if row is None or row.deleted_at is not None:
                 return
             row.line_code = line.line_code
+            row.mode = line.mode.value
             row.label = line.label
             row.active = line.active
 
@@ -59,6 +61,7 @@ def _to_domain(row: TrackedLineModel) -> TrackedLine:
     return TrackedLine(
         id=row.id,
         line_code=row.line_code,
+        mode=TransitMode(row.mode),
         label=row.label,
         active=row.active,
         created_at=row.created_at,

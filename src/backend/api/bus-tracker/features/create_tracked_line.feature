@@ -11,6 +11,21 @@ Feature: Register a tracked bus line
     When I try to create a tracked line with code ""
     Then a validation error contains "line_code is required"
 
+  Scenario: A line defaults to SPPO mode
+    Given an empty tracked line repository
+    When I create a tracked line with code "483" label "Rocinha - Leblon"
+    Then the tracked line has mode "sppo"
+
+  Scenario: A line can be registered as BRT
+    Given an empty tracked line repository
+    When I create a tracked line with code "22" mode "brt"
+    Then the tracked line has mode "brt"
+
+  Scenario: An invalid mode is rejected
+    Given an empty tracked line repository
+    When I try to create a tracked line with code "22" mode "trem"
+    Then a validation error contains "Invalid mode"
+
   Scenario: Update an existing line
     Given a tracked line with code "483" exists
     When I update the line to code "483" label "Rocinha" active "false"

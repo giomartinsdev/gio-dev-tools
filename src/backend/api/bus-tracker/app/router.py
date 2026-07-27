@@ -33,7 +33,7 @@ def create_line(
 ):
     try:
         line = CreateTrackedLineHandler(repo, bus).handle(CreateTrackedLineCommand(
-            line_code=body.line_code, label=body.label, active=body.active,
+            line_code=body.line_code, mode=body.mode, label=body.label, active=body.active,
         ))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -49,7 +49,7 @@ def update_line(
 ):
     try:
         line = UpdateTrackedLineHandler(repo, bus).handle(UpdateTrackedLineCommand(
-            line_id=line_id, line_code=body.line_code, label=body.label, active=body.active,
+            line_id=line_id, line_code=body.line_code, mode=body.mode, label=body.label, active=body.active,
         ))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -71,25 +71,27 @@ def delete_line(
 
 
 @router.get("/positions/latest")
-def latest_positions(line: str, repo: PositionRepository = Depends(get_position_repo)):
-    return repo.find_latest(line)
+def latest_positions(line: str, mode: str = "sppo", repo: PositionRepository = Depends(get_position_repo)):
+    return repo.find_latest(mode, line)
 
 
 @router.get("/positions/history")
 def position_history(
     line: str,
+    mode: str = "sppo",
     limit: int = 50,
     offset: int = 0,
     repo: PositionRepository = Depends(get_position_repo),
 ):
-    return repo.find_history(line, limit=limit, offset=offset)
+    return repo.find_history(mode, line, limit=limit, offset=offset)
 
 
 @router.get("/positions/events")
-async def position_events(line: str, request: Request):
+async def position_events(line: str, request: Request, mode: str = "sppo"):
     sse_subs: dict[str, set[asyncio.Queue]] = request.app.state.sse_subs
+    sub_key = f"{mode}:{line}"
     q: asyncio.Queue = asyncio.Queue(maxsize=100)
-    sse_subs.setdefault(line, set()).add(q)
+    sse_subs.setdefault(sub_key, set()).add(q)
 
     async def stream() -> AsyncGenerator[bytes, None]:
         try:
@@ -102,7 +104,7 @@ async def position_events(line: str, request: Request):
                 except asyncio.TimeoutError:
                     yield b": keepalive\n\n"
         finally:
-            sse_subs.get(line, set()).discard(q)
+            sse_subs.get(sub_key, set()).discard(q)
 
     return StreamingResponse(
         stream(),

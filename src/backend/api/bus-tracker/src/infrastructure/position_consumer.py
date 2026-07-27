@@ -54,26 +54,31 @@ class PositionConsumer:
 
         await asyncio.to_thread(
             self._repo.insert,
+            mode=event.mode,
             line_code=event.line_code,
             vehicle_id=event.vehicle_id,
             latitude=event.latitude,
             longitude=event.longitude,
             speed_kmh=event.speed_kmh,
             captured_at=event.captured_at,
+            color_hex=event.color_hex,
         )
 
         payload = {
+            "mode": event.mode,
             "line_code": event.line_code,
             "vehicle_id": event.vehicle_id,
             "latitude": event.latitude,
             "longitude": event.longitude,
             "speed_kmh": event.speed_kmh,
+            "color_hex": event.color_hex,
             "captured_at": event.captured_at.isoformat(),
         }
+        sub_key = f"{event.mode}:{event.line_code}"
         dead = set()
-        for sub in list(self._sse_subs.get(event.line_code, set())):
+        for sub in list(self._sse_subs.get(sub_key, set())):
             try:
                 sub.put_nowait(payload)
             except asyncio.QueueFull:
                 dead.add(sub)
-        self._sse_subs.get(event.line_code, set()).difference_update(dead)
+        self._sse_subs.get(sub_key, set()).difference_update(dead)

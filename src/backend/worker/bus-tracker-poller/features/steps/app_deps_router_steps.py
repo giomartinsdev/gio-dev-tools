@@ -95,20 +95,26 @@ class _FakeClient:
     def __init__(self, rows):
         self._rows = rows
 
-    def fetch_positions(self, data_inicial, data_final):
+    def fetch_sppo_positions(self, data_inicial, data_final):
         return self._rows
+
+    def fetch_brt_positions(self):
+        return []
+
+    def fetch_vehicle_colors(self):
+        return {}
 
 
 class _FakeTrackedLines:
     def __init__(self, active_codes):
         self._active_codes = set(active_codes)
 
-    def find_active_line_codes(self):
-        return self._active_codes
+    def find_active_line_codes(self, mode):
+        return self._active_codes if mode == "sppo" else set()
 
 
 class _RaisingTrackedLines:
-    def find_active_line_codes(self):
+    def find_active_line_codes(self, mode):
         raise RuntimeError("db down")
 
 

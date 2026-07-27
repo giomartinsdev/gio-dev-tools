@@ -24,6 +24,7 @@ class TrackedLineModel(_Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     line_code: Mapped[str] = mapped_column(String, nullable=False)
+    mode: Mapped[str] = mapped_column(String, nullable=False, default="sppo")
     label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     active: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -32,11 +33,18 @@ class TrackedLineModel(_Base):
 
 
 class TrackedLinesReadRepository:
-    def find_active_line_codes(self) -> set[str]:
+    def find_active_line_codes(self, mode: str) -> set[str]:
+        """Active, non-deleted line codes for one transit mode ("sppo" or
+        "brt") — SPPO and BRT have disjoint line-code spaces, so filtering
+        must always be scoped to a single mode at a time."""
         with TransactionManager.get().read_only() as s:
             rows = (
                 s.query(TrackedLineModel.line_code)
-                .filter(TrackedLineModel.active.is_(True), TrackedLineModel.deleted_at.is_(None))
+                .filter(
+                    TrackedLineModel.active.is_(True),
+                    TrackedLineModel.deleted_at.is_(None),
+                    TrackedLineModel.mode == mode,
+                )
                 .all()
             )
             return {r[0] for r in rows}

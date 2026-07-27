@@ -80,6 +80,23 @@ def step_try_create_line(context, line_code):
         context.last_error = e
 
 
+@when(r'I create a tracked line with code "([^"]*)" mode "([^"]*)"')
+def step_create_line_with_mode(context, line_code, mode):
+    context.last_line = context.create_handler.handle(
+        CreateTrackedLineCommand(line_code=line_code, mode=mode)
+    )
+    context.last_error = None
+
+
+@when(r'I try to create a tracked line with code "([^"]*)" mode "([^"]*)"')
+def step_try_create_line_with_mode(context, line_code, mode):
+    try:
+        context.create_handler.handle(CreateTrackedLineCommand(line_code=line_code, mode=mode))
+        context.last_error = None
+    except Exception as e:
+        context.last_error = e
+
+
 @when(r'I update the line to code "([^"]+)" label "([^"]*)" active "([^"]+)"')
 def step_update_line(context, line_code, label, active):
     context.last_line = context.update_handler.handle(UpdateTrackedLineCommand(
@@ -116,6 +133,11 @@ def step_line_saved(context, line_code, label):
 @then("the tracked line is inactive")
 def step_line_inactive(context):
     assert context.last_line.active is False, "Expected line to be inactive"
+
+
+@then(r'the tracked line has mode "([^"]+)"')
+def step_line_mode(context, mode):
+    assert context.last_line.mode.value == mode, f"Expected mode {mode!r}, got {context.last_line.mode.value!r}"
 
 
 @then("no line is returned")

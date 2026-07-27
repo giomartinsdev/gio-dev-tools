@@ -260,20 +260,29 @@ class PlayerStatsCaptured(BaseModel):
 
 
 class BusPositionCaptured(BaseModel):
-    """One GPS ping for one bus, sourced from dados.mobilidade.rio/gps/sppo
-    and filtered down to the lines currently registered for tracking. The
-    feed re-sends the same ping across consecutive polls, so consumers must
-    treat (vehicle_id, captured_at) as the idempotency key, not event_id."""
+    """One GPS ping for one vehicle, sourced from either
+    dados.mobilidade.rio/gps/sppo (regular buses, `mode="sppo"`) or
+    dados.mobilidade.rio/gps/brt (BRT, `mode="brt"`) — two independent
+    real-time systems with disjoint vehicle/line identifier spaces, filtered
+    down to the lines currently registered for tracking under the matching
+    mode. `color_hex` is looked up from
+    dados.mobilidade.rio/api/monitoramento-realtime/ (keyed by SPPO `ordem`;
+    BRT vehicles have no entry there) and is None when no match is found.
+    Both feeds re-send the same ping across consecutive polls, so consumers
+    must treat (vehicle_id, captured_at) as the idempotency key, not
+    event_id."""
 
     event_type: Literal["bus.position_captured"] = "bus.position_captured"
     version: Literal[1] = 1
     meta: EventMeta
+    mode: str
     line_code: str
     vehicle_id: str
     latitude: float
     longitude: float
     speed_kmh: float
     captured_at: datetime
+    color_hex: Optional[str] = None
 
 
 class IncidentsCaptured(BaseModel):

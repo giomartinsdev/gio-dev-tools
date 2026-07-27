@@ -6,6 +6,7 @@ import { Skeleton } from 'boneyard-js/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL
@@ -13,25 +14,38 @@ const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 // No API key required — a bare vector basemap is enough to place markers on.
 const MAP_STYLE = 'https://demotiles.maplibre.org/style.json'
 const RIO_CENTER: [number, number] = [-43.2, -22.9]
+const DEFAULT_MARKER_COLOR = '#6366f1'
+
+const MODES = ['sppo', 'brt'] as const
+type Mode = typeof MODES[number]
+const MODE_LABEL: Record<Mode, string> = { sppo: 'Ônibus (SPPO)', brt: 'BRT' }
 
 interface TrackedLine {
   id: string
   line_code: string
+  mode: Mode
   label: string | null
   active: boolean
 }
 
 interface Position {
+  mode: Mode
   line_code: string
   vehicle_id: string
   latitude: number
   longitude: number
   speed_kmh: number
+  color_hex: string | null
   captured_at: string
 }
 
+interface SelectedLine {
+  code: string
+  mode: Mode
+}
+
 function emptyDraft() {
-  return { line_code: '', label: '' }
+  return { line_code: '', mode: 'sppo' as Mode, label: '' }
 }
 
 export function BusTrackerModule() {
@@ -42,7 +56,7 @@ export function BusTrackerModule() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedLine, setSelectedLine] = useState<string | null>(null)
+  const [selectedLine, setSelectedLine] = useState<SelectedLine | null>(null)
   const [positionsByVehicle, setPositionsByVehicle] = useState<Record<string, Position>>({})
 
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -56,7 +70,11 @@ export function BusTrackerModule() {
       if (res.ok) {
         const data: TrackedLine[] = await res.json()
         setLines(data)
-        setSelectedLine(prev => prev ?? data.find(l => l.active)?.line_code ?? null)
+        setSelectedLine(prev => prev ?? (
+          data.find(l => l.active)
+            ? { code: data.find(l => l.active)!.line_code, mode: data.find(l => l.active)!.mode }
+            : null
+        ))
       }
     } finally {
       setLoadingLines(false)
@@ -107,7 +125,8 @@ export function BusTrackerModule() {
     }
     let cancelled = false
     setPositionsByVehicle({})
-    fetch(`${GATEWAY}/bus-tracker/positions/latest?line=${encodeURIComponent(selectedLine)}`)
+    const params = `line=${encodeURIComponent(selectedLine.code)}&mode=${selectedLine.mode}`
+    fetch(`${GATEWAY}/bus-tracker/positions/latest?${params}`)
       .then(r => (r.ok ? r.json() : []))
       .then((rows: Position[]) => {
         if (cancelled) return
@@ -122,9 +141,8 @@ export function BusTrackerModule() {
   // Live updates via SSE — one push per captured position for the selected line.
   useEffect(() => {
     if (!selectedLine) return
-    const es = new EventSource(
-      `${GATEWAY}/bus-tracker/positions/events?line=${encodeURIComponent(selectedLine)}`,
-    )
+    const params = `line=${encodeURIComponent(selectedLine.code)}&mode=${selectedLine.mode}`
+    const es = new EventSource(`${GATEWAY}/bus-tracker/positions/events?${params}`)
     es.onmessage = (e) => {
       try {
         const position = JSON.parse(e.data as string) as Position
@@ -161,25 +179,21 @@ export function BusTrackerModule() {
     for (const position of Object.values(positionsByVehicle)) {
       seen.add(position.vehicle_id)
       const lngLat: [number, number] = [position.longitude, position.latitude]
+      const color = position.color_hex || DEFAULT_MARKER_COLOR
+      const popupHtml = `<strong>${position.vehicle_id}</strong><br/>${position.speed_kmh.toFixed(0)} km/h`
       const existing = markers.get(position.vehicle_id)
       if (existing) {
         existing.setLngLat(lngLat)
-        existing.setPopup(
-          new maplibregl.Popup({ offset: 12 }).setHTML(
-            `<strong>${position.vehicle_id}</strong><br/>${position.speed_kmh.toFixed(0)} km/h`,
-          ),
-        )
+        existing.getElement().style.backgroundColor = color
+        existing.setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml))
         continue
       }
       const el = document.createElement('div')
-      el.className = 'flex h-3.5 w-3.5 rounded-full bg-primary ring-2 ring-white shadow-sm'
+      el.className = 'h-3.5 w-3.5 rounded-full ring-2 ring-white shadow-sm'
+      el.style.backgroundColor = color
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(lngLat)
-        .setPopup(
-          new maplibregl.Popup({ offset: 12 }).setHTML(
-            `<strong>${position.vehicle_id}</strong><br/>${position.speed_kmh.toFixed(0)} km/h`,
-          ),
-        )
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml))
         .addTo(map)
       markers.set(position.vehicle_id, marker)
     }
@@ -214,6 +228,15 @@ export function BusTrackerModule() {
 
         {creating && (
           <div className="flex flex-col gap-2 rounded-[10px] border bg-card p-3">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Modal</Label>
+              <Select value={draft.mode} onValueChange={v => setDraft(d => ({ ...d, mode: v as Mode }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MODES.map(m => <SelectItem key={m} value={m}>{MODE_LABEL[m]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs">Código da linha</Label>
               <Input
@@ -253,10 +276,10 @@ export function BusTrackerModule() {
             {lines.map(line => (
               <button
                 key={line.id}
-                onClick={() => setSelectedLine(line.line_code)}
+                onClick={() => setSelectedLine({ code: line.line_code, mode: line.mode })}
                 className={cn(
                   'flex w-full items-center justify-between gap-2 rounded-[10px] border px-3 py-2 text-left transition-colors',
-                  selectedLine === line.line_code
+                  selectedLine?.code === line.line_code && selectedLine?.mode === line.mode
                     ? 'bg-sidebar-accent border-primary/40'
                     : 'hover:bg-sidebar-accent/50',
                 )}
@@ -264,6 +287,9 @@ export function BusTrackerModule() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium">{line.line_code}</span>
+                    <span className="rounded-md border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {MODE_LABEL[line.mode]}
+                    </span>
                     {!line.active && (
                       <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         inativa
@@ -294,7 +320,7 @@ export function BusTrackerModule() {
           </div>
         ) : (
           <div className="absolute left-3 top-3 z-10 rounded-full bg-card/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-            Linha {selectedLine} — {vehicleCount} {vehicleCount === 1 ? 'ônibus' : 'ônibus'} em tempo real
+            {MODE_LABEL[selectedLine.mode]} {selectedLine.code} — {vehicleCount} {vehicleCount === 1 ? 'veículo' : 'veículos'} em tempo real
           </div>
         )}
         <div ref={mapContainerRef} className="h-full w-full" />
