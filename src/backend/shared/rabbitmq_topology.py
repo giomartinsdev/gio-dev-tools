@@ -9,11 +9,13 @@ ANALYSIS_EXCHANGE = "analysis.events"
 Q_ARCHIVE_RAW = "q.archive.raw"
 Q_PERSISTER = "q.persister"
 Q_INSIGHT_PROJECTOR = "q.insight.projector"
+Q_BUS_POSITIONS = "q.bus.positions"
 
 _QUEUE_BINDINGS = {
     Q_ARCHIVE_RAW: (INGESTION_EXCHANGE, "raw.#"),
     Q_PERSISTER: (DOMAIN_EXCHANGE, "#"),
     Q_INSIGHT_PROJECTOR: (ANALYSIS_EXCHANGE, "analysis.insight_generated"),
+    Q_BUS_POSITIONS: (DOMAIN_EXCHANGE, "bus.position_captured"),
 }
 
 

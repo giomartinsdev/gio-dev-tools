@@ -259,6 +259,23 @@ class PlayerStatsCaptured(BaseModel):
     captured_at: datetime
 
 
+class BusPositionCaptured(BaseModel):
+    """One GPS ping for one bus, sourced from dados.mobilidade.rio/gps/sppo
+    and filtered down to the lines currently registered for tracking. The
+    feed re-sends the same ping across consecutive polls, so consumers must
+    treat (vehicle_id, captured_at) as the idempotency key, not event_id."""
+
+    event_type: Literal["bus.position_captured"] = "bus.position_captured"
+    version: Literal[1] = 1
+    meta: EventMeta
+    line_code: str
+    vehicle_id: str
+    latitude: float
+    longitude: float
+    speed_kmh: float
+    captured_at: datetime
+
+
 class IncidentsCaptured(BaseModel):
     """GET /api/v2/events/{id}/incidents/ — goal/card/substitution timeline
     for one match, kept verbatim. Only ever populated once a match is
@@ -291,6 +308,7 @@ DomainEvent = Annotated[
         RefereeCaptured,
         PlayerStatsCaptured,
         IncidentsCaptured,
+        BusPositionCaptured,
     ],
     Field(discriminator="event_type"),
 ]

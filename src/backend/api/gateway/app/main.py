@@ -19,6 +19,7 @@ WHATSAPP_URL = os.environ.get("WHATSAPP_URL", "http://whatsapp:8000")
 DOMAIN_DATA_INSIGHTS_URL = os.environ.get("DOMAIN_DATA_INSIGHTS_URL", "http://domain-data-insights:8000")
 VALUE_BETS_REPORT_URL = os.environ.get("VALUE_BETS_REPORT_URL", "http://value-bets-report:8000")
 SETTINGS_URL = os.environ.get("SETTINGS_URL", "http://settings:8000")
+BUS_TRACKER_URL = os.environ.get("BUS_TRACKER_URL", "http://bus-tracker:8000")
 
 _HOP_BY_HOP = {
     "connection", "keep-alive", "transfer-encoding",
@@ -162,6 +163,19 @@ async def proxy_whatsapp(request: Request, path: str = ""):
     return await _forward_internal(request, target)
 
 
+@app.get("/bus-tracker/positions/events")
+async def proxy_bus_tracker_events(request: Request):
+    target = f"{BUS_TRACKER_URL}/positions/events?{request.query_params}"
+    return await _forward_stream(request, target)
+
+
+@app.api_route("/bus-tracker", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@app.api_route("/bus-tracker/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_bus_tracker(request: Request, path: str = ""):
+    target = f"{BUS_TRACKER_URL}/{path}" if path else BUS_TRACKER_URL
+    return await _forward_internal(request, target)
+
+
 @app.api_route("/fn/{function_name}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @app.api_route("/fn/{function_name}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy(function_name: str, request: Request, path: str = ""):
@@ -193,4 +207,5 @@ def health():
         "domain_data_insights_url": DOMAIN_DATA_INSIGHTS_URL,
         "value_bets_report_url": VALUE_BETS_REPORT_URL,
         "settings_url": SETTINGS_URL,
+        "bus_tracker_url": BUS_TRACKER_URL,
     }

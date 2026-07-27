@@ -11,6 +11,7 @@ import { PortfolioModule, portfolioMeta } from '@/modules/portfolio/PortfolioMod
 import { WhatsappModule, whatsappMeta } from '@/modules/whatsapp/WhatsappModule'
 import { DomainInsightsModule, domainInsightsMeta } from '@/modules/domain-insights/DomainInsightsModule'
 import SettingsModule from '@/modules/settings/SettingsModule'
+import { BusTrackerModule, busTrackerMeta } from '@/modules/bus-tracker/BusTrackerModule'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -47,6 +48,14 @@ createRoot(document.getElementById('root')!).render(
             element={
               <ModulePage title={domainInsightsMeta.label} description={domainInsightsMeta.description} icon={domainInsightsMeta.icon}>
                 <DomainInsightsModule />
+              </ModulePage>
+            }
+          />
+          <Route
+            path="bus-tracker"
+            element={
+              <ModulePage title={busTrackerMeta.label} description={busTrackerMeta.description} icon={busTrackerMeta.icon} fullHeight>
+                <BusTrackerModule />
               </ModulePage>
             }
           />

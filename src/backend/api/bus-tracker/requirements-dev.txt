@@ -1,0 +1,2 @@
+behave==1.2.6
+testcontainers[postgres]==4.7.2

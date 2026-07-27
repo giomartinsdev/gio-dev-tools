@@ -90,6 +90,19 @@ services:
       - apis
       - persistence
 
+  bus-tracker:
+    image: re.giomartins.dev/bus-tracker:latest
+    container_name: bus-tracker
+    environment:
+      if_id: ${IF_ID}
+      if_secret: ${IF_SECRET}
+      if_project_id: ${IF_PROJECT_ID}
+      if_env: prod
+    restart: unless-stopped
+    networks:
+      - apis
+      - persistence
+
 networks:
   apis:
     name: apis

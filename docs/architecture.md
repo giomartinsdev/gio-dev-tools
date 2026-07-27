@@ -36,6 +36,7 @@ Every API is a FastAPI app following the same internal layout — see
 | `whatsapp` | Chat list, message history, send endpoint, SSE event stream | Evolution API |
 | `domain-data-insights` | Read side for the sports-data pipeline (matches, value bets, ML insights) | — |
 | `settings` | Service/credential registry + report scheduling config | — |
+| `bus-tracker` | Registers Rio bus lines to track; consumes `bus-tracker-poller`'s events, persists positions, serves REST + SSE for live tracking | [dados.mobilidade.rio](https://dados.mobilidade.rio/gps/sppo) (via the poller worker) |
 
 ### Workers (`src/backend/worker/`)
 
@@ -48,6 +49,7 @@ or consume queues on a loop.
 | `domain-persister` | Consumes bzzoiro-acl's events, writes to Postgres | RabbitMQ consumer |
 | `value_bets_report` | Computes and sends the daily (or real-time, above an edge threshold) value-bets WhatsApp report | Cron-style schedule + RabbitMQ trigger |
 | `whatsapp` (worker) | Background WhatsApp message processing | RabbitMQ consumer |
+| `bus-tracker-poller` | Polls dados.mobilidade.rio's SPPO GPS feed, filters by the lines registered in `bus-tracker`, publishes one event per position | Interval polling (`asyncio.sleep`) |
 
 ### Frontend (`src/frontend/gio-faas-dashboard`)
 

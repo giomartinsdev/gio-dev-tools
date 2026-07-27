@@ -17,8 +17,8 @@ remaining headers) passes through as-is, and the upstream response is forwarded
 back unchanged.
 
 Two special cases:
-- `GET /whatsapp/events` — proxied as a streamed `text/event-stream` (SSE), not
-  buffered like the rest
+- `GET /whatsapp/events` and `GET /bus-tracker/positions/events` — proxied as a
+  streamed `text/event-stream` (SSE), not buffered like the rest
 - `/fn/{function}` and `/fn-async/{function}` — legacy passthrough to an external
   OpenFaaS gateway (`FAAS_GATEWAY_URL`), predates the current service-per-domain
   architecture, kept for whatever still depends on it
@@ -35,6 +35,7 @@ Two special cases:
 | `DOMAIN_DATA_INSIGHTS_URL` | `http://domain-data-insights:8000` | domain-data-insights API |
 | `VALUE_BETS_REPORT_URL` | `http://value-bets-report:8000` | value_bets_report worker's HTTP surface |
 | `SETTINGS_URL` | `http://settings:8000` | settings API |
+| `BUS_TRACKER_URL` | `http://bus-tracker:8000` | bus-tracker API |
 | `FAAS_GATEWAY_URL` | `https://of.giomartins.dev` | legacy OpenFaaS passthrough |
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | — | only used for the legacy `/fn/*` passthrough |
 | `PORT` | `3000` | listen port |
