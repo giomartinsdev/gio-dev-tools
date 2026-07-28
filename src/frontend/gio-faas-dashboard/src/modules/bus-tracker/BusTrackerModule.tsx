@@ -18,6 +18,7 @@ const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 // own, so this doesn't need special handling here.
 const MAP_STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty'
 const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark'
+// Guanabara Bay / central Rio — a sane default before any line has vehicles.
 const RIO_CENTER: [number, number] = [-43.2, -22.9]
 const DEFAULT_MARKER_COLOR = '#6366f1'
 
