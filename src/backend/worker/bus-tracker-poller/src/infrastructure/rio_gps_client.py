@@ -36,7 +36,7 @@ class RioGpsClient:
         stop=stop_after_attempt(4),
         reraise=True,
     )
-    def _get(self, client: httpx.Client, url: str, params: dict) -> object:
+    def _get(self, client: httpx.Client, url: str, params: dict | None) -> object:
         try:
             resp = client.get(url, params=params)
         except (httpx.ReadTimeout, httpcore.ReadTimeout) as exc:
@@ -53,13 +53,19 @@ class RioGpsClient:
           "datahora": "1785121192000", "velocidade": "0", "linha": "606",
           "datahoraenvio": "...", "datahoraservidor": "..."}` — lat/lon use a
         comma decimal separator and `datahora` is epoch milliseconds, both
-        confirmed against a live sample."""
-        params = {
-            "dataInicial": data_inicial.strftime("%Y-%m-%d %H:%M:%S"),
-            "dataFinal": data_final.strftime("%Y-%m-%d %H:%M:%S"),
-        }
+        confirmed against a live sample.
+
+        Query string is built by hand (`?&dataInicial=...+HH:MM:SS`, `+` as
+        the date/time separator) to match RJ-SMTR/app-monitoramento-realtime
+        (`format(d, "yyyy-MM-dd+HH:mm:ss")`) byte-for-byte, rather than
+        letting httpx's `params=` encode a space — both are accepted by the
+        API (confirmed live), but this removes any doubt."""
+        def _fmt(d: datetime) -> str:
+            return d.strftime("%Y-%m-%d+%H:%M:%S")
+
+        url = f"{_SPPO_URL}?&dataInicial={_fmt(data_inicial)}&dataFinal={_fmt(data_final)}"
         with httpx.Client(timeout=self._timeout) as client:
-            return self._get(client, _SPPO_URL, params)
+            return self._get(client, url, None)
 
     def fetch_brt_positions(self) -> list[dict]:
         """GET dados.mobilidade.rio/gps/brt — live BRT snapshot, no query
