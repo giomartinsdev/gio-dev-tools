@@ -13,7 +13,9 @@ const GATEWAY = import.meta.env.VITE_GATEWAY_URL
 
 // OpenFreeMap — free, no API key, no rate limits. `demotiles` (the previous
 // style) has no streets/labels, just country borders, which is why the map
-// looked empty/useless; these are full street-level styles.
+// looked empty/useless; these are full street-level styles. The style JSON
+// can 503 on a cold cache hit (observed live) — MapLibre retries it on its
+// own, so this doesn't need special handling here.
 const MAP_STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty'
 const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark'
 const RIO_CENTER: [number, number] = [-43.2, -22.9]
