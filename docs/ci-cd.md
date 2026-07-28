@@ -1,48 +1,32 @@
 # CI/CD
 
-Three workflows, one per part of the stack, all triggered on push to `main`:
+**Status: removed (2026-07-28).** The three GitHub Actions workflows
+(`deploy-api.yml`, `deploy-workers.yml`, `deploy-frontends.yml`) that used to build
+on push to `main` and trigger a Dockhand redeploy were broken and have been deleted.
+Deploys are manual for now — build the image on the server and restart the stack by
+hand.
 
-| Workflow | Watches | Builds |
-|---|---|---|
-| `.github/workflows/deploy-api.yml` | `src/backend/api/**`, `src/backend/shared/**` | Each changed service under `src/backend/api/` |
-| `.github/workflows/deploy-workers.yml` | `src/backend/worker/**`, `src/backend/shared/**` | Each changed service under `src/backend/worker/` |
-| `.github/workflows/deploy-frontends.yml` | `src/frontend/**` | Each changed app under `src/frontend/` |
+## Manual deploy (current process)
 
-## How change detection works
+On the server, for any service under `src/backend/api/{service}`:
 
-Each workflow's `detect-changes` job diffs `${{ github.event.before }}..HEAD` (the
-full push, not just the last commit — a push with multiple commits used to lose
-everything before the last one when this diffed `HEAD~1..HEAD` instead) to find
-which service directories changed, and outputs that list as a JSON array consumed
-by the `build` job's matrix.
+```bash
+cd ~/gio-dev-tools   # or wherever this repo is checked out on the server
+git pull
 
-If `src/backend/shared/**` changed, **every** API or worker is rebuilt (a shared-lib
-change can affect all of them, and there's no reliable way to know which ones
-without rebuilding).
+# build the image (context is src/backend, same as the old CI did)
+docker build -f src/backend/api/{service}/Dockerfile -t re.giomartins.dev/{service}:latest src/backend
 
-## Build steps (per changed service)
+# redeploy just that stack
+docker compose -f src/infra/apis.yml up -d {service}
+```
 
-1. If `features/` exists, install `requirements.txt` + `requirements-dev.txt` and
-   run `python -m behave --no-capture` (workers additionally gate on **90% branch
-   coverage** via `coverage run -m behave` + `coverage report`)
-2. Build the Docker image (`docker/build-push-action`), tagged `:latest` and
-   `:{sha}`, pushed to the private registry `re.giomartins.dev`
-3. Cache: `type=gha`, scoped per service — layers are reused across runs
+Swap `apis.yml` for `workers.yml` if it's a worker, or the appropriate stack file
+for a frontend.
 
-## Deploy step
+## Re-adding CI later
 
-Every workflow's `deploy` job POSTs to a Dockhand webhook
-(`secrets.DOCKHAND_WEBHOOK`) with Cloudflare Access headers. Dockhand pulls the
-stack's compose file from this repo and redeploys the containers with the newly
-pushed image.
-
-> Changes to `src/infra/*.yml` alone (no service code change) aren't watched by any
-> workflow — if you only add/edit a compose file, trigger the Dockhand redeploy for
-> that stack manually until this is wired up.
-
-## Adding a new service to CI
-
-Nothing to configure — the workflows auto-discover services by directory presence
-under `src/backend/api/`, `src/backend/worker/`, or `src/frontend/`. Push a change
-inside a new service's directory and it's picked up automatically. See
-[Adding a service](adding-a-service.md).
+If you want push-to-deploy back, the previous workflows are recoverable from git
+history (`git log --all --full-history -- .github/workflows/deploy-api.yml`) — worth
+fixing whatever broke them (self-hosted runner health, registry auth, or the
+Dockhand webhook secret are the usual suspects) rather than rewriting from scratch.
