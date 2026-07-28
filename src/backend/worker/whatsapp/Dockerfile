@@ -2,12 +2,12 @@ FROM re.giomartins.dev/python:3.11-slim
 
 WORKDIR /app
 
-COPY whatsapp-worker/requirements.txt .
+COPY worker/whatsapp/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 COPY shared/ shared/
-COPY whatsapp-worker/worker.py .
+COPY worker/whatsapp/worker.py .
 
 ENV PYTHONPATH=/app
 

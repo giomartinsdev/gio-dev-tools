@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -12,9 +12,10 @@ from src.application.commands.delete_tracked_line import DeleteTrackedLineComman
 from src.application.commands.update_tracked_line import UpdateTrackedLineCommand, UpdateTrackedLineHandler
 from src.infrastructure.event_bus import EventBus
 from src.infrastructure.position_repository import PositionRepository
+from src.infrastructure.stop_repository import StopRepository
 from src.infrastructure.tracked_line_repository import PostgresTrackedLineRepository
 
-from .deps import get_bus, get_position_repo, get_repo
+from .deps import get_bus, get_position_repo, get_repo, get_stop_repo
 from .schemas import CreateTrackedLineRequest, UpdateTrackedLineRequest
 
 router = APIRouter()
@@ -30,9 +31,10 @@ def create_line(
     body: CreateTrackedLineRequest,
     repo: PostgresTrackedLineRepository = Depends(get_repo),
     bus: EventBus = Depends(get_bus),
+    stop_repo: StopRepository = Depends(get_stop_repo),
 ):
     try:
-        line = CreateTrackedLineHandler(repo, bus).handle(CreateTrackedLineCommand(
+        line = CreateTrackedLineHandler(repo, bus, stop_repo).handle(CreateTrackedLineCommand(
             line_code=body.line_code, mode=body.mode, label=body.label, active=body.active,
         ))
     except ValueError as e:
@@ -68,6 +70,21 @@ def delete_line(
     if not deleted:
         raise HTTPException(status_code=404, detail="line not found")
     return {"deleted": True}
+
+
+@router.get("/lines/directions")
+def line_directions(line: str, mode: str = "sppo", repo: StopRepository = Depends(get_stop_repo)):
+    return repo.find_directions(mode, line)
+
+
+@router.get("/lines/stops")
+def line_stops(line: str, mode: str = "sppo", direction: Optional[int] = None, repo: StopRepository = Depends(get_stop_repo)):
+    return repo.find_stops(mode, line, direction)
+
+
+@router.get("/lines/shape")
+def line_shape(line: str, direction: int, mode: str = "sppo", repo: StopRepository = Depends(get_stop_repo)):
+    return repo.find_shape(mode, line, direction)
 
 
 @router.get("/positions/latest")
