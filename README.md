@@ -19,7 +19,7 @@ small server that I own end to end — infra, deploy, and code.
 | **Sports Data** | An event-driven pipeline that pulls football data from [bzzoiro](https://sports.bzzoiro.com), computes value bets against bookmaker odds, and generates ML-assisted match insights |
 | **Configuração** | Where the operational knobs live — report schedule, recipients, alert thresholds, and a registry of which service uses which credential (referenced, not stored — secrets live in Infisical) |
 
-Everything above is a real, running service — not a demo. The frontend is a single hub
+wEverything above is a real, running service — not a demo. The frontend is a single hub
 (`src/frontend/gio-faas-dashboard`) that ties all of it together behind one sidebar.
 
 ## Architecture
