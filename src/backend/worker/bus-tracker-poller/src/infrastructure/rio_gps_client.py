@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import httpcore
 import httpx
@@ -9,6 +10,15 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from shared.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Confirmed live (2026-07-28): the SPPO endpoint interprets dataInicial/
+# dataFinal as America/Sao_Paulo wall-clock time, not UTC — the reference
+# app (RJ-SMTR/app-monitoramento-realtime) gets this "for free" since it
+# formats with the browser's local `Date`, which just happens to be BRT for
+# its users. A UTC-formatted window silently returns 200 with an empty
+# array (looks exactly like "no live data" — it's actually "no data 3
+# hours in the future"), which is why this needed a live sample to catch.
+_SP_TZ = ZoneInfo("America/Sao_Paulo")
 
 # Two independent, unauthenticated, public real-time systems — confirmed live
 # to behave differently: SPPO (regular buses) needs an explicit time window
@@ -59,9 +69,14 @@ class RioGpsClient:
         the date/time separator) to match RJ-SMTR/app-monitoramento-realtime
         (`format(d, "yyyy-MM-dd+HH:mm:ss")`) byte-for-byte, rather than
         letting httpx's `params=` encode a space — both are accepted by the
-        API (confirmed live), but this removes any doubt."""
+        API (confirmed live), but this removes any doubt. `data_inicial`/
+        `data_final` may be passed in any timezone (naive datetimes are
+        assumed UTC); this always converts to America/Sao_Paulo before
+        formatting, since that's what the API actually expects."""
         def _fmt(d: datetime) -> str:
-            return d.strftime("%Y-%m-%d+%H:%M:%S")
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=timezone.utc)
+            return d.astimezone(_SP_TZ).strftime("%Y-%m-%d+%H:%M:%S")
 
         url = f"{_SPPO_URL}?&dataInicial={_fmt(data_inicial)}&dataFinal={_fmt(data_final)}"
         with httpx.Client(timeout=self._timeout) as client:
