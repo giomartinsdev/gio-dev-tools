@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bus, Check, Loader2, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Bus, Check, Loader2, LocateFixed, Plus, Trash2 } from 'lucide-react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Skeleton } from 'boneyard-js/react'
@@ -54,8 +54,36 @@ interface SelectedLine {
   mode: Mode
 }
 
+interface UserLocation {
+  lat: number
+  lon: number
+}
+
 function emptyDraft() {
   return { line_code: '', mode: 'sppo' as Mode, label: '' }
+}
+
+// Straight-line (haversine) distance in km — not real street routing, just
+// enough for a rough "how far is it" estimate without needing a paid
+// routing API.
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// A stopped/very slow bus (traffic light, terminal) would otherwise imply an
+// infinite ETA — floor the speed used for the estimate so "0 km/h right now"
+// still gives a sane (if rougher) number instead of "∞ min".
+const MIN_ETA_SPEED_KMH = 15
+
+function etaMinutes(distanceKm: number, speedKmh: number): number {
+  return (distanceKm / Math.max(speedKmh, MIN_ETA_SPEED_KMH)) * 60
 }
 
 export function BusTrackerModule() {
@@ -69,11 +97,39 @@ export function BusTrackerModule() {
   const [selectedLine, setSelectedLine] = useState<SelectedLine | null>(null)
   const [positionsByVehicle, setPositionsByVehicle] = useState<Record<string, Position>>({})
   const [positionsSettled, setPositionsSettled] = useState(false)
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null)
+  const [locatingUser, setLocatingUser] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
 
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
+  const userMarkerRef = useRef<maplibregl.Marker | null>(null)
   const hasFitBoundsRef = useRef(false)
+
+  function requestLocation() {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocalização não suportada neste navegador')
+      return
+    }
+    setLocatingUser(true)
+    setLocationError(null)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+        setLocatingUser(false)
+      },
+      err => {
+        setLocationError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Permissão de localização negada'
+            : 'Não foi possível obter sua localização',
+        )
+        setLocatingUser(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   const loadLines = useCallback(async () => {
     setLoadingLines(true)
@@ -194,6 +250,28 @@ export function BusTrackerModule() {
     return () => observer.disconnect()
   }, [])
 
+  // Keep a "you are here" marker in sync with the requested browser location.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!userLocation) {
+      userMarkerRef.current?.remove()
+      userMarkerRef.current = null
+      return
+    }
+    const lngLat: [number, number] = [userLocation.lon, userLocation.lat]
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat(lngLat)
+      return
+    }
+    const el = document.createElement('div')
+    el.className = 'h-4 w-4 rounded-full bg-blue-500 ring-[6px] ring-blue-500/25 shadow-md'
+    userMarkerRef.current = new maplibregl.Marker({ element: el })
+      .setLngLat(lngLat)
+      .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Você está aqui'))
+      .addTo(map)
+  }, [userLocation])
+
   function busMarkerEl(color: string): HTMLDivElement {
     const el = document.createElement('div')
     el.className = 'flex h-7 w-7 items-center justify-center rounded-full ring-2 ring-white shadow-md'
@@ -222,10 +300,18 @@ export function BusTrackerModule() {
       const lngLat: [number, number] = [position.longitude, position.latitude]
       bounds.extend(lngLat)
       const color = position.color_hex || DEFAULT_MARKER_COLOR
+      const etaLine = userLocation
+        ? (() => {
+            const distanceKm = haversineKm(userLocation.lat, userLocation.lon, position.latitude, position.longitude)
+            const eta = etaMinutes(distanceKm, position.speed_kmh)
+            return `<div>${distanceKm.toFixed(1)} km — ~${Math.round(eta)} min de você</div>`
+          })()
+        : ''
       const popupHtml = `
         <div class="text-xs">
           <div class="font-semibold">${position.vehicle_id}</div>
           <div>${position.speed_kmh.toFixed(0)} km/h</div>
+          ${etaLine}
         </div>`
       const existing = markers.get(position.vehicle_id)
       if (existing) {
@@ -252,9 +338,19 @@ export function BusTrackerModule() {
       map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 600 })
       hasFitBoundsRef.current = true
     }
-  }, [positionsByVehicle])
+  }, [positionsByVehicle, userLocation])
 
   const vehicleCount = Object.keys(positionsByVehicle).length
+
+  const nearestBus = useMemo(() => {
+    if (!userLocation) return null
+    const withDistance = Object.values(positionsByVehicle).map(p => ({
+      position: p,
+      distanceKm: haversineKm(userLocation.lat, userLocation.lon, p.latitude, p.longitude),
+    }))
+    if (withDistance.length === 0) return null
+    return withDistance.reduce((a, b) => (b.distanceKm < a.distanceKm ? b : a))
+  }, [userLocation, positionsByVehicle])
 
   return (
     <div className="flex h-full gap-4">
@@ -368,9 +464,37 @@ export function BusTrackerModule() {
           </div>
         ) : (
           <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
-            <div className="rounded-full bg-card/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-              {MODE_LABEL[selectedLine.mode]} {selectedLine.code} — {vehicleCount} {vehicleCount === 1 ? 'veículo' : 'veículos'} em tempo real
+            <div className="flex items-center gap-1.5">
+              <div className="rounded-full bg-card/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
+                {MODE_LABEL[selectedLine.mode]} {selectedLine.code} — {vehicleCount} {vehicleCount === 1 ? 'veículo' : 'veículos'} em tempo real
+              </div>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-8 w-8 shrink-0 rounded-full shadow-sm backdrop-blur"
+                onClick={requestLocation}
+                disabled={locatingUser}
+                title="Usar minha localização"
+              >
+                {locatingUser ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed className="h-3.5 w-3.5" />}
+              </Button>
             </div>
+
+            {locationError && (
+              <div className="max-w-72 rounded-[10px] bg-destructive/90 px-3 py-2 text-xs text-destructive-foreground shadow-sm backdrop-blur">
+                {locationError}
+              </div>
+            )}
+
+            {nearestBus && (
+              <div className="rounded-[10px] bg-card/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
+                <span className="font-medium">Ônibus mais próximo:</span>{' '}
+                {nearestBus.distanceKm.toFixed(1)} km — ~
+                {Math.round(etaMinutes(nearestBus.distanceKm, nearestBus.position.speed_kmh))} min
+                <span className="text-muted-foreground"> (linha reta, sem trânsito)</span>
+              </div>
+            )}
+
             {positionsSettled && vehicleCount === 0 && (
               <div className="max-w-72 rounded-[10px] bg-card/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur">
                 Nenhum veículo reportando posição agora. A fonte de dados
