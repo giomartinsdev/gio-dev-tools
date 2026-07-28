@@ -317,7 +317,19 @@ export function BusTrackerModule() {
       if (existing) {
         existing.setLngLat(lngLat)
         existing.getElement().style.backgroundColor = color
-        existing.setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(popupHtml))
+        // Mutate the existing Popup's content instead of attaching a new
+        // Popup instance — MapLibre only live-updates a popup that's
+        // currently open in the DOM when you call .setHTML() on that same
+        // instance; swapping in a brand-new Popup via .setPopup() leaves an
+        // already-open popup showing its stale content until closed and
+        // reopened (confirmed live: this is why distance/ETA didn't show up
+        // on a popup opened before location permission was granted).
+        const popup = existing.getPopup()
+        if (popup) {
+          popup.setHTML(popupHtml)
+        } else {
+          existing.setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(popupHtml))
+        }
         continue
       }
       const marker = new maplibregl.Marker({ element: busMarkerEl(color) })
