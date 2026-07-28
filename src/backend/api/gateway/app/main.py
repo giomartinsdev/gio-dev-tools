@@ -19,6 +19,7 @@ WHATSAPP_URL = os.environ.get("WHATSAPP_URL", "http://whatsapp:8000")
 DOMAIN_DATA_INSIGHTS_URL = os.environ.get("DOMAIN_DATA_INSIGHTS_URL", "http://domain-data-insights:8000")
 VALUE_BETS_REPORT_URL = os.environ.get("VALUE_BETS_REPORT_URL", "http://value-bets-report:8000")
 SETTINGS_URL = os.environ.get("SETTINGS_URL", "http://settings:8000")
+TRANSCRIPTION_URL = os.environ.get("TRANSCRIPTION_URL", "http://transcription:8000")
 BUS_TRACKER_URL = os.environ.get("BUS_TRACKER_URL", "http://bus-tracker:8000")
 
 _HOP_BY_HOP = {
@@ -135,6 +136,13 @@ async def proxy_settings(request: Request, path: str = ""):
     return await _forward_internal(request, target)
 
 
+@app.api_route("/transcription", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@app.api_route("/transcription/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_transcription(request: Request, path: str = ""):
+    target = f"{TRANSCRIPTION_URL}/{path}" if path else TRANSCRIPTION_URL
+    return await _forward_internal(request, target)
+
+
 async def _forward_stream(request: Request, target: str) -> StreamingResponse:
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
 
@@ -208,4 +216,5 @@ def health():
         "value_bets_report_url": VALUE_BETS_REPORT_URL,
         "settings_url": SETTINGS_URL,
         "bus_tracker_url": BUS_TRACKER_URL,
+        "transcription_url": TRANSCRIPTION_URL,
     }

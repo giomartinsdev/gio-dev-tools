@@ -90,6 +90,19 @@ services:
       - apis
       - persistence
 
+  transcription:
+    image: re.giomartins.dev/transcription:latest
+    container_name: transcription
+    environment:
+      WHISPER_MODEL: small
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+    volumes:
+      - transcription-model-cache:/model-cache
+    restart: unless-stopped
+    networks:
+      - apis
+
   bus-tracker:
     image: re.giomartins.dev/bus-tracker:latest
     container_name: bus-tracker
@@ -109,3 +122,6 @@ networks:
     driver: bridge
   persistence:
     external: true
+
+volumes:
+  transcription-model-cache:
